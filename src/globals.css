@@ -1,0 +1,108 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Faults Lab tokens ───────────────────────────────────────────────────
+   Mirrors the Figma variable collection `faults-lab/tokens` (single mode).
+   Source of truth: UI-DESIGN.md §5. Update both when values change.
+   Hex values are used directly — no HSL wrapping — so these feed Tailwind's
+   extended color palette in tailwind.config.ts via `var(--name)`. */
+
+:root {
+  /* Core surfaces */
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+
+  /* Primary (blue-600) — only on actionable affordance */
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+
+  /* Secondary / muted / accent (zinc scale) */
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+
+  /* Destructive (red-600) */
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  /* Border / input / focus-ring */
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #3b82f6;
+
+  /* Sidebar (black, off-white text) */
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #2563eb;
+  --sidebar-accent: #18181b;
+  --sidebar-border: #27272a;
+
+  /* Status ramp — filled dot, never large region */
+  --status-healthy: #16a34a;
+  --status-degraded: #ca8a04;
+  --status-down: #dc2626;
+
+  /* Phase pills (experiments list / detail) */
+  --phase-baseline: #71717a;  /* zinc-500, neutral baseline */
+  --phase-isolation: #2563eb; /* blue-600, primary */
+  --phase-combined: #a855f7;  /* purple-500, combined */
+  --phase-failed: #dc2626;    /* red-600, failed */
+  --phase-pending: #e4e4e7;   /* zinc-200, not-yet-run */
+
+  /* Type ramp (Tailwind default; repeated here for Figma parity) */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+}
+
+/* ─── Base ───────────────────────────────────────────────────────────── */
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: "Inter", ui-sans-serif, system-ui, sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Scrollbars — subtle, match the zinc-scale */
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--muted-foreground);
+}
+
+/* Focus ring — global, blue-500, per Figma token */
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
