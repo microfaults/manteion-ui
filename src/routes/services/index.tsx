@@ -1,7 +1,6 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Topbar } from "@/components/layout/topbar";
 import { StatusDot } from "@/components/status-dot";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -10,8 +9,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Card, CardContent } from "@/components/ui/card";
 import { servicesApi } from "@/lib/api";
+import { useQuery } from "@tanstack/react-query";
+import { Link, createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/services/")({
   component: ServicesPage,
@@ -90,9 +90,7 @@ function ServicesPage() {
                         label={i.status ?? "—"}
                       />
                     </TableCell>
-                    <TableCell className="font-mono text-xs">
-                      {i.version ?? "—"}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs">{i.version ?? "—"}</TableCell>
                     <TableCell className="font-mono text-xs text-muted-foreground">
                       {i.address ?? "—"}
                     </TableCell>

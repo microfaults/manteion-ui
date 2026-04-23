@@ -1,13 +1,9 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
 import { Topbar } from "@/components/layout/topbar";
-import { Button } from "@/components/ui/button";
+import { PhaseHoverCard } from "@/components/phase-hover-card";
+import { PhasePill } from "@/components/phase-pill";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -16,10 +12,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { PhasePill } from "@/components/phase-pill";
-import { PhaseHoverCard } from "@/components/phase-hover-card";
 import { experimentsApi } from "@/lib/api";
 import { formatDurationMs, formatRelative } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/experiments/")({
   component: ExperimentsPage,
@@ -69,9 +66,8 @@ function ExperimentsPage() {
                 {isError ? (
                   <TableRow>
                     <TableCell colSpan={7} className="text-muted-foreground">
-                      <code className="font-mono">/api/v1/experiments</code>{" "}
-                      is not yet exposed by manteion-go — see{" "}
-                      <code className="font-mono">docs/API-NEEDED.md</code>.
+                      <code className="font-mono">/api/v1/experiments</code> is not yet exposed by
+                      manteion-go — see <code className="font-mono">docs/API-NEEDED.md</code>.
                       Showing an empty list for now.
                     </TableCell>
                   </TableRow>
@@ -86,8 +82,7 @@ function ExperimentsPage() {
                 {data?.map((e) => {
                   const durationMs =
                     e.started_at && e.completed_at
-                      ? new Date(e.completed_at).getTime() -
-                        new Date(e.started_at).getTime()
+                      ? new Date(e.completed_at).getTime() - new Date(e.started_at).getTime()
                       : null;
                   return (
                     <TableRow key={e.id}>
@@ -119,11 +114,7 @@ function ExperimentsPage() {
                               fallbackSummary={p}
                             >
                               <span>
-                                <PhasePill
-                                  name={p.name}
-                                  status={p.status}
-                                  widthPx={28}
-                                />
+                                <PhasePill name={p.name} status={p.status} widthPx={28} />
                               </span>
                             </PhaseHoverCard>
                           ))}

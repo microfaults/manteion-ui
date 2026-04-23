@@ -1,6 +1,6 @@
+import { type MatchNode, type Rule, RuleSchema } from "@/types/api";
 import { z } from "zod";
 import { apiClient } from "./client";
-import { type MatchNode, type Rule, RuleSchema } from "@/types/api";
 
 const RulesList = z.array(RuleSchema);
 
@@ -30,11 +30,7 @@ export async function createRule(input: RuleInput): Promise<Rule> {
 }
 
 export async function updateRule(id: string, input: RuleInput): Promise<Rule> {
-  return apiClient.put(
-    `/api/v1/rules/${encodeURIComponent(id)}`,
-    input,
-    RuleSchema,
-  );
+  return apiClient.put(`/api/v1/rules/${encodeURIComponent(id)}`, input, RuleSchema);
 }
 
 export async function deleteRule(id: string): Promise<void> {
@@ -56,10 +52,7 @@ const TestPushResultSchema: z.ZodType<TestPushResult> = z.object({
   sdk_instance_id: z.string(),
 });
 
-export async function testPushRule(
-  id: string,
-  sdkInstanceId: string,
-): Promise<TestPushResult> {
+export async function testPushRule(id: string, sdkInstanceId: string): Promise<TestPushResult> {
   return apiClient.post(
     `/api/v1/rules/${encodeURIComponent(id)}/test-push?sdk_instance=${encodeURIComponent(sdkInstanceId)}`,
     {},
@@ -69,14 +62,8 @@ export async function testPushRule(
 
 /** NEW — compile a MatchNode AST to a rego string, server-side.
  *  UI also compiles client-side for preview; server compile is authoritative. */
-export async function compileMatch(
-  ast: MatchNode,
-): Promise<{ rego: string }> {
-  return apiClient.post(
-    "/api/v1/rules/compile-match",
-    { ast },
-    z.object({ rego: z.string() }),
-  );
+export async function compileMatch(ast: MatchNode): Promise<{ rego: string }> {
+  return apiClient.post("/api/v1/rules/compile-match", { ast }, z.object({ rego: z.string() }));
 }
 
 /** NEW — validate a rego snippet and, if possible, project it back into an AST. */

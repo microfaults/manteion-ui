@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
 import { parse } from "@/lib/rego/parse";
+import { useMemo, useState } from "react";
 import { MatchBuilder } from "./match-builder";
 import { RegoEditor } from "./rego-editor";
 
@@ -51,19 +51,14 @@ export function RuleBuilder({ ast, rego, onChange }: RuleBuilderProps) {
 
   return (
     <div className="space-y-2">
-      <Tabs
-        value={tab}
-        onValueChange={(v) => setTab(v as "builder" | "rego")}
-      >
+      <Tabs value={tab} onValueChange={(v) => setTab(v as "builder" | "rego")}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="builder">Builder</TabsTrigger>
             <TabsTrigger value="rego">Rego</TabsTrigger>
           </TabsList>
           <p className="text-xs text-muted-foreground">
-            {isCustom
-              ? "Custom rego — builder is read-only"
-              : "Builder compiles to OPA rego."}
+            {isCustom ? "Custom rego — builder is read-only" : "Builder compiles to OPA rego."}
           </p>
         </div>
 
@@ -71,8 +66,8 @@ export function RuleBuilder({ ast, rego, onChange }: RuleBuilderProps) {
           {isCustom ? (
             <div className="rounded-md border border-dashed border-border bg-muted/30 p-4 text-xs text-muted-foreground">
               This rule uses rego beyond the builder grammar. Switch to the{" "}
-              <span className="font-medium text-foreground">Rego</span> tab to
-              edit, or clear the custom rego to re-enable the builder.
+              <span className="font-medium text-foreground">Rego</span> tab to edit, or clear the
+              custom rego to re-enable the builder.
               <button
                 type="button"
                 className="ml-2 text-primary hover:underline"

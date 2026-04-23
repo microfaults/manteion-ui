@@ -1,5 +1,5 @@
-import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
 interface TopbarProps {
   breadcrumbs: string[];
@@ -17,15 +17,9 @@ export function Topbar({ breadcrumbs, action, className }: TopbarProps) {
     >
       <div className="flex items-center gap-1 text-sm text-muted-foreground">
         {breadcrumbs.map((crumb, i) => (
-          <span key={`${crumb}-${i}`} className="flex items-center gap-1">
+          <span key={crumb} className="flex items-center gap-1">
             {i > 0 && <span className="text-muted-foreground/50">/</span>}
-            <span
-              className={
-                i === breadcrumbs.length - 1
-                  ? "font-medium text-foreground"
-                  : ""
-              }
-            >
+            <span className={i === breadcrumbs.length - 1 ? "font-medium text-foreground" : ""}>
               {crumb}
             </span>
           </span>

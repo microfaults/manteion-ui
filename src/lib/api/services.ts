@@ -1,6 +1,6 @@
+import { type SDKInstance, SDKInstanceSchema } from "@/types/api";
 import { z } from "zod";
 import { apiClient } from "./client";
-import { SDKInstanceSchema, type SDKInstance } from "@/types/api";
 
 const List = z.array(SDKInstanceSchema);
 

@@ -1,24 +1,19 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
 import { Topbar } from "@/components/layout/topbar";
+import { RuleBuilder } from "@/components/rule-builder";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { RuleBuilder } from "@/components/rule-builder";
+import { Switch } from "@/components/ui/switch";
 import { rulesApi } from "@/lib/api";
+import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
-import { emptyRoot, type MatchNode } from "@/lib/rego/ast";
 import { parse } from "@/lib/rego/parse";
 import type { Rule } from "@/types/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useMemo, useState } from "react";
 
 export const Route = createFileRoute("/rules/$ruleId")({
   component: RuleEditorPage,
@@ -45,9 +40,7 @@ function RuleEditorPage() {
   const [service, setService] = useState(initial?.service ?? "");
   const [enabled, setEnabled] = useState(initial?.enabled ?? true);
   const [priority, setPriority] = useState<number>(initial?.priority ?? 50);
-  const [faultSpecId, setFaultSpecId] = useState<string>(
-    initial?.fault_spec_id ?? "",
-  );
+  const [faultSpecId, setFaultSpecId] = useState<string>(initial?.fault_spec_id ?? "");
   const [mode] = useState<"inline" | "background">(initial?.mode ?? "inline");
 
   const initialAst = useMemo<MatchNode>(() => {
@@ -60,9 +53,7 @@ function RuleEditorPage() {
   }, [initial]);
 
   const [ast, setAst] = useState<MatchNode | undefined>(initialAst);
-  const [rego, setRego] = useState<string>(
-    initial?.match_expr ?? compile(initialAst),
-  );
+  const [rego, setRego] = useState<string>(initial?.match_expr ?? compile(initialAst));
   const [custom, setCustom] = useState<boolean>(false);
 
   const save = useMutation({
@@ -77,9 +68,7 @@ function RuleEditorPage() {
         match_ast: custom ? undefined : ast,
         match_expr: rego,
       } as const;
-      return isNew
-        ? rulesApi.createRule(input)
-        : rulesApi.updateRule(ruleId, input);
+      return isNew ? rulesApi.createRule(input) : rulesApi.updateRule(ruleId, input);
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ["rules"] });
@@ -103,21 +92,12 @@ function RuleEditorPage() {
         <div className="mx-auto max-w-4xl space-y-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
-              <CardTitle className="text-base">
-                {isNew ? "New rule" : name || ruleId}
-              </CardTitle>
+              <CardTitle className="text-base">{isNew ? "New rule" : name || ruleId}</CardTitle>
               <div className="flex items-center gap-3">
-                <Label
-                  htmlFor="rule-enabled"
-                  className="text-xs text-muted-foreground"
-                >
+                <Label htmlFor="rule-enabled" className="text-xs text-muted-foreground">
                   Enabled
                 </Label>
-                <Switch
-                  id="rule-enabled"
-                  checked={enabled}
-                  onCheckedChange={setEnabled}
-                />
+                <Switch id="rule-enabled" checked={enabled} onCheckedChange={setEnabled} />
               </div>
             </CardHeader>
             <CardContent className="space-y-4">

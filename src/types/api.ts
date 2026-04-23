@@ -58,13 +58,7 @@ export const MatchLeafSchema: z.ZodType<MatchLeaf> = z.object({
   kind: z.literal("leaf"),
   field: z.string(),
   op: MatchOperatorSchema,
-  value: z.union([
-    z.string(),
-    z.number(),
-    z.boolean(),
-    z.array(z.string()),
-    z.array(z.number()),
-  ]),
+  value: z.union([z.string(), z.number(), z.boolean(), z.array(z.string()), z.array(z.number())]),
 });
 
 export const MatchGroupSchema: z.ZodType<MatchGroup> = z.lazy(() =>
@@ -159,12 +153,7 @@ export const PhaseNameSchema = z.enum([
 ]);
 export type PhaseName = z.infer<typeof PhaseNameSchema>;
 
-export const PhaseStatusSchema = z.enum([
-  "pending",
-  "running",
-  "completed",
-  "failed",
-]);
+export const PhaseStatusSchema = z.enum(["pending", "running", "completed", "failed"]);
 export type PhaseStatus = z.infer<typeof PhaseStatusSchema>;
 
 /** Denormalised phase summary used by the experiments list hover card

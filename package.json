@@ -6,9 +6,9 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsr generate && tsc -b && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --noEmit",
+    "typecheck": "tsr generate && tsc -b --noEmit",
     "lint": "biome check src",
     "format": "biome format --write src",
     "test": "vitest run",
@@ -41,6 +41,7 @@
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@tanstack/router-cli": "^1.166.33",
     "@tanstack/router-plugin": "^1.77.0",
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.0.1",

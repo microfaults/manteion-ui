@@ -25,6 +25,50 @@ pnpm test
 pnpm build
 ```
 
+## Environment variables
+
+Configuration lives in a `.env.local` file (gitignored). Copy the example
+and adjust values to match your local setup:
+
+```sh
+cp .env.example .env.local
+```
+
+All variables are prefixed `VITE_` so Vite exposes them to the browser at
+build time via `import.meta.env`. **Do not put secrets here** — everything
+is baked into the client bundle.
+
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `VITE_MANTEION_URL` | yes | `http://localhost:9090` | Base URL of the manteion-go API (no trailing slash). Every API call from `src/lib/api/client.ts` hits this host. Set to your cluster's gateway or port-forward address. |
+| `VITE_DEFAULT_ENV` | no | `online-boutique` | Active kustomize overlay / environment name. Sent as the `X-Faults-Lab-Environment` header on every request and shown in the sidebar. Change this when targeting a different demo app deployment. |
+| `VITE_GRAFANA_URL` | no | — | Base URL for embedded Grafana `d-solo` panels (latency / throughput dashboards). Not wired in code yet — will be used once the dashboard pages embed live panels. |
+
+### Per-environment overrides
+
+Vite loads env files in order of specificity
+(`.env` → `.env.local` → `.env.development` → `.env.development.local`).
+For a staging build, create `.env.staging.local` and run:
+
+```sh
+pnpm vite build --mode staging
+```
+
+### Connecting to manteion-go
+
+The UI expects manteion-go on `VITE_MANTEION_URL`. The fastest local setup:
+
+```sh
+# terminal 1 — port-forward from a cluster
+kubectl port-forward svc/manteion-go 9090:9090
+
+# terminal 2 — start the UI (defaults point at localhost:9090)
+pnpm dev
+```
+
+If manteion-go is unreachable, the dashboard shows
+"Could not reach manteion — is VITE_MANTEION_URL correct?".
+
 ## Stack
 
 | Concern | Pick |

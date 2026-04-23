@@ -1,14 +1,23 @@
 import { describe, expect, it } from "vitest";
+import type { MatchGroup, MatchNode } from "../ast";
+import { isGroup } from "../ast";
 import { compile } from "../compile";
 import { parse } from "../parse";
-import type { MatchGroup, MatchNode } from "../ast";
+
+function stripIds(node: MatchNode): MatchNode {
+  const { id: _, ...rest } = node;
+  if (isGroup(node)) {
+    return { ...rest, kind: "group", children: node.children.map(stripIds) } as MatchNode;
+  }
+  return rest as MatchNode;
+}
 
 function round(n: MatchNode): MatchNode {
   const rego = compile(n);
   const p = parse(rego);
   expect(p.ok).toBe(true);
   if (!p.ok) throw new Error(p.reason);
-  return p.ast;
+  return stripIds(p.ast);
 }
 
 describe("rego compile ↔ parse round-trip", () => {
@@ -82,9 +91,7 @@ describe("rego compile ↔ parse round-trip", () => {
     const ast: MatchGroup = {
       kind: "group",
       combinator: "not",
-      children: [
-        { kind: "leaf", field: "tenant", op: "eq", value: "internal" },
-      ],
+      children: [{ kind: "leaf", field: "tenant", op: "eq", value: "internal" }],
     };
     // `not` at top is rendered as one allow branch with `not <expr>` — parser
     // should round-trip to an AND-wrapped NOT.
@@ -94,10 +101,11 @@ describe("rego compile ↔ parse round-trip", () => {
     if (!p.ok) return;
     // The round-trip produces the NOT inline as a single-line body, which the
     // parser returns as a bare NOT group (children length 1). Accept either.
-    if (p.ast.kind === "group" && p.ast.combinator === "not") {
-      expect(p.ast).toEqual(ast);
+    const back = stripIds(p.ast);
+    if (back.kind === "group" && back.combinator === "not") {
+      expect(back).toEqual(ast);
     } else {
-      expect(p.ast).toEqual(ast.children[0]);
+      expect(back).toEqual(ast.children[0]);
     }
   });
 

@@ -1,15 +1,3 @@
-import { GripVertical, Plus, Trash2 } from "lucide-react";
-import { useCallback } from "react";
-import {
-  type MatchGroup,
-  type MatchLeaf,
-  type MatchNode,
-  type MatchOperator,
-  isGroup,
-  isLeaf,
-  sampleLeaf,
-} from "@/lib/rego/ast";
-import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -20,11 +8,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  KNOWN_FIELDS,
-  OPERATOR_LABELS,
-  fieldSpec,
-  operatorsForField,
-} from "./fields";
+  type HydratedGroup,
+  type HydratedNode,
+  type MatchGroup,
+  type MatchLeaf,
+  type MatchNode,
+  type MatchOperator,
+  hydrateIds,
+  isGroup,
+  isLeaf,
+  nodeId,
+  sampleLeaf,
+} from "@/lib/rego/ast";
+import { cn } from "@/lib/utils";
+import { GripVertical, Plus, Trash2 } from "lucide-react";
+import { useCallback } from "react";
+import { KNOWN_FIELDS, OPERATOR_LABELS, fieldSpec, operatorsForField } from "./fields";
 
 interface MatchBuilderProps {
   value: MatchNode;
@@ -32,13 +31,15 @@ interface MatchBuilderProps {
 }
 
 export function MatchBuilder({ value, onChange }: MatchBuilderProps) {
-  const root = isGroup(value)
-    ? value
-    : ({ kind: "group", combinator: "and", children: [value] } satisfies MatchGroup);
+  const hydrated = hydrateIds(
+    isGroup(value)
+      ? value
+      : ({ kind: "group", combinator: "and", children: [value] } satisfies MatchGroup),
+  );
 
   return (
     <div className="rounded-md border border-border bg-background">
-      <NodeRow node={root} onChange={onChange} depth={0} isRoot />
+      <NodeRow node={hydrated} onChange={onChange} depth={0} isRoot />
     </div>
   );
 }
@@ -46,7 +47,7 @@ export function MatchBuilder({ value, onChange }: MatchBuilderProps) {
 // ──────────────────────────────────────────────────────────────────────
 
 interface NodeRowProps {
-  node: MatchNode;
+  node: HydratedNode;
   onChange: (n: MatchNode) => void;
   onDelete?: () => void;
   depth: number;
@@ -60,7 +61,7 @@ function NodeRow({ node, onChange, onDelete, depth, isRoot }: NodeRowProps) {
   if (isGroup(node)) {
     return (
       <GroupRow
-        group={node}
+        group={node as HydratedGroup}
         onChange={onChange}
         onDelete={onDelete}
         depth={depth}
@@ -71,26 +72,20 @@ function NodeRow({ node, onChange, onDelete, depth, isRoot }: NodeRowProps) {
   return null;
 }
 
-// ──────────────────────────────────────────────────────────────────────
+// ──────��───────────────────────────────────────────────────────────────
 
 interface GroupRowProps {
-  group: MatchGroup;
+  group: HydratedGroup;
   onChange: (n: MatchNode) => void;
   onDelete?: () => void;
   depth: number;
   isRoot: boolean;
 }
 
-function GroupRow({
-  group,
-  onChange,
-  onDelete,
-  depth,
-  isRoot,
-}: GroupRowProps) {
+function GroupRow({ group, onChange, onDelete, depth, isRoot }: GroupRowProps) {
   const updateChild = useCallback(
     (i: number, next: MatchNode) => {
-      const children = [...group.children];
+      const children: MatchNode[] = [...group.children];
       children[i] = next;
       onChange({ ...group, children });
     },
@@ -99,7 +94,7 @@ function GroupRow({
 
   const deleteChild = useCallback(
     (i: number) => {
-      const children = group.children.filter((_, idx) => idx !== i);
+      const children: MatchNode[] = group.children.filter((_, idx) => idx !== i);
       onChange({ ...group, children });
     },
     [group, onChange],
@@ -114,7 +109,7 @@ function GroupRow({
       ...group,
       children: [
         ...group.children,
-        { kind: "group", combinator: "and", children: [sampleLeaf()] },
+        { id: nodeId(), kind: "group", combinator: "and", children: [sampleLeaf()] },
       ],
     });
   }, [group, onChange]);
@@ -124,10 +119,12 @@ function GroupRow({
       // NOT can only wrap a single child — collapse/expand accordingly.
       if (combinator === "not" && group.children.length > 1) {
         onChange({
+          id: nodeId(),
           kind: "group",
           combinator: "not",
           children: [
             {
+              id: nodeId(),
               kind: "group",
               combinator: "and",
               children: group.children,
@@ -142,12 +139,7 @@ function GroupRow({
   );
 
   return (
-    <div
-      className={cn(
-        "relative",
-        !isRoot && "ml-4 border-l-2 border-border pl-4",
-      )}
-    >
+    <div className={cn("relative", !isRoot && "ml-4 border-l-2 border-border pl-4")}>
       <div className="flex items-center gap-2 px-3 py-2">
         <CombinatorToggle value={group.combinator} onChange={setCombinator} />
         <span className="text-xs text-muted-foreground">
@@ -156,21 +148,11 @@ function GroupRow({
             : `${group.children.length} ${group.children.length === 1 ? "condition" : "conditions"}`}
         </span>
         <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={addLeaf}
-            className="h-7 gap-1"
-          >
+          <Button variant="ghost" size="sm" onClick={addLeaf} className="h-7 gap-1">
             <Plus className="size-3" />
             condition
           </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={addGroup}
-            className="h-7 gap-1"
-          >
+          <Button variant="ghost" size="sm" onClick={addGroup} className="h-7 gap-1">
             <Plus className="size-3" />
             group
           </Button>
@@ -195,7 +177,7 @@ function GroupRow({
         ) : (
           group.children.map((child, i) => (
             <NodeRow
-              key={i}
+              key={child.id}
               node={child}
               onChange={(next) => updateChild(i, next)}
               onDelete={() => deleteChild(i)}
@@ -253,18 +235,13 @@ function LeafRow({ leaf, onChange, onDelete }: LeafRowProps) {
 
   const setField = (field: string) => {
     const newOps = operatorsForField(field);
-    const nextOp: MatchOperator = newOps.includes(leaf.op)
-      ? leaf.op
-      : (newOps[0] ?? "eq");
+    const nextOp: MatchOperator = newOps.includes(leaf.op) ? leaf.op : (newOps[0] ?? "eq");
     onChange({ ...leaf, field, op: nextOp });
   };
 
   return (
     <div className="flex items-center gap-2 px-3 py-2">
-      <GripVertical
-        className="size-3 shrink-0 text-muted-foreground/40"
-        aria-hidden
-      />
+      <GripVertical className="size-3 shrink-0 text-muted-foreground/40" aria-hidden />
 
       {/* Field picker — combobox-like with known values, but free-form allowed. */}
       <div className="w-44">
@@ -309,10 +286,7 @@ function LeafRow({ leaf, onChange, onDelete }: LeafRowProps) {
       {/* Value */}
       <div className="min-w-0 flex-1">
         {spec.kind === "enum" && spec.values ? (
-          <Select
-            value={String(leaf.value)}
-            onValueChange={(v) => onChange({ ...leaf, value: v })}
-          >
+          <Select value={String(leaf.value)} onValueChange={(v) => onChange({ ...leaf, value: v })}>
             <SelectTrigger className="h-8 text-xs">
               <SelectValue placeholder="value" />
             </SelectTrigger>
@@ -328,11 +302,7 @@ function LeafRow({ leaf, onChange, onDelete }: LeafRowProps) {
           <Input
             className="h-8 font-mono text-xs"
             placeholder="comma, separated, values"
-            value={
-              Array.isArray(leaf.value)
-                ? (leaf.value as string[]).join(", ")
-                : ""
-            }
+            value={Array.isArray(leaf.value) ? (leaf.value as string[]).join(", ") : ""}
             onChange={(e) =>
               onChange({
                 ...leaf,

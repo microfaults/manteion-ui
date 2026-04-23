@@ -1,15 +1,11 @@
+import { Badge } from "@/components/ui/badge";
+import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
+import { experimentsApi } from "@/lib/api";
+import { formatDurationMs, formatLatencyUs } from "@/lib/utils";
+import type { PhaseName, PhaseStatus, PhaseSummary } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import type { ReactNode } from "react";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/components/ui/hover-card";
-import { Badge } from "@/components/ui/badge";
-import { experimentsApi } from "@/lib/api";
-import { formatDurationMs, formatLatencyUs } from "@/lib/utils";
-import type { PhaseName, PhaseSummary, PhaseStatus } from "@/types/api";
 
 interface PhaseHoverCardProps {
   experimentId: string;
@@ -52,18 +48,10 @@ export function PhaseHoverCard({
   return (
     <HoverCard openDelay={80} closeDelay={120}>
       <HoverCardTrigger asChild>{children}</HoverCardTrigger>
-      <HoverCardContent
-        className="w-96"
-        side="top"
-        align="start"
-        sideOffset={6}
-      >
+      <HoverCardContent className="w-96" side="top" align="start" sideOffset={6}>
         <div className="flex items-start justify-between gap-2">
           <div className="font-mono text-sm font-medium">{phase}</div>
-          <Badge
-            variant="secondary"
-            className={statusVariants[summary?.status ?? statusHint]}
-          >
+          <Badge variant="secondary" className={statusVariants[summary?.status ?? statusHint]}>
             {summary?.status ?? statusHint}
           </Badge>
         </div>
@@ -76,8 +64,7 @@ export function PhaseHoverCard({
             <ul className="mt-1 space-y-0.5">
               {summary.frozen_services.map((fs) => (
                 <li key={fs.service} className="font-mono text-xs">
-                  {fs.service}{" "}
-                  <span className="text-muted-foreground">· {fs.mode}</span>
+                  {fs.service} <span className="text-muted-foreground">· {fs.mode}</span>
                 </li>
               ))}
             </ul>
@@ -93,9 +80,7 @@ export function PhaseHoverCard({
               {summary.applied_rules.map((r) => (
                 <li key={r.rule_id} className="text-xs">
                   <span className="font-mono">{r.name}</span>{" "}
-                  <span className="text-muted-foreground">
-                    · {r.target_summary}
-                  </span>
+                  <span className="text-muted-foreground">· {r.target_summary}</span>
                 </li>
               ))}
             </ul>
@@ -109,18 +94,13 @@ export function PhaseHoverCard({
               value={formatLatencyUs(summary.metrics.p99_us)}
               delta={
                 summary.metrics.p99_us && summary.metrics.baseline_p99_us
-                  ? pctDelta(
-                      summary.metrics.baseline_p99_us,
-                      summary.metrics.p99_us,
-                    )
+                  ? pctDelta(summary.metrics.baseline_p99_us, summary.metrics.p99_us)
                   : undefined
               }
             />
             <Metric
               label="RPS"
-              value={
-                summary.metrics.rps ? summary.metrics.rps.toFixed(1) : "—"
-              }
+              value={summary.metrics.rps ? summary.metrics.rps.toFixed(1) : "—"}
             />
             <Metric
               label="errors"
@@ -132,9 +112,7 @@ export function PhaseHoverCard({
             />
           </div>
         ) : summary?.status === "pending" ? (
-          <p className="mt-3 text-xs italic text-muted-foreground">
-            Not run yet.
-          </p>
+          <p className="mt-3 text-xs italic text-muted-foreground">Not run yet.</p>
         ) : null}
 
         {summary?.duration_ms ? (
@@ -167,9 +145,7 @@ function Metric({
 }) {
   return (
     <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
-        {label}
-      </div>
+      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
       <div className="font-mono font-medium">{value}</div>
       {delta ? (
         <div

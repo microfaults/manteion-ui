@@ -1,12 +1,12 @@
-import { z } from "zod";
-import { apiClient } from "./client";
 import {
-  ExperimentSchema,
-  PhaseSummarySchema,
   type Experiment,
+  ExperimentSchema,
   type PhaseName,
   type PhaseSummary,
+  PhaseSummarySchema,
 } from "@/types/api";
+import { z } from "zod";
+import { apiClient } from "./client";
 
 const List = z.array(ExperimentSchema);
 
@@ -17,10 +17,7 @@ export async function listExperiments(): Promise<Experiment[]> {
 
 /** NEW endpoint. */
 export async function getExperiment(id: string): Promise<Experiment> {
-  return apiClient.get(
-    `/api/v1/experiments/${encodeURIComponent(id)}`,
-    ExperimentSchema,
-  );
+  return apiClient.get(`/api/v1/experiments/${encodeURIComponent(id)}`, ExperimentSchema);
 }
 
 /** NEW endpoint — drives the Experiments-list phase-pill hover card (Task C.2). */
