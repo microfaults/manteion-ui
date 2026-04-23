@@ -27,12 +27,8 @@ export class ApiClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(opts: ApiClientOptions = {}) {
-    this.baseUrl =
-      opts.baseUrl ?? import.meta.env?.VITE_MANTEION_URL ?? DEFAULT_BASE;
-    this.environment =
-      opts.environment ??
-      import.meta.env?.VITE_DEFAULT_ENV ??
-      "online-boutique";
+    this.baseUrl = opts.baseUrl ?? import.meta.env?.VITE_MANTEION_URL ?? DEFAULT_BASE;
+    this.environment = opts.environment ?? import.meta.env?.VITE_DEFAULT_ENV ?? "online-boutique";
     this.fetchImpl = opts.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
@@ -63,12 +59,7 @@ export class ApiClient {
     const text = await res.text();
     const json: unknown = text ? safeJson(text) : undefined;
     if (!res.ok) {
-      throw new ApiError(
-        res.status,
-        url,
-        json,
-        extractErr(json, res.statusText),
-      );
+      throw new ApiError(res.status, url, json, extractErr(json, res.statusText));
     }
     if (res.status === 204 || json === undefined) {
       return schema.parse(null as unknown);
@@ -79,18 +70,10 @@ export class ApiClient {
   get<S extends z.ZodTypeAny>(path: string, schema: S): Promise<z.infer<S>> {
     return this.request("GET", path, undefined, schema);
   }
-  post<S extends z.ZodTypeAny>(
-    path: string,
-    body: unknown,
-    schema: S,
-  ): Promise<z.infer<S>> {
+  post<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S): Promise<z.infer<S>> {
     return this.request("POST", path, body, schema);
   }
-  put<S extends z.ZodTypeAny>(
-    path: string,
-    body: unknown,
-    schema: S,
-  ): Promise<z.infer<S>> {
+  put<S extends z.ZodTypeAny>(path: string, body: unknown, schema: S): Promise<z.infer<S>> {
     return this.request("PUT", path, body, schema);
   }
   del(path: string): Promise<unknown> {

@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
@@ -13,7 +14,6 @@ import {
   Workflow,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
-import { cn } from "@/lib/utils";
 
 interface NavItem {
   to: string;
@@ -53,18 +53,14 @@ const sections: NavSection[] = [
   },
   {
     title: "Settings",
-    items: [
-      { to: "/settings/environments", label: "Environments", icon: Settings2 },
-    ],
+    items: [{ to: "/settings/environments", label: "Environments", icon: Settings2 }],
   },
 ];
 
 export function Sidebar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
-  const env =
-    (import.meta.env?.VITE_DEFAULT_ENV as string | undefined) ??
-    "online-boutique";
+  const env = (import.meta.env?.VITE_DEFAULT_ENV as string | undefined) ?? "online-boutique";
 
   return (
     <nav
@@ -89,9 +85,7 @@ export function Sidebar() {
             </div>
             <ul>
               {section.items.map((item) => {
-                const isActive =
-                  currentPath === item.to ||
-                  currentPath.startsWith(`${item.to}/`);
+                const isActive = currentPath === item.to || currentPath.startsWith(`${item.to}/`);
                 const Icon = item.icon;
                 return (
                   <li key={item.to}>

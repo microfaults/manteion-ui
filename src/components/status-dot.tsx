@@ -18,10 +18,7 @@ interface StatusDotProps {
 export function StatusDot({ status, label, className }: StatusDotProps) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
-      <span
-        aria-hidden
-        className={cn("inline-block size-2 rounded-full", statusClasses[status])}
-      />
+      <span aria-hidden className={cn("inline-block size-2 rounded-full", statusClasses[status])} />
       {label ? <span className="text-sm">{label}</span> : null}
     </span>
   );

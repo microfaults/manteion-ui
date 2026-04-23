@@ -18,6 +18,7 @@ export type MatchOperator =
   | "lte";
 
 export interface MatchLeaf {
+  id?: string;
   kind: "leaf";
   field: string;
   op: MatchOperator;
@@ -25,21 +26,43 @@ export interface MatchLeaf {
 }
 
 export interface MatchGroup {
+  id?: string;
   kind: "group";
   combinator: "and" | "or" | "not";
   children: MatchNode[];
+}
+
+export function nodeId(): string {
+  return crypto.randomUUID();
+}
+
+export type HydratedLeaf = MatchLeaf & { id: string };
+export type HydratedGroup = Omit<MatchGroup, "children"> & {
+  id: string;
+  children: HydratedNode[];
+};
+export type HydratedNode = HydratedLeaf | HydratedGroup;
+
+export function hydrateIds(node: MatchNode): HydratedNode {
+  if (isLeaf(node)) {
+    return { ...node, id: node.id ?? nodeId() };
+  }
+  return {
+    ...node,
+    id: node.id ?? nodeId(),
+    children: node.children.map(hydrateIds),
+  };
 }
 
 export type MatchNode = MatchLeaf | MatchGroup;
 
 /** Convenience — create an empty root group (AND). */
 export function emptyRoot(): MatchGroup {
-  return { kind: "group", combinator: "and", children: [] };
+  return { id: nodeId(), kind: "group", combinator: "and", children: [] };
 }
 
-/** A single sample leaf for initial form state. */
 export function sampleLeaf(): MatchLeaf {
-  return { kind: "leaf", field: "service", op: "eq", value: "" };
+  return { id: nodeId(), kind: "leaf", field: "service", op: "eq", value: "" };
 }
 
 export function isLeaf(n: MatchNode): n is MatchLeaf {

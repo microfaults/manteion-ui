@@ -1,5 +1,5 @@
-import { ExternalLink, Wrench } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { ExternalLink, Wrench } from "lucide-react";
 
 interface NotWiredYetProps {
   /** Which backend endpoint(s) this screen depends on. Free-form; one per line. */
@@ -15,10 +15,7 @@ export function NotWiredYet({ endpoints, note }: NotWiredYetProps) {
     <div className="mx-auto max-w-2xl py-12">
       <Card className="border-dashed bg-muted/20">
         <CardContent className="flex gap-4 p-6">
-          <Wrench
-            className="size-5 shrink-0 text-muted-foreground"
-            aria-hidden
-          />
+          <Wrench className="size-5 shrink-0 text-muted-foreground" aria-hidden />
           <div className="min-w-0">
             <h3 className="text-sm font-semibold">Not wired yet</h3>
             <p className="mt-1 text-sm text-muted-foreground">
@@ -38,8 +35,7 @@ export function NotWiredYet({ endpoints, note }: NotWiredYetProps) {
               </ul>
             </div>
             <div className="mt-4 inline-flex items-center gap-1 text-xs text-muted-foreground">
-              See <code className="font-mono">docs/API-NEEDED.md</code> for the
-              backlog.
+              See <code className="font-mono">docs/API-NEEDED.md</code> for the backlog.
               <ExternalLink className="size-3" aria-hidden />
             </div>
           </div>

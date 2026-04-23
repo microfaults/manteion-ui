@@ -1,5 +1,5 @@
-import type { PhaseName, PhaseStatus } from "@/types/api";
 import { cn } from "@/lib/utils";
+import type { PhaseName, PhaseStatus } from "@/types/api";
 
 interface PhasePillProps {
   name: PhaseName;
@@ -25,27 +25,18 @@ const familyClasses: Partial<Record<string, string>> = {
   combined: "bg-phase-combined",
 };
 
-export function PhasePill({
-  name,
-  status,
-  widthPx = 32,
-  className,
-}: PhasePillProps) {
+export function PhasePill({ name, status, widthPx = 32, className }: PhasePillProps) {
   // Prefer family color unless pending/failed — those override with status color.
   const colorClass =
     status === "pending" || status === "failed"
       ? statusClasses[status]
-      : familyClasses[name] ?? statusClasses[status];
+      : (familyClasses[name] ?? statusClasses[status]);
 
   return (
     <span
       role="img"
       aria-label={`${name} — ${status}`}
-      className={cn(
-        "inline-block h-4 rounded-sm align-middle",
-        colorClass,
-        className,
-      )}
+      className={cn("inline-block h-4 rounded-sm align-middle", colorClass, className)}
       style={{ width: widthPx }}
       data-phase-name={name}
       data-phase-status={status}

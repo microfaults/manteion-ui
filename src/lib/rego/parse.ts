@@ -14,6 +14,7 @@
  * and the UI's rule editor switches to "rego-only" mode.
  */
 import type { MatchGroup, MatchLeaf, MatchNode, MatchOperator } from "./ast";
+import { nodeId } from "./ast";
 
 export interface ParseOk {
   ok: true;
@@ -54,6 +55,7 @@ export function parse(rego: string): ParseResult {
       return { ok: true, ast: only };
     }
     const root: MatchGroup = {
+      id: nodeId(),
       kind: "group",
       combinator: "or",
       children: branchAsts,
@@ -85,7 +87,7 @@ function parseBranchBody(body: string): MatchNode | null {
     .map((l) => l.trim())
     .filter((l) => l.length > 0);
   if (lines.length === 0) {
-    return { kind: "group", combinator: "and", children: [] };
+    return { id: nodeId(), kind: "group", combinator: "and", children: [] };
   }
   const leaves: MatchNode[] = [];
   for (const line of lines) {
@@ -94,7 +96,7 @@ function parseBranchBody(body: string): MatchNode | null {
     leaves.push(leaf);
   }
   if (leaves.length === 1) return leaves[0] as MatchNode;
-  return { kind: "group", combinator: "and", children: leaves };
+  return { id: nodeId(), kind: "group", combinator: "and", children: leaves };
 }
 
 function parseLine(line: string): MatchNode | null {
@@ -102,7 +104,7 @@ function parseLine(line: string): MatchNode | null {
   if (line.startsWith("not ")) {
     const child = parseLine(line.slice(4).trim());
     if (!child) return null;
-    return { kind: "group", combinator: "not", children: [child] };
+    return { id: nodeId(), kind: "group", combinator: "not", children: [child] };
   }
   // regex.match("re", input.x)
   let m = /^regex\.match\(\s*"([^"]*)"\s*,\s*(input(?:\.[a-zA-Z0-9_]+|\["[^"]*"\])+)\s*\)$/.exec(
@@ -112,16 +114,12 @@ function parseLine(line: string): MatchNode | null {
     return leaf(unref(m[2] ?? ""), "matches", m[1] ?? "");
   }
   // startswith(input.x, "v")
-  m = /^startswith\(\s*(input(?:\.[a-zA-Z0-9_]+|\["[^"]*"\])+)\s*,\s*"([^"]*)"\s*\)$/.exec(
-    line,
-  );
+  m = /^startswith\(\s*(input(?:\.[a-zA-Z0-9_]+|\["[^"]*"\])+)\s*,\s*"([^"]*)"\s*\)$/.exec(line);
   if (m) {
     return leaf(unref(m[1] ?? ""), "starts_with", m[2] ?? "");
   }
   // endswith(input.x, "v")
-  m = /^endswith\(\s*(input(?:\.[a-zA-Z0-9_]+|\["[^"]*"\])+)\s*,\s*"([^"]*)"\s*\)$/.exec(
-    line,
-  );
+  m = /^endswith\(\s*(input(?:\.[a-zA-Z0-9_]+|\["[^"]*"\])+)\s*,\s*"([^"]*)"\s*\)$/.exec(line);
   if (m) {
     return leaf(unref(m[1] ?? ""), "ends_with", m[2] ?? "");
   }
@@ -133,9 +131,7 @@ function parseLine(line: string): MatchNode | null {
     return leaf(unref(m[1] ?? ""), "in", arr);
   }
   // input.x <op> <value>
-  m = /^(input(?:\.[a-zA-Z0-9_]+|\["[^"]*"\])+)\s*(==|!=|>=|<=|>|<)\s*(.+)$/.exec(
-    line,
-  );
+  m = /^(input(?:\.[a-zA-Z0-9_]+|\["[^"]*"\])+)\s*(==|!=|>=|<=|>|<)\s*(.+)$/.exec(line);
   if (m) {
     const opMap: Record<string, MatchOperator> = {
       "==": "eq",
@@ -154,12 +150,8 @@ function parseLine(line: string): MatchNode | null {
   return null;
 }
 
-function leaf(
-  field: string,
-  op: MatchOperator,
-  value: MatchLeaf["value"],
-): MatchLeaf {
-  return { kind: "leaf", field, op, value };
+function leaf(field: string, op: MatchOperator, value: MatchLeaf["value"]): MatchLeaf {
+  return { id: nodeId(), kind: "leaf", field, op, value };
 }
 
 function unref(inputRef: string): string {
@@ -189,10 +181,8 @@ function parseScalar(s: string): MatchLeaf["value"] | undefined {
 function parseArrayLiteral(inner: string): string[] | number[] | null {
   const parts = splitCsv(inner).map((p) => parseScalar(p));
   if (parts.some((p) => p === undefined)) return null;
-  if (parts.every((p) => typeof p === "string"))
-    return parts as unknown as string[];
-  if (parts.every((p) => typeof p === "number"))
-    return parts as unknown as number[];
+  if (parts.every((p) => typeof p === "string")) return parts as unknown as string[];
+  if (parts.every((p) => typeof p === "number")) return parts as unknown as number[];
   return null;
 }
 

@@ -1,6 +1,6 @@
-import type { ReactNode } from "react";
-import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import type { ReactNode } from "react";
 
 interface StatCardProps {
   label: string;
@@ -10,13 +10,7 @@ interface StatCardProps {
   className?: string;
 }
 
-export function StatCard({
-  label,
-  value,
-  delta,
-  footer,
-  className,
-}: StatCardProps) {
+export function StatCard({ label, value, delta, footer, className }: StatCardProps) {
   return (
     <Card className={cn("border-border", className)}>
       <CardContent className="p-6">
@@ -39,9 +33,7 @@ export function StatCard({
             <span>{delta.value}</span>
           </div>
         ) : null}
-        {footer ? (
-          <div className="mt-3 text-xs text-muted-foreground">{footer}</div>
-        ) : null}
+        {footer ? <div className="mt-3 text-xs text-muted-foreground">{footer}</div> : null}
       </CardContent>
     </Card>
   );

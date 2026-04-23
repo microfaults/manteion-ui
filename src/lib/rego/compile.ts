@@ -20,7 +20,7 @@
  * Nested groups compile recursively. Leaves reference `input.<field>`.
  */
 import type { MatchGroup, MatchLeaf, MatchNode, MatchOperator } from "./ast";
-import { isGroup, isLeaf } from "./ast";
+import { isGroup, isLeaf, nodeId } from "./ast";
 
 export function compile(root: MatchNode): string {
   const header = "package faults.match\n\ndefault allow := false\n\n";
@@ -28,7 +28,7 @@ export function compile(root: MatchNode): string {
     const body = compileBody(branch);
     return `allow if {\n${indent(body)}\n}`;
   });
-  return header + branches.join("\n\n") + "\n";
+  return `${header + branches.join("\n\n")}\n`;
 }
 
 /** If the root is an OR group, return each child as an independent branch.
@@ -41,7 +41,7 @@ function unfoldTopOr(root: MatchNode): MatchNode[] {
 }
 
 function emptyAnd(): MatchGroup {
-  return { kind: "group", combinator: "and", children: [] };
+  return { id: nodeId(), kind: "group", combinator: "and", children: [] };
 }
 
 /** Compile a single branch (AND body). */

@@ -1,5 +1,5 @@
-import type { ChangeEvent } from "react";
 import { cn } from "@/lib/utils";
+import type { ChangeEvent } from "react";
 
 interface RegoEditorProps {
   value: string;
@@ -13,15 +13,8 @@ interface RegoEditorProps {
  *  someone shows the sub-100ms typing feel matters more than the 400KB+ added
  *  to the bundle. The textarea still uses the JetBrains Mono token + 2-space
  *  soft tabs — good enough to read a few dozen lines. */
-export function RegoEditor({
-  value,
-  onChange,
-  diagnostics,
-  readOnly,
-  className,
-}: RegoEditorProps) {
-  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) =>
-    onChange(e.target.value);
+export function RegoEditor({ value, onChange, diagnostics, readOnly, className }: RegoEditorProps) {
+  const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => onChange(e.target.value);
 
   return (
     <div className={cn("flex flex-col gap-2", className)}>
@@ -39,8 +32,8 @@ export function RegoEditor({
       />
       {diagnostics && diagnostics.length > 0 ? (
         <ul className="space-y-0.5 rounded-md border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">
-          {diagnostics.map((d, i) => (
-            <li key={i} className="font-mono">
+          {diagnostics.map((d) => (
+            <li key={d} className="font-mono">
               · {d}
             </li>
           ))}

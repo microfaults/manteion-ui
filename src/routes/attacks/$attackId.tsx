@@ -1,6 +1,6 @@
-import { createFileRoute } from "@tanstack/react-router";
 import { Topbar } from "@/components/layout/topbar";
 import { NotWiredYet } from "@/components/not-wired-yet";
+import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/attacks/$attackId")({
   component: AttackDetailPage,

@@ -1,14 +1,7 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
 import { Topbar } from "@/components/layout/topbar";
 import { StatCard } from "@/components/stat-card";
 import { StatusDot } from "@/components/status-dot";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -19,6 +12,8 @@ import {
 } from "@/components/ui/table";
 import { rulesApi, servicesApi } from "@/lib/api";
 import { pluralize } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/dashboard")({
   component: DashboardPage,
@@ -36,8 +31,7 @@ function DashboardPage() {
     retry: false,
   });
 
-  const down =
-    instances.data?.filter((i) => i.status === "dead").length ?? 0;
+  const down = instances.data?.filter((i) => i.status === "dead").length ?? 0;
   const enabledRules = rules.data?.filter((r) => r.enabled).length ?? 0;
 
   return (
@@ -49,23 +43,19 @@ function DashboardPage() {
           <StatCard
             label="Failing services"
             value={down}
-            footer={
-              instances.data
-                ? pluralize(instances.data.length, "instance")
-                : "—"
-            }
+            footer={instances.data ? pluralize(instances.data.length, "instance") : "—"}
           />
-          <StatCard
-            label="Active experiments"
-            value={0}
-            footer="See Experiments (not yet wired)"
-          />
+          <StatCard label="Active experiments" value={0} footer="See Experiments (not yet wired)" />
           <StatCard
             label="Enabled rules"
             value={enabledRules}
             footer={rules.data ? pluralize(rules.data.length, "total rule") : "—"}
           />
-          <StatCard label="Active faults" value={enabledRules} footer="mirrors enabled rules until Faults ships" />
+          <StatCard
+            label="Active faults"
+            value={enabledRules}
+            footer="mirrors enabled rules until Faults ships"
+          />
         </div>
 
         <Card className="mt-6">
@@ -106,9 +96,7 @@ function DashboardPage() {
                 ) : null}
                 {instances.data?.map((i) => (
                   <TableRow key={i.id}>
-                    <TableCell className="font-mono text-xs">
-                      {i.service}
-                    </TableCell>
+                    <TableCell className="font-mono text-xs">{i.service}</TableCell>
                     <TableCell>
                       <StatusDot
                         status={

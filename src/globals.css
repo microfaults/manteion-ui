@@ -51,11 +51,11 @@
   --status-down: #dc2626;
 
   /* Phase pills (experiments list / detail) */
-  --phase-baseline: #71717a;  /* zinc-500, neutral baseline */
+  --phase-baseline: #71717a; /* zinc-500, neutral baseline */
   --phase-isolation: #2563eb; /* blue-600, primary */
-  --phase-combined: #a855f7;  /* purple-500, combined */
-  --phase-failed: #dc2626;    /* red-600, failed */
-  --phase-pending: #e4e4e7;   /* zinc-200, not-yet-run */
+  --phase-combined: #a855f7; /* purple-500, combined */
+  --phase-failed: #dc2626; /* red-600, failed */
+  --phase-pending: #e4e4e7; /* zinc-200, not-yet-run */
 
   /* Type ramp (Tailwind default; repeated here for Figma parity) */
   --radius-sm: 4px;
