@@ -1,14 +1,13 @@
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
-    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+    - if: $CI_COMMIT_BRANCH
       when: never
     - if: $CI_COMMIT_BRANCH
 
 stages:
   - check
   - build
-  - mirror
 
 default:
   image: node:22-alpine
@@ -48,35 +47,3 @@ build:
     paths:
       - dist/
     expire_in: 3 days
-
-# ---------------------------------------------------------------------------
-# Mirror to GitHub — Push merged branches to GitHub
-#
-# Triggers on push to main/develop (i.e., when an MR is merged on GitLab).
-# Pushes the EXACT same commit objects to GitHub to maintain SHA parity.
-#
-# Required GitLab CI/CD Variables:
-#   GITHUB_PUSH_TOKEN — GitHub PAT with 'repo' scope
-# ---------------------------------------------------------------------------
-
-mirror-to-github:
-  stage: mirror
-  image: alpine:latest
-  variables:
-    GIT_DEPTH: "0"
-  rules:
-    # 1. Hard block if this push originated from the GitHub mirror script
-    - if: '$SKIP_MIRROR == "true"'
-      when: never
-    # 2. Manual only: Only appears in the UI on main/develop
-    - if: '($CI_COMMIT_BRANCH == "main" || $CI_COMMIT_BRANCH == "develop") && ($CI_PIPELINE_SOURCE == "web" || $CI_PIPELINE_SOURCE == "push")'
-      when: manual
-      allow_failure: true
-  script:
-    - apk add --no-cache git
-    - git remote add github "https://x-access-token:${GITHUB_PUSH_TOKEN}@github.com/microfaults/manteion-ui.git"
-    
-    # We push with a push option to tell GitHub Actions to skip its mirror if needed
-    # (Though the GitHub 'actor' check is usually sufficient, this is extra safety)
-    - git push github "HEAD:refs/heads/${CI_COMMIT_BRANCH}" --force -o "source=gitlab"
-    - echo "✅ Manual mirror to GitHub complete."
