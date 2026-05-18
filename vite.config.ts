@@ -11,6 +11,7 @@ export default defineConfig({
       routesDirectory: "./src/routes",
       generatedRouteTree: "./src/routeTree.gen.ts",
       autoCodeSplitting: true,
+      routeFileIgnorePattern: "(\\.test\\.(ts|tsx)$|-page\\.tsx$)",
     }),
     react(),
   ],
@@ -22,6 +23,12 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: false,
+    proxy: {
+      "/api": {
+        target: "http://localhost:8080",
+        changeOrigin: true,
+      },
+    },
   },
   test: {
     environment: "jsdom",
