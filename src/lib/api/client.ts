@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const DEFAULT_BASE = "http://localhost:9090";
+const DEFAULT_BASE = "";
 
 export interface ApiClientOptions {
   baseUrl?: string;
