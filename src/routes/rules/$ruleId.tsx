@@ -4,9 +4,17 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { rulesApi } from "@/lib/api";
+import { faultsApi, rulesApi } from "@/lib/api";
+import { formatParams } from "@/lib/faults";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
 import { parse } from "@/lib/rego/parse";
@@ -42,6 +50,11 @@ function RuleEditorPage() {
   const [priority, setPriority] = useState<number>(initial?.priority ?? 50);
   const [faultSpecId, setFaultSpecId] = useState<string>(initial?.fault_spec_id ?? "");
   const [mode] = useState<"inline" | "background">(initial?.mode ?? "inline");
+
+  const faultSpecs = useQuery({
+    queryKey: ["fault-specs"],
+    queryFn: faultsApi.listFaultSpecs,
+  });
 
   const initialAst = useMemo<MatchNode>(() => {
     if (initial?.match_ast) return initial.match_ast as MatchNode;
@@ -121,13 +134,24 @@ function RuleEditorPage() {
                   />
                 </Field>
                 <Field label="Fault primitive" htmlFor="rule-fault">
-                  <Input
-                    id="rule-fault"
-                    value={faultSpecId}
-                    onChange={(e) => setFaultSpecId(e.target.value)}
-                    placeholder="fault spec id (Faults library not yet wired)"
-                    className="font-mono"
-                  />
+                  <Select
+                    value={faultSpecId === "" ? "__none__" : faultSpecId}
+                    onValueChange={(v) => setFaultSpecId(v === "__none__" ? "" : v)}
+                  >
+                    <SelectTrigger id="rule-fault" className="font-mono">
+                      <SelectValue placeholder="— none —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__" className="font-mono">
+                        — none —
+                      </SelectItem>
+                      {(faultSpecs.data ?? []).map((spec) => (
+                        <SelectItem key={spec.id} value={spec.id} className="font-mono">
+                          {spec.name} ({formatParams(spec)})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </Field>
                 <Field label="Priority" htmlFor="rule-priority">
                   <Input

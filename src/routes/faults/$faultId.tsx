@@ -1,21 +1,10 @@
-import { Topbar } from "@/components/layout/topbar";
-import { NotWiredYet } from "@/components/not-wired-yet";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// Deep links to /faults/:id redirect to the main Faults page.
+// The list page uses local state for selection so we pass the id via search.
 export const Route = createFileRoute("/faults/$faultId")({
-  component: FaultDetailPage,
+  beforeLoad({ params }) {
+    throw redirect({ to: "/faults", search: { selected: params.faultId } });
+  },
+  component: () => null,
 });
-
-function FaultDetailPage() {
-  const { faultId } = Route.useParams();
-  return (
-    <>
-      <Topbar breadcrumbs={["Faults", faultId]} />
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <NotWiredYet
-          endpoints={["GET    /api/v1/faults/specs/{id}", "PUT    /api/v1/faults/specs/{id}"]}
-        />
-      </div>
-    </>
-  );
-}
