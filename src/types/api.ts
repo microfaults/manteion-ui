@@ -114,10 +114,70 @@ export const SDKInstanceSchema = z.object({
 });
 export type SDKInstance = z.infer<typeof SDKInstanceSchema>;
 
-// ─── Fault (NEW — not yet exposed) ────────────────────────────────────
+// ─── Fault ────────────────────────────────────────────────────────────
 
 export const FaultCategorySchema = z.enum(["inline", "network", "resource"]);
 export type FaultCategory = z.infer<typeof FaultCategorySchema>;
+
+// Config sub-schemas per category/type — kept loose (passthrough) for API
+// validation; the UI uses typed helpers in the fault-editor component.
+
+// Inline
+export interface InlineLatencyConfig {
+  latency_ms: number;
+  jitter_ms: number;
+}
+export interface InlineErrorConfig {
+  status_code: number;
+}
+export type InlineHangConfig = Record<string, never>;
+
+// Network
+export interface NetworkBlackholeConfig {
+  direction: "inbound" | "outbound" | "both";
+}
+export interface NetworkLossConfig {
+  percent: number;
+}
+export interface NetworkRstConfig {
+  interval_s: number;
+}
+export interface NetworkThrottleConfig {
+  rate_kbps: number;
+}
+export interface NetworkLatencyConfig {
+  latency_ms: number;
+  jitter_ms: number;
+}
+export interface NetworkDripConfig {
+  rate_bytes_s: number;
+}
+
+// Resource
+export interface ResourceCpuConfig {
+  percent: number;
+  cores: number;
+}
+export interface ResourceMemoryConfig {
+  size_mb: number;
+}
+export interface ResourceIoConfig {
+  rate_mbps: number;
+}
+
+export type FaultConfig =
+  | InlineLatencyConfig
+  | InlineErrorConfig
+  | InlineHangConfig
+  | NetworkBlackholeConfig
+  | NetworkLossConfig
+  | NetworkRstConfig
+  | NetworkThrottleConfig
+  | NetworkLatencyConfig
+  | NetworkDripConfig
+  | ResourceCpuConfig
+  | ResourceMemoryConfig
+  | ResourceIoConfig;
 
 export const FaultSpecSchema = z.object({
   id: z.string(),
@@ -125,6 +185,7 @@ export const FaultSpecSchema = z.object({
   category: FaultCategorySchema,
   fault_type: z.string(),
   config: z.unknown(),
+  description: z.string().optional(),
   duration_ms: z.number().int().optional(),
   ramp_up_ms: z.number().int().optional(),
   ramp_down_ms: z.number().int().optional(),
