@@ -118,7 +118,7 @@ export function RulesPage() {
                   <TableHead>Rule</TableHead>
                   <TableHead>Service</TableHead>
                   <TableHead>Target</TableHead>
-                  <TableHead className="text-right">Prio</TableHead>
+                  <TableHead className="text-right">Match priority</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>

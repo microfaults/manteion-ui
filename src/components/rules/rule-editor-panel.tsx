@@ -403,9 +403,14 @@ function RuleEditorForm({
           />
         </div>
 
-        <Field label="Priority">
+        <Field
+          label="Match priority"
+          hint="Higher numbers are evaluated first when multiple rules match the same request. Typical range 0–100."
+        >
           <Input
             type="number"
+            min={0}
+            max={1000}
             value={priority}
             onChange={(e) => setPriority(Number(e.target.value))}
             className="font-mono text-sm"
@@ -469,11 +474,20 @@ function RuleEditorForm({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <div className="space-y-1.5">
       <Label className="text-xs font-medium">{label}</Label>
       {children}
+      {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
     </div>
   );
 }
