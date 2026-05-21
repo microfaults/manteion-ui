@@ -233,7 +233,15 @@ function renderTypeSpecificFields(node: WorkflowNode) {
         <>
           <Field label="Method" value={node.method} mono />
           <Field label="Path" value={node.path} mono />
-          {node.extract ? <Field label="Extract" value={node.extract} mono /> : null}
+          {node.extract && Object.keys(node.extract).length > 0 ? (
+            <Field
+              label="Extract"
+              value={Object.entries(node.extract)
+                .map(([k, v]) => `${k} = ${v}`)
+                .join(" · ")}
+              mono
+            />
+          ) : null}
           {node.retries != null ? (
             <Field label="Retries" value={String(node.retries)} mono />
           ) : null}
@@ -290,7 +298,13 @@ function renderTypeSpecificFields(node: WorkflowNode) {
     case "optional":
       return (
         <>
-          <Field label="Probability" value={node.probability.toFixed(2)} mono />
+          <Field
+            label="Probability"
+            value={
+              typeof node.probability === "number" ? node.probability.toFixed(2) : node.probability
+            }
+            mono
+          />
           <FieldRaw label="Child">
             <ChildrenList nodes={[node.child]} />
           </FieldRaw>

@@ -19,8 +19,11 @@ export interface RequestNode {
   id: string;
   method: HttpMethod;
   path: string;
-  /** Variable to bind from response (e.g. "session_id"). */
-  extract?: string;
+  /** Variables to bind from the response, by name. Each value is a JSONPath
+   *  or template expression evaluated against the response body
+   *  (e.g. `{ product_id: "{{data.products.id}}" }`). DSL v2 made this an
+   *  object so a single step can expose multiple variables. */
+  extract?: Record<string, string>;
   retries?: number;
 }
 
@@ -54,8 +57,10 @@ export interface OptionalNode {
   type: "optional";
   id: string;
   label?: string;
-  /** Probability the child executes [0, 1]. */
-  probability: number;
+  /** Probability the child executes. Either a literal in [0, 1] or a
+   *  named probability that the persona/runtime resolves at run time
+   *  (e.g. `"explore"`, `"engage"`). */
+  probability: number | string;
   child: WorkflowNode;
 }
 

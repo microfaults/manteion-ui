@@ -129,11 +129,14 @@ function NodeSummary({ node }: { node: WorkflowNode }) {
 
 function NodeTrailing({ node }: { node: WorkflowNode }) {
   if (node.type === "request" && node.extract) {
-    return (
-      <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
-        extract {node.extract}
-      </Badge>
-    );
+    const keys = Object.keys(node.extract);
+    if (keys.length > 0) {
+      return (
+        <Badge variant="outline" className="ml-auto shrink-0 text-[10px]">
+          extract {keys.length === 1 ? keys[0] : `${keys.length} vars`}
+        </Badge>
+      );
+    }
   }
   if (node.type === "request" && node.retries != null) {
     return (
