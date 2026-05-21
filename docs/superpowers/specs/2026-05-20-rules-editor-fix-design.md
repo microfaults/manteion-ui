@@ -356,10 +356,12 @@ Phases 0a, 0b, 3, 4 can ship in parallel; 1/2/5 are serial in the same files;
   a banner in the rule editor: "Rich match is stored but not yet evaluated;
   the SDK matches on labels{} + injection_point only." Removed when SDK
   rego eval ships.
-- **Cachebox action.** Figma v1.1 said cache-box was removed from rules.
-  Backend still has it. We're keeping it in the UI as a third action-type
-  option per the backend reality; if you want it hidden, that's a one-line
-  filter in the Action-type Select.
+- **Cachebox action.** Figma v1.1 deferred cache-box to the Experiment phase
+  editor, but the backend keeps it as a rule action and the team wants it
+  triggered by rules. **In scope** — UI ships the `cachebox` option in the
+  Action-type Select with `mode` + `key_strategy` sub-fields per
+  `internal/model/rule.go` `CacheBoxRuleConfig`. Update `docs/design/figma-changes.md`
+  to retract the "cache-box removed" claim as part of this work.
 - **`fault_composition` picker.** Same shape as FaultSpecPicker, hits
   `GET /api/v1/faults/compositions` (verified: route registered in
   `internal/api/server.go:146`, returns `[]` on empty correctly — no 500
