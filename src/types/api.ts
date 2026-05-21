@@ -277,6 +277,80 @@ export const ExperimentSchema = z.object({
 });
 export type Experiment = z.infer<typeof ExperimentSchema>;
 
+// ─── Workflow (DSL v2 definition; manteion-owned) ──────────────────────
+
+/** Bare-bones list-row shape served by GET /api/v1/workflows. Steps and
+ *  thresholds are omitted from the list payload — fetch
+ *  /api/v1/workflows/{id} for the tree. */
+export const WorkflowListItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  description: z.string().optional(),
+  targets: z.array(z.string()).default([]),
+  estimated_rps_per_vu: z.number().default(0),
+  /** Precomputed by manteion-go so the workflows list doesn't need the steps tree. */
+  request_node_count: z.number().int().default(0),
+  created_at: Timestamp,
+  updated_at: Timestamp.optional(),
+});
+export type WorkflowListItem = z.infer<typeof WorkflowListItemSchema>;
+
+/** Full payload served by GET /api/v1/workflows/{id} and returned by POST.
+ *  `steps` is the DSL v2 tree — typed as `unknown` here and validated by the
+ *  client-side WorkflowNode parser in lib/workflow-types.ts.
+ *
+ *  Storage split: manteion serves the *definition*; zeus serves
+ *  *execution* state. The detail page fans out two parallel queries. */
+export const WorkflowSchema = WorkflowListItemSchema.extend({
+  steps: z.unknown(),
+  thresholds: z.unknown().optional(),
+});
+export type Workflow = z.infer<typeof WorkflowSchema>;
+
+// ─── Catalog endpoint (workflow builder picker) ────────────────────────
+
+/** Live SDK-route inventory entry. Aggregated server-side from
+ *  sdk_instances.routes by /api/v1/catalog/endpoints — see
+ *  manteion-go/internal/api/catalog_handler.go. */
+export const CatalogEndpointSchema = z.object({
+  id: z.string(),
+  service: z.string(),
+  method: z.string(),
+  path: z.string(),
+  description: z.string().optional(),
+  /** Catalog ids of prerequisite endpoints (e.g. POST /cart before
+   *  /checkout). The picker auto-expands the user's selection in
+   *  dependency-first order so the resulting workflow runs end-to-end. */
+  depends_on: z.array(z.string()).default([]),
+});
+export type CatalogEndpoint = z.infer<typeof CatalogEndpointSchema>;
+
+/** Envelope returned by GET /api/v1/catalog/endpoints. `hint` is set
+ *  only when `data` is empty — gives the picker a human-readable empty
+ *  state (e.g. "No SDK instances have polled in the last 2 minutes"). */
+export const CatalogResponseSchema = z.object({
+  data: z.array(CatalogEndpointSchema).default([]),
+  hint: z.string().optional(),
+});
+export type CatalogResponse = z.infer<typeof CatalogResponseSchema>;
+
+// ─── Pagination envelope ───────────────────────────────────────────────
+
+export const PageSchema = z.object({
+  offset: z.number().int().nonnegative(),
+  limit: z.number().int().positive(),
+  total: z.number().int().nonnegative(),
+});
+export type Page = z.infer<typeof PageSchema>;
+
+/** Wrap with PageEnvelope(MySchema) to build a typed list response.
+ *  Matches manteion-go's internal/api/pagination.go envelope shape. */
+export const PageEnvelope = <T extends z.ZodTypeAny>(item: T) =>
+  z.object({
+    data: z.array(item).default([]),
+    page: PageSchema,
+  });
+
 // ─── Run (NEW — minimum viable fields for SSE tail UI) ────────────────
 
 export const RunSchema = z.object({

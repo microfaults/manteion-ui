@@ -128,11 +128,11 @@ All handlers already exist as repo methods — just not wired to mux.
 
 | Method | Path | Request | Response | Consumer | Prio | Status |
 |---|---|---|---|---|---|---|
-| GET | `/api/v1/flows` | — | `Flow[]` | workflow grid | P2 | ◻ |
-| POST | `/api/v1/flows` | `Flow` | `Flow` | — | P2 | ◻ |
-| GET | `/api/v1/flows/{id}` | — | `Flow` | detail / tree editor | P2 | ◻ |
+| GET | `/api/v1/flows` | — | `FlowListItem[]` | workflow grid | P2 | ✔ |
+| POST | `/api/v1/flows` | `createFlowRequest` | `Flow` | new workflow dialog | P2 | ✔ |
+| GET | `/api/v1/flows/{id}` | — | `Flow` | detail / tree editor | P2 | ✔ |
 | POST | `/api/v1/flows/{id}/validate?dataset={id}` | — | `{ok: bool, errors: [...]}` | "Validate against dataset" | P2 | ◻ |
-| GET | `/api/v1/personas` | — | `Persona[]` | persona picker | P2 | ◻ |
+| GET | `/api/v1/personas` | — | `Persona[]` | persona picker | P2 | ✔ |
 | * | `/api/v1/zeus/workloads/*` | opaque | opaque | existing proxy — document the passthrough shape | P2 | ✔ (opaque) |
 
 ### B.6 Datasets (`/datasets`)

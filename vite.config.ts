@@ -34,5 +34,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // Claude Code worktrees stash scratch copies of the repo under
+    // .claude/worktrees/<branch>/ — Vitest's default include picks up
+    // their *.test.tsx files and fails to resolve @/ imports. Exclude
+    // so `vitest run` in any working tree is reliable.
+    exclude: ["**/node_modules/**", "**/dist/**", "**/.claude/**"],
   },
 });
