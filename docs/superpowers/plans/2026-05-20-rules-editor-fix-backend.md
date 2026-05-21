@@ -32,16 +32,27 @@
 
 All editing, building, testing, and committing happens on VM1 via SSH. Use the `mcp__ssh-manager__ssh_execute` tool (server: `vm1-server`). Each command is a separate `ssh_execute` call.
 
-The repo is at `/home/faults-lab/manteion-go`, on branch `develop`, origin `git@git.ucsc.edu:microfaults/manteion-go.git`. Build/deploy pattern (from recent commits):
+The repo is at `/home/faults-lab/manteion-go`, on branch `develop`, origin `git@git.ucsc.edu:microfaults/manteion-go.git`. Build/deploy pattern (verified during Phase 0a deployment 2026-05-21):
 
 ```sh
-cd /home/faults-lab/manteion-go
-go test ./...                              # full test suite (~30s)
-docker build -t localhost:5000/manteion:dev -f Dockerfile ..  # parent-context build
+cd /home/faults-lab/manteion-go && /usr/local/go/bin/go test ./...   # full test suite
+
+# Build with the PARENT directory as context (Dockerfile does `COPY atropos-go/`
+# and `COPY manteion-go/` — needs the sibling tree). Tag both :dev and :latest.
+cd /home/faults-lab && docker build -t localhost:5000/manteion:dev -f manteion-go/Dockerfile .
+docker tag localhost:5000/manteion:dev localhost:5000/manteion:latest
 docker push localhost:5000/manteion:dev
-kubectl rollout restart deploy/manteion
+docker push localhost:5000/manteion:latest
+
+# The deployment pins to :latest@sha256:<digest>. `kubectl rollout restart`
+# alone re-pulls the SAME old digest and the migration won't run. You must
+# explicitly point the deployment at the new digest:
+NEW_DIGEST=$(docker inspect localhost:5000/manteion:latest --format='{{index .RepoDigests 0}}' | sed 's/.*@/@/')
+kubectl set image deploy/manteion manteion=localhost:5000/manteion:latest${NEW_DIGEST}
 kubectl rollout status deploy/manteion --timeout=120s
 ```
+
+(Alternative: `skaffold run` if it's configured in the repo — check `skaffold.yaml`.)
 
 Verify migrations actually ran:
 
