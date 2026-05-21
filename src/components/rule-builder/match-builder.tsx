@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import { GripVertical, Plus, Trash2 } from "lucide-react";
 import { useCallback } from "react";
 import { KNOWN_FIELDS, OPERATOR_LABELS, fieldSpec, operatorsForField } from "./fields";
+import { builderShell, combinatorPill, rowChrome } from "./match-builder.styles";
 
 interface MatchBuilderProps {
   value: MatchNode;
@@ -38,7 +39,7 @@ export function MatchBuilder({ value, onChange }: MatchBuilderProps) {
   );
 
   return (
-    <div className="rounded-md border border-border bg-background">
+    <div className={builderShell()}>
       <NodeRow node={hydrated} onChange={onChange} depth={0} isRoot />
     </div>
   );
@@ -140,7 +141,7 @@ function GroupRow({ group, onChange, onDelete, depth, isRoot }: GroupRowProps) {
 
   return (
     <div className={cn("relative", !isRoot && "ml-4 border-l-2 border-border pl-4")}>
-      <div className="flex items-center gap-2 px-3 py-2">
+      <div className={rowChrome()}>
         <CombinatorToggle value={group.combinator} onChange={setCombinator} />
         <span className="text-xs text-muted-foreground">
           {group.children.length === 0
@@ -201,7 +202,7 @@ function CombinatorToggle({
 }) {
   const options: MatchGroup["combinator"][] = ["and", "or", "not"];
   return (
-    <div className="inline-flex overflow-hidden rounded-md border border-border bg-background text-[11px] font-medium uppercase">
+    <div className={combinatorPill()}>
       {options.map((opt) => (
         <button
           key={opt}
@@ -240,7 +241,7 @@ function LeafRow({ leaf, onChange, onDelete }: LeafRowProps) {
   };
 
   return (
-    <div className="flex items-center gap-2 px-3 py-2">
+    <div className={rowChrome()}>
       <GripVertical className="size-3 shrink-0 text-muted-foreground/40" aria-hidden />
 
       {/* Field picker — combobox-like with known values, but free-form allowed. */}

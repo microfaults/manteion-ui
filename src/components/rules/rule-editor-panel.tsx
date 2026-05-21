@@ -1,5 +1,14 @@
 import { RuleBuilder } from "@/components/rule-builder";
 import { FaultSpecPicker } from "@/components/rules/fault-spec-picker";
+import {
+  fieldStack,
+  panelChrome,
+  panelFooter,
+  panelFooterRight,
+  panelFooterRow,
+  panelHeader,
+  panelTitle,
+} from "@/components/rules/rule-editor.styles";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -222,9 +231,9 @@ function RuleEditorForm({
   });
 
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <div className="flex items-center justify-between border-b px-4 py-3">
-        <h2 className="truncate text-sm font-semibold">{isNew ? "New rule" : name || ruleId}</h2>
+    <div className={panelChrome()}>
+      <div className={panelHeader()}>
+        <h2 className={panelTitle()}>{isNew ? "New rule" : name || ruleId}</h2>
         <div className="flex items-center gap-2">
           <Label htmlFor="panel-enabled" className="text-xs text-muted-foreground">
             Enabled
@@ -233,7 +242,7 @@ function RuleEditorForm({
         </div>
       </div>
 
-      <div className="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+      <div className={fieldStack()}>
         <Field label="Name">
           <Input
             value={name}
@@ -444,13 +453,13 @@ function RuleEditorForm({
         </details>
       </div>
 
-      <div className="space-y-2 border-t px-4 py-3">
+      <div className={panelFooter()}>
         {save.isError && (
           <p className="text-xs text-destructive">
             {save.error instanceof Error ? save.error.message : "Save failed."}
           </p>
         )}
-        <div className="flex items-center justify-between">
+        <div className={panelFooterRow()}>
           <Button
             variant="ghost"
             size="sm"
@@ -460,7 +469,7 @@ function RuleEditorForm({
           >
             Delete
           </Button>
-          <div className="flex items-center gap-2">
+          <div className={panelFooterRight()}>
             <Button variant="outline" size="sm" disabled>
               Test push
             </Button>

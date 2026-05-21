@@ -1,5 +1,6 @@
 import { Topbar } from "@/components/layout/topbar";
 import { RuleEditorPanel } from "@/components/rules/rule-editor-panel";
+import { listHeader, newRuleButton, ruleRow } from "@/components/rules/rules-page.styles";
 import { TargetBadge, deriveTarget, ruleSubtitle } from "@/components/rules/target-badge";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -73,11 +74,7 @@ export function RulesPage() {
       <Topbar
         breadcrumbs={["Rules"]}
         action={
-          <button
-            type="button"
-            onClick={openNew}
-            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
-          >
+          <button type="button" onClick={openNew} className={newRuleButton()}>
             <Plus className="size-4" />
             New rule
           </button>
@@ -91,7 +88,7 @@ export function RulesPage() {
             showPanel ? "w-[55%]" : "w-full",
           )}
         >
-          <div className="flex items-center justify-between border-b px-4 py-3">
+          <div className={listHeader()}>
             <div>
               <span className="text-sm font-semibold">Rules</span>
               {data && (
@@ -150,7 +147,7 @@ export function RulesPage() {
                   <TableRow
                     key={r.id}
                     data-selected={selectedId === r.id || undefined}
-                    className="cursor-pointer hover:bg-accent data-[selected]:bg-accent"
+                    className={ruleRow()}
                     onClick={() => openRule(r.id)}
                   >
                     <TableCell>
