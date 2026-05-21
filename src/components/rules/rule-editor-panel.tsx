@@ -1,4 +1,5 @@
 import { RuleBuilder } from "@/components/rule-builder";
+import { FaultSpecPicker } from "@/components/rules/fault-spec-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -278,12 +279,7 @@ function RuleEditorForm({
 
         {actionType === "fault_spec" && (
           <Field label="Fault spec">
-            <Input
-              value={faultSpecId}
-              onChange={(e) => setFaultSpecId(e.target.value)}
-              placeholder="spec-…"
-              className="font-mono text-sm"
-            />
+            <FaultSpecPicker value={faultSpecId} onChange={setFaultSpecId} />
           </Field>
         )}
         {actionType === "fault_composition" && (

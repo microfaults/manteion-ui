@@ -16,6 +16,9 @@ vi.mock("@/lib/api", () => ({
   servicesApi: {
     listSDKInstances: vi.fn().mockResolvedValue([]),
   },
+  faultsApi: {
+    listFaultSpecs: vi.fn().mockResolvedValue([]),
+  },
 }));
 
 import { rulesApi } from "@/lib/api";
@@ -56,11 +59,13 @@ describe("RuleEditorPanel — new rule", () => {
     expect(screen.getByText("Service")).toBeTruthy();
   });
 
-  it("renders action type and fault-spec sub-field", () => {
+  it("renders action type and fault-spec sub-field", async () => {
     renderPanel({ isNew: true, ruleId: null });
     expect(screen.getByText("Action type")).toBeTruthy();
     expect(screen.getByText("Fault spec")).toBeTruthy();
-    expect(screen.getByPlaceholderText("spec-…")).toBeTruthy();
+    // FaultSpecPicker is async — with empty mocked list it falls back to a
+    // free-text input with placeholder "spec-…" once useQuery resolves.
+    expect(await screen.findByPlaceholderText("spec-…")).toBeTruthy();
   });
 
   it("switches sub-field when action type is cachebox", async () => {
@@ -142,7 +147,9 @@ describe("RuleEditorPanel — existing rule", () => {
   it("populates fault spec id after load", async () => {
     renderPanel({ isNew: false, ruleId: "rule-001" });
     await screen.findByDisplayValue("freeze-productcatalog");
-    expect(screen.getByDisplayValue("spec-inline-hang-5s")).toBeTruthy();
+    // FaultSpecPicker with empty mocked list falls back to a free-text input
+    // bound to faultSpecId, which is hydrated from the rule on load.
+    expect(await screen.findByDisplayValue("spec-inline-hang-5s")).toBeTruthy();
   });
 
   it("renders match criteria builder for existing rule", async () => {
