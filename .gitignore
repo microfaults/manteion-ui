@@ -9,6 +9,7 @@ dist-ssr
 
 # Generated
 src/routeTree.gen.ts
+*.tsbuildinfo
 
 # Env
 .env

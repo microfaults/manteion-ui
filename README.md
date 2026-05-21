@@ -13,7 +13,7 @@ latency, read the verdict.
 cd manteion-ui
 corepack enable pnpm       # one-time, on systems without pnpm
 pnpm install
-cp .env.example .env.local # edit VITE_MANTEION_URL to your manteion-go
+cp .env.example .env.local # then adjust URLs to match your port-forwards
 pnpm dev                   # http://localhost:5173
 ```
 
@@ -31,7 +31,7 @@ Configuration lives in a `.env.local` file (gitignored). Copy the example
 and adjust values to match your local setup:
 
 ```sh
-cp .env.example .env.local
+cp .env.example .env.local  # then adjust URLs
 ```
 
 All variables are prefixed `VITE_` so Vite exposes them to the browser at
@@ -42,7 +42,8 @@ is baked into the client bundle.
 |---|---|---|---|
 | `VITE_MANTEION_URL` | yes | `http://localhost:9090` | Base URL of the manteion-go API (no trailing slash). Every API call from `src/lib/api/client.ts` hits this host. Set to your cluster's gateway or port-forward address. |
 | `VITE_DEFAULT_ENV` | no | `online-boutique` | Active kustomize overlay / environment name. Sent as the `X-Faults-Lab-Environment` header on every request and shown in the sidebar. Change this when targeting a different demo app deployment. |
-| `VITE_GRAFANA_URL` | no | — | Base URL for embedded Grafana `d-solo` panels (latency / throughput dashboards). Not wired in code yet — will be used once the dashboard pages embed live panels. |
+| `VITE_GRAFANA_URL` | no | — | Base URL of Grafana (no trailing slash). Dashboard cards link to `/d/atropos-overview?...`. Grafana runs in-cluster in the demo: `kubectl port-forward svc/grafana 3001:3000` then set e.g. `http://localhost:3001`. Leave unset to hide the Grafana links. |
+| `VITE_PROMETHEUS_URL` | no | `http://localhost:9091` | Prometheus HTTP API base URL. Dashboard observability cards query this for live RPS, p99, error rate, and cache-hit metrics. In dev, set to `http://localhost:5173/prometheus` so the Vite proxy forwards to your `kubectl port-forward svc/prometheus 9091:9090` (avoids CORS). |
 
 ### Per-environment overrides
 

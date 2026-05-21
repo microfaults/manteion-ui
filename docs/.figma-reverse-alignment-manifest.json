@@ -1,0 +1,80 @@
+{
+  "description": "Node IDs created during reverse-alignment from code (2026-05-12). Use for atomic undo.",
+  "fileKey": "S7q0O6YXDJ3MbcRqQdLr03",
+  "createdAt": "2026-05-12",
+  "components": {
+    "sectionHeader": "2595:2",
+    "targetBadgeLabel": "2595:3",
+    "TargetBadge": {
+      "setId": "2595:12",
+      "source": "src/components/rules/target-badge.tsx (rule-creation)"
+    },
+    "miniBarsLabel": "2596:2",
+    "MiniBars": {
+      "id": "2596:3",
+      "source": "src/routes/dashboard.tsx (feat/manteion-ui-dashboard-prometheus-services)"
+    },
+    "metricRangeSelectorLabel": "2596:28",
+    "MetricRangeSelector": {
+      "id": "2596:29",
+      "source": "src/routes/dashboard.tsx (feat/manteion-ui-dashboard-prometheus-services)"
+    },
+    "prometheusErrorBannerLabel": "2598:2",
+    "PrometheusErrorBanner": {
+      "id": "2598:3",
+      "source": "src/routes/dashboard.tsx (feat/manteion-ui-dashboard-prometheus-services)"
+    },
+    "labelTagInputLabel": "2598:6",
+    "LabelTagInput": {
+      "id": "2598:7",
+      "source": "src/components/rules/label-tag-input.tsx (rule-creation)",
+      "deprecated": true
+    },
+    "serviceRowLabel": "2599:2",
+    "ServiceRow": {
+      "setId": "2599:17",
+      "source": "src/routes/dashboard.tsx (feat/manteion-ui-dashboard-prometheus-services)"
+    },
+    "observabilityCardLabel": "2600:2",
+    "ObservabilityCard": {
+      "setId": "2600:135",
+      "source": "src/routes/dashboard.tsx (feat/manteion-ui-dashboard-prometheus-services)"
+    },
+    "ruleEditorPanelLabel": "2601:2",
+    "RuleEditorPanel": {
+      "id": "2601:3",
+      "source": "src/components/rules/rule-editor-panel.tsx (rule-creation)"
+    },
+    "newExperimentDialogLabel": "2604:2",
+    "NewExperimentDialog_v1.1": {
+      "id": "2604:3",
+      "source": "src/components/experiments/new-experiment-dialog.tsx (feat/experiments-page-ui)"
+    },
+    "newExperimentDialogAnnotation": "2605:63"
+  },
+  "screens": {
+    "Dashboard_v1.1": {
+      "id": "2608:110",
+      "clonedFrom": "2009:2"
+    },
+    "Rules_v1.0_panel": {
+      "id": "2613:110",
+      "clonedFrom": "2012:2",
+      "ruleEditorInstance": "2614:110",
+      "annotation": "2614:172"
+    },
+    "Experiments_v1.1_dialog": {
+      "dialogInstance": "2616:171",
+      "annotationLine": "2616:249",
+      "annotationDot": "2616:250",
+      "annotationText": "2616:251"
+    }
+  },
+  "annotations": [
+    "2605:63",
+    "2614:172",
+    "2616:249",
+    "2616:250",
+    "2616:251"
+  ]
+}

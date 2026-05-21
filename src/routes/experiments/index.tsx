@@ -25,7 +25,7 @@ export const Route = createFileRoute("/experiments/")({
 function ExperimentsPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["experiments"],
-    queryFn: experimentsApi.listExperiments,
+    queryFn: experimentsApi.listExperimentsLenient,
     retry: false,
   });
 

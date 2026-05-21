@@ -144,7 +144,69 @@ summary — hypothesis, started, runs count). Reuse `PhaseHoverCard` in the
 
 ---
 
-## 3. What was not touched
+## 3. Reverse-alignment from code (2026-05-12)
+
+### Why
+
+Three feature branches shipped code that diverged from the Figma screens:
+`rule-creation`, `feat/manteion-ui-dashboard-prometheus-services`, and
+`feat/experiments-page-ui`. This update creates Figma components and screen
+variants that match the shipped code (code is source of truth).
+
+### Components created on the `Components` page
+
+All placed under a "Reverse-alignment from code (2026-05-12)" section header
+(`2595:2`). No new tokens — reuses `faults-lab/tokens` (43 vars, Default mode).
+
+| Component | Type | Node ID | Source file (branch) |
+|---|---|---|---|
+| `TargetBadge` | COMPONENT_SET (4 variants: cache-box, inline, network, resource) | `2595:12` | `src/components/rules/target-badge.tsx` (rule-creation) |
+| `MiniBars` | COMPONENT (24 bars, 80px tall) | `2596:3` | `src/routes/dashboard.tsx` (dashboard-prometheus) |
+| `MetricRangeSelector` | COMPONENT (5-segment: 5m\|15m\|30m\|1h\|live) | `2596:29` | `src/routes/dashboard.tsx` (dashboard-prometheus) |
+| `PrometheusErrorBanner` | COMPONENT | `2598:3` | `src/routes/dashboard.tsx` (dashboard-prometheus) |
+| `LabelTagInput` | COMPONENT (DEPRECATED — superseded by MatchBuilder) | `2598:7` | `src/components/rules/label-tag-input.tsx` (rule-creation) |
+| `ServiceRow` | COMPONENT_SET (2 variants: sdk-registered, metrics-only) | `2599:17` | `src/routes/dashboard.tsx` (dashboard-prometheus) |
+| `ObservabilityCard` | COMPONENT_SET (4 variants: rps, p99, error, cache-hit) | `2600:135` | `src/routes/dashboard.tsx` (dashboard-prometheus) |
+| `RuleEditorPanel` | COMPONENT (v1.0 panel editor) | `2601:3` | `src/components/rules/rule-editor-panel.tsx` (rule-creation) |
+| `NewExperimentDialog — v1.1` | COMPONENT | `2604:3` | `src/components/experiments/new-experiment-dialog.tsx` (experiments-page-ui) |
+
+### Divergences from spec (code wins)
+
+- **MiniBars**: 80px tall (code `h-20`), not 24px per §7.2 spec.
+- **MetricRangeSelector + LiveToggle**: merged into one 5-segment control
+  (`5m|15m|30m|1h|live`). The spec's separate Switch+label LiveToggle does
+  not exist in code.
+- **TargetBadge `none` variant**: skipped — code has exactly 4 targets.
+
+### Screens composed on the `Screens` page
+
+| Screen | Node ID | Position | Notes |
+|---|---|---|---|
+| `Dashboard — v1.1` | `2608:110` | x=0, y=1400 | Cloned from `2009:2`. Adds ObservabilityCards row, MetricRangeSelector, ServiceRow list, PrometheusErrorBanner (hidden). |
+| `Rules — v1.0 (panel)` | `2613:110` | x=19160, y=1100 | Cloned from `2012:2`. Right panel replaced with RuleEditorPanel instance. |
+| `NewExperimentDialog — v1.1` (instance) | `2616:171` | x=15220, y=40 | Placed next to `Experiments` frame (`2085:2`) with dashed blue annotation arrow. |
+
+### Product-decision flags
+
+These need a decision before further action:
+
+1. **LabelTagInput**: marked DEPRECATED in Figma. Should it be deleted entirely,
+   or kept for reference? MatchBuilder (`2115:2`) supersedes it.
+2. **Dashboard services list vs table**: code ships the Prometheus-driven list
+   (ServiceRow). The §7.2 spec calls for a 6-column table (CPU, rule-version,
+   etc.). Which is canonical going forward?
+3. **NewExperimentDialog v1.1 vs v1.0**: v1.1 adds Description and Fault specs
+   fields, replaces Auto-plan toggle with manual phase grid, omits Targeted
+   services multi-select. Replace v1.0 or keep as alternate variant?
+
+### Undo manifest
+
+All created node IDs are tracked in `docs/.figma-reverse-alignment-manifest.json`.
+See §4 below for the atomic undo script.
+
+---
+
+## 4. What was not touched
 
 - The `faults-lab/tokens` variable collection — still 43 variables, single
   "Default" mode. No new tokens added.

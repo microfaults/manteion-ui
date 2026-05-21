@@ -6,13 +6,23 @@ import {
   PhaseSummarySchema,
 } from "@/types/api";
 import { z } from "zod";
-import { apiClient } from "./client";
+import { ApiError, apiClient } from "./client";
 
 const List = z.array(ExperimentSchema);
 
-/** NEW endpoint — not yet exposed by manteion-go. See docs/API-NEEDED.md. */
+/** Lists experiments from manteion-go `GET /api/v1/experiments` (empty array when DB has no rows). */
 export async function listExperiments(): Promise<Experiment[]> {
   return apiClient.get("/api/v1/experiments", List);
+}
+
+/** Same as {@link listExperiments}, but returns `[]` when the server responds 404 (older manteion-go binary). */
+export async function listExperimentsLenient(): Promise<Experiment[]> {
+  try {
+    return await listExperiments();
+  } catch (e) {
+    if (e instanceof ApiError && e.status === 404) return [];
+    throw e;
+  }
 }
 
 /** NEW endpoint. */
