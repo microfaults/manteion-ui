@@ -67,9 +67,11 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       "/api": {
-        // manteion-go listens on 9090 by default (kubectl port-forward
-        // svc/manteion 9090:9090). Earlier dev configs used 8080; unified
-        // here so README, .env.example, and the proxy all agree.
+        // manteion-go in VM1's k3s is svc/manteion:8080. Open the SSH tunnel
+        // documented in docs/ops/connecting-to-vm1.md to terminate at
+        // localhost:9090:
+        //   ssh -L 9090:localhost:9090 pmundra@2262-cse115b-01.be.ucsc.edu \
+        //       'kubectl port-forward svc/manteion 9090:8080'
         target: "http://localhost:9090",
         changeOrigin: true,
         timeout: 30_000,

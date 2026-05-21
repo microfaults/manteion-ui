@@ -58,7 +58,7 @@ const RESOURCE_TYPES = [
 
 /** Categories that the design team hasn't shipped a Figma frame for. The
  *  corresponding TabsTrigger is rendered disabled with a tooltip. Drop a
- *  category from this set once `docs/figma-changes.md` lists a frame for it. */
+ *  category from this set once `docs/design/figma-changes.md` lists a frame for it. */
 const PENDING_CATEGORIES: ReadonlySet<FaultCategory> = new Set(["network", "resource"]);
 
 const DEFAULT_FAULT_TYPE: Record<FaultCategory, string> = {

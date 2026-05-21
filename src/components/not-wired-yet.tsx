@@ -9,7 +9,7 @@ interface NotWiredYetProps {
 }
 
 /** Placeholder for screens whose backend endpoints don't exist yet.
- *  Always points the operator at `docs/API-NEEDED.md` so the gap stays visible. */
+ *  Always points the operator at `docs/api/api-needed.md` so the gap stays visible. */
 export function NotWiredYet({ endpoints, note }: NotWiredYetProps) {
   return (
     <div className="mx-auto max-w-2xl py-12">
@@ -35,7 +35,7 @@ export function NotWiredYet({ endpoints, note }: NotWiredYetProps) {
               </ul>
             </div>
             <div className="mt-4 inline-flex items-center gap-1 text-xs text-muted-foreground">
-              See <code className="font-mono">docs/API-NEEDED.md</code> for the backlog.
+              See <code className="font-mono">docs/api/api-needed.md</code> for the backlog.
               <ExternalLink className="size-3" aria-hidden />
             </div>
           </div>

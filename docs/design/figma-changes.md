@@ -35,7 +35,7 @@ same right-panel rule editor, with these changes:
 1. **Cache-box Target removed.** The `Apply a fault | Use cache-box` segmented
    control collapses to a single Fault-primitive picker. Cache-box lives in
    the Experiment phase editor from now on (see
-   `docs/API-NEEDED.md §C.1 resolution (b)`).
+   `../api/api-needed.md §C.1 resolution (b)`).
 2. **Injection point removed as a standalone field.** It folds into the Match
    criteria builder as just another condition on `injection_point`.
 3. **Match labels → Match criteria builder.** A nested AND/OR/NOT tree of
@@ -67,7 +67,7 @@ same right-panel rule editor, with these changes:
 - Add a Figma annotation (blue arrow) from the `MatchBuilder` in the
   instance to a note at the top of the frame: *"Builder compiles to OPA
   rego (`POST /api/v1/rules/compile-match`). Paste tab for dev convenience.
-  See `docs/API-NEEDED.md §C.2`."*
+  See `../api/api-needed.md §C.2`."*
 - Keep the left-panel rule list unchanged.
 
 ### Script (`use_figma`) — rough outline
@@ -212,6 +212,6 @@ See §4 below for the atomic undo script.
   "Default" mode. No new tokens added.
 - Primitives on the `Components` page — Buttons, Input/default, StatCard,
   Card, SidebarItem, GrafanaPanel, etc. — unchanged.
-- The `Archive (v0)` page — kept as-is per UI-DESIGN.md §10; deletion deferred
+- The `Archive (v0)` page — kept as-is per `ui-design.md §10`; deletion deferred
   until the v1 redesign is fully adopted.
-- Dark mode — still deferred to Phase 2 (UI-DESIGN.md §5).
+- Dark mode — still deferred to Phase 2 (`ui-design.md §5`).

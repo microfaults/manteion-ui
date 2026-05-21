@@ -13,7 +13,7 @@ function EnvironmentsPage() {
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <NotWiredYet
           endpoints={["(product decision required — per-deployment vs tenant column)"]}
-          note="Environment scoping is unresolved — one manteion per env vs tenant-scoped rows. See UI-DESIGN.md §8 'Unresolved questions'."
+          note="Environment scoping is unresolved — one manteion per env vs tenant-scoped rows. See docs/design/ui-design.md §8 'Unresolved questions'."
         />
       </div>
     </>

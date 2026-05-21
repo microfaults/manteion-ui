@@ -1,9 +1,9 @@
 # API-NEEDED — the contract `manteion-ui` expects from `manteion-go`
 
 This doc is authored from the UI's point of view. It enumerates every HTTP
-endpoint a faithful implementation of the screens in `UI-DESIGN.md` (and the
-redesigned Rules / Experiments pages — see `docs/figma-changes.md`) needs the
-backend to expose.
+endpoint a faithful implementation of the screens in `../design/ui-design.md`
+(and the redesigned Rules / Experiments pages — see
+`../design/figma-changes.md`) needs the backend to expose.
 
 It also calls out **drift** between the current Figma/UI assumptions and
 `manteion-go`'s reality — places where the backend has to pick a resolution
@@ -78,7 +78,7 @@ priority · status (✔ exists / ◻ missing).
 | GET | `/api/v1/sdk/instances/{id}` | — | `SDKInstance & {last_error?: string, last_rule_version_acked?: uint64, active_rule_ids: string[], recent_run_ids: string[]}` | detail panel | P1 | ◻ |
 | POST | `/api/v1/sdk/instances/{id}/kill-switch` | — | `{disabled_rule_ids: string[], at: timestamp}` | primary "Kill switch" action | P1 | ◻ |
 
-### B.3 Rules (`/rules`, `/rules/:id`)  — redesigned, see figma-changes.md
+### B.3 Rules (`/rules`, `/rules/:id`)  — redesigned, see `../design/figma-changes.md`
 
 | Method | Path | Request | Response | Consumer | Prio | Status |
 |---|---|---|---|---|---|---|
@@ -188,7 +188,7 @@ Product decision required before we define routes. See §D.
 **Resolutions:**
 
 - **(a)** Extend `Rule` with `cache_box: CacheBoxConfig?` as a third oneof alongside the fault fields. Pro: matches current Figma. Con: changes the SDK polling contract, duplicates data that already lives on experiments.
-- **(b) [RECOMMENDED]** Keep cache-box scoped to experiments. Remove "Use cache-box" as a Rules-page Target. Operators who want cache-box freeze-and-replay express it in the Experiment phase editor (where `frozen_services` is already the authoritative field). **This is what `docs/figma-changes.md` assumes for the Rules-v1.1 redesign.**
+- **(b) [RECOMMENDED]** Keep cache-box scoped to experiments. Remove "Use cache-box" as a Rules-page Target. Operators who want cache-box freeze-and-replay express it in the Experiment phase editor (where `frozen_services` is already the authoritative field). **This is what `../design/figma-changes.md` assumes for the Rules-v1.1 redesign.**
 
 ### C.2 Match criteria is AND-only, string-equality **[blocker for Rules v1.1]**
 
@@ -280,8 +280,9 @@ written to send the params (no-op until server honours them).
 1. **Environment scoping.** Dropdown exists in the sidebar. Do we run one
    manteion-go per env (simpler, matches kustomize overlay boundary) or one
    manteion with a tenant column on every table (harder)?
-2. **Kill-switch granularity.** Per-service (recommended by UI-DESIGN.md §8)
-   vs per-rule vs both. UI assumes per-service for Phase 1.
+2. **Kill-switch granularity.** Per-service (recommended by
+   `../design/ui-design.md §8`) vs per-rule vs both. UI assumes per-service
+   for Phase 1.
 3. **Do non-operator roles view this UI?** If yes: add RBAC + read-only mode.
    Phase 1 says no.
 

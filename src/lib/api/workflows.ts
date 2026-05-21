@@ -135,7 +135,7 @@ export interface PickedEndpoint {
  *  This is the lever the deprecated "Persona" concept used to provide:
  *  per-step probability + think-time at the node level generalizes to any
  *  DAG-shaped workflow, where a fixed-set persona enum (browser/buyer/...)
- *  did not. See docs/figma-changes.md for the rationale. */
+ *  did not. See docs/design/figma-changes.md for the rationale. */
 export interface OptionalFlag {
   probability: number;
 }

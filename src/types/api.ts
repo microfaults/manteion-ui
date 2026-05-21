@@ -2,14 +2,14 @@
  * API types — hand-written Zod schemas until manteion-go ships an OpenAPI spec.
  * Keep these in sync with `manteion-go/internal/model/*.go`.
  *
- * Current backend reality (see docs/API-NEEDED.md for the full list):
+ * Current backend reality (see docs/api/api-needed.md for the full list):
  *  - /api/v1/rules          CRUD (RuleRepo)
  *  - /api/v1/sdk/instances  read-only list (SDKRepo)
  *  - /api/v1/sdk/rules      version-based poll for atropos SDKs
  *  - /api/v1/zeus/*         blind passthrough to zeus-go
  *
  * Many screens below reference endpoints that DO NOT yet exist. Those are
- * documented in docs/API-NEEDED.md and scoped under "NEW" comments here.
+ * documented in docs/api/api-needed.md and scoped under "NEW" comments here.
  */
 import { z } from "zod";
 
@@ -21,7 +21,7 @@ export type Timestamp = z.infer<typeof Timestamp>;
 // ─── Rule ─────────────────────────────────────────────────────────────
 
 /** Match-criteria AST used by the in-UI rule builder.
- *  Compiles to rego via `src/lib/rego/compile.ts`. See docs/API-NEEDED.md §B.3#2.
+ *  Compiles to rego via `src/lib/rego/compile.ts`. See docs/api/api-needed.md §B.3#2.
  */
 export const MatchOperatorSchema = z.enum([
   "eq",
@@ -87,7 +87,7 @@ export const RuleSchema = z.object({
       labels: z.record(z.string()).optional(),
     })
     .optional(),
-  /** NEW — sent on save, backend must store (see docs/API-NEEDED.md §B.3#2). */
+  /** NEW — sent on save, backend must store (see docs/api/api-needed.md §B.3#2). */
   match_ast: MatchNodeSchema.optional(),
   /** NEW — compiled rego; backend source of truth once implemented. */
   match_expr: z.string().optional(),

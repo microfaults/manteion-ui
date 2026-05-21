@@ -3,8 +3,8 @@
 Operator console for the **faults-lab** platform. A React admin that talks only
 to `manteion-go` (which in turn proxies a narrow slice of `zeus-go`). Every
 screen corresponds to a step in the experiment loop defined in
-`UI-DESIGN.md` — configure rules, launch experiments, inspect phase-by-phase
-latency, read the verdict.
+[`docs/design/ui-design.md`](./docs/design/ui-design.md) — configure rules,
+launch experiments, inspect phase-by-phase latency, read the verdict.
 
 ## Quickstart
 
@@ -13,8 +13,16 @@ latency, read the verdict.
 cd manteion-ui
 corepack enable pnpm       # one-time, on systems without pnpm
 pnpm install
-cp .env.example .env.local # then adjust URLs to match your port-forwards
+cp .env.example .env.local # defaults are correct for the VM1 SSH tunnel
 pnpm dev                   # http://localhost:5173
+```
+
+In another terminal, open the SSH tunnel to manteion-go on VM1
+(see [`docs/ops/connecting-to-vm1.md`](./docs/ops/connecting-to-vm1.md)):
+
+```sh
+ssh -L 9090:localhost:9090 pmundra@2262-cse115b-01.be.ucsc.edu \
+    'kubectl port-forward svc/manteion 9090:8080'
 ```
 
 Run the full build + tests:
@@ -40,10 +48,10 @@ is baked into the client bundle.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `VITE_MANTEION_URL` | yes | `http://localhost:9090` | Base URL of the manteion-go API (no trailing slash). Every API call from `src/lib/api/client.ts` hits this host. Set to your cluster's gateway or port-forward address. |
+| `VITE_MANTEION_URL` | yes | `http://localhost:5173` | Base URL the client sends API calls to. The default routes through the Vite dev proxy (`/api/*` → `http://localhost:9090`), which the VM1 SSH tunnel terminates. Override only if you're hitting manteion directly (e.g. a deployed environment). |
 | `VITE_DEFAULT_ENV` | no | `online-boutique` | Active kustomize overlay / environment name. Sent as the `X-Faults-Lab-Environment` header on every request and shown in the sidebar. Change this when targeting a different demo app deployment. |
-| `VITE_GRAFANA_URL` | no | — | Base URL of Grafana (no trailing slash). Dashboard cards link to `/d/atropos-overview?...`. Grafana runs in-cluster in the demo: `kubectl port-forward svc/grafana 3001:3000` then set e.g. `http://localhost:3001`. Leave unset to hide the Grafana links. |
-| `VITE_PROMETHEUS_URL` | no | `http://localhost:9091` | Prometheus HTTP API base URL. Dashboard observability cards query this for live RPS, p99, error rate, and cache-hit metrics. In dev, set to `http://localhost:5173/prometheus` so the Vite proxy forwards to your `kubectl port-forward svc/prometheus 9091:9090` (avoids CORS). |
+| `VITE_GRAFANA_URL` | no | — | Base URL of Grafana (no trailing slash). Dashboard cards link to `/d/atropos-overview?...`. Grafana runs in-cluster on VM1: `ssh -L 3001:localhost:3001 pmundra@2262-cse115b-01.be.ucsc.edu 'kubectl port-forward svc/grafana 3001:3000'`, then set `VITE_GRAFANA_URL=http://localhost:3001`. Leave unset to hide the Grafana links. |
+| `VITE_PROMETHEUS_URL` | no | `http://localhost:5173/prometheus` | Prometheus HTTP API base URL. Dashboard observability cards query this for live RPS, p99, error rate, and cache-hit metrics. The default routes through the Vite proxy at `/prometheus/api/v1/*` → `127.0.0.1:9091` (avoids CORS). Open `ssh -L 9091:localhost:9091 pmundra@2262-cse115b-01.be.ucsc.edu 'kubectl port-forward svc/prometheus 9091:9090'` alongside the manteion tunnel. |
 
 ### Per-environment overrides
 
@@ -55,20 +63,28 @@ For a staging build, create `.env.staging.local` and run:
 pnpm vite build --mode staging
 ```
 
-### Connecting to manteion-go
+### Connecting to manteion-go on VM1
 
-The UI expects manteion-go on `VITE_MANTEION_URL`. The fastest local setup:
+manteion-go runs in k3s on VM1 (`2262-cse115b-01.be.ucsc.edu`) as the
+ClusterIP service `svc/manteion:8080`. Bridge it to your laptop with one
+SSH local-forward:
 
 ```sh
-# terminal 1 — port-forward from a cluster
-kubectl port-forward svc/manteion-go 9090:9090
+ssh -L 9090:localhost:9090 pmundra@2262-cse115b-01.be.ucsc.edu \
+    'kubectl port-forward svc/manteion 9090:8080'
+```
 
-# terminal 2 — start the UI (defaults point at localhost:9090)
-pnpm dev
+This opens an SSH tunnel and starts `kubectl port-forward` on the VM in one
+command — Ctrl-C tears both down. Then in another terminal:
+
+```sh
+pnpm dev   # http://localhost:5173 — defaults proxy /api/* to localhost:9090
 ```
 
 If manteion-go is unreachable, the dashboard shows
-"Could not reach manteion — is VITE_MANTEION_URL correct?".
+"Could not reach manteion — is VITE_MANTEION_URL correct?". See
+[`docs/ops/connecting-to-vm1.md`](./docs/ops/connecting-to-vm1.md) for the
+traffic-flow diagram and troubleshooting.
 
 ## Stack
 
@@ -76,7 +92,7 @@ If manteion-go is unreachable, the dashboard shows
 |---|---|
 | Build | Vite 5 + `@vitejs/plugin-react-swc` |
 | Framework | React 18 + TypeScript (strict) |
-| Styling | Tailwind CSS + CSS variables (tokens from `UI-DESIGN.md §5`) |
+| Styling | Tailwind CSS + CSS variables (tokens from `docs/design/ui-design.md §5`) |
 | Components | shadcn/ui (copy-in under `src/components/ui/`) |
 | Routing | TanStack Router (file-based, type-safe) |
 | Server state | TanStack Query |
@@ -94,8 +110,11 @@ between code and design.
 ```
 manteion-ui/
 ├── docs/
-│   ├── API-NEEDED.md        ← endpoints the UI expects from manteion-go
-│   └── figma-changes.md     ← handoff notes for the Rules v1.1 + hover-card work
+│   ├── README.md            ← index for the rest of this tree
+│   ├── design/              ← ui-design.md, figma-changes.md
+│   ├── api/                 ← api-needed.md (endpoints the UI expects)
+│   ├── ops/                 ← connecting-to-vm1.md (SSH tunnel setup)
+│   └── archive/             ← shipped review/fix plans, kept for history
 ├── src/
 │   ├── main.tsx · router.tsx · globals.css
 │   ├── routes/              ← TanStack Router file routes
@@ -115,10 +134,10 @@ manteion-ui/
 
 ## What's wired vs. what's not
 
-The UI is route-complete — every screen in `UI-DESIGN.md §7` has a route and
-a shell. Many pages are intentionally stubbed with `<NotWiredYet/>` because
-their backend endpoints don't exist yet. See `docs/API-NEEDED.md` for the full
-backlog.
+The UI is route-complete — every screen in `docs/design/ui-design.md §7` has
+a route and a shell. Many pages are intentionally stubbed with `<NotWiredYet/>`
+because their backend endpoints don't exist yet. See
+[`docs/api/api-needed.md`](./docs/api/api-needed.md) for the full backlog.
 
 Wired today:
 - `/dashboard` — reads `/api/v1/status`, `/api/v1/rules`, `/api/v1/sdk/instances`
@@ -164,14 +183,20 @@ eq / in / matches / starts_with / numeric / NOT / dotted-key fields.
 - No Redux. Server state in TanStack Query, route state in the URL.
 - Every API call goes through `src/lib/api/client.ts` (a Zod-validated
   fetch wrapper). Add new endpoints in `src/lib/api/<resource>.ts` and
-  list them in `docs/API-NEEDED.md`.
+  list them in `docs/api/api-needed.md`.
 - Mono font (`JetBrains Mono`) for every identifier, latency, and rule name;
   `Inter` for everything else.
 - 8-pt grid, 48-px rows, 24-px card padding. Default shadcn radius (8/6).
 
 ## Related reading
 
-- `../UI-DESIGN.md` — design spec, token values, per-screen behaviour.
+- [`docs/README.md`](./docs/README.md) — index for the knowledge base.
+- [`docs/design/ui-design.md`](./docs/design/ui-design.md) — design spec,
+  token values, per-screen behaviour.
+- [`docs/api/api-needed.md`](./docs/api/api-needed.md) — endpoint contract
+  for manteion-go.
+- [`docs/design/figma-changes.md`](./docs/design/figma-changes.md) — what
+  shipped to the Figma file this round.
+- [`docs/ops/connecting-to-vm1.md`](./docs/ops/connecting-to-vm1.md) — SSH
+  tunnel from your laptop to manteion-go on the VM1 cluster.
 - `../VISION.md` — product north star; what "the experiment loop" means.
-- `./docs/API-NEEDED.md` — endpoint contract for manteion-go.
-- `./docs/figma-changes.md` — what shipped to the Figma file this round.

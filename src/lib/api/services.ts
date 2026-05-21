@@ -8,7 +8,7 @@ export async function listSDKInstances(): Promise<SDKInstance[]> {
   return apiClient.get("/api/v1/sdk/instances", List);
 }
 
-/** NEW endpoint — disable all rules for a service. See docs/API-NEEDED.md. */
+/** NEW endpoint — disable all rules for a service. See docs/api/api-needed.md. */
 export async function killSwitch(instanceId: string): Promise<void> {
   await apiClient.post(
     `/api/v1/sdk/instances/${encodeURIComponent(instanceId)}/kill-switch`,

@@ -7,7 +7,7 @@
  * this module bucketizes by string-matching the rule's name, service,
  * injection point, and labels.
  *
- * Once the backend exposes a typed category (see docs/API-NEEDED.md
+ * Once the backend exposes a typed category (see docs/api/api-needed.md
  * §B.3#3), this whole module can be replaced by a direct field read.
  */
 import type { Rule } from "@/types/api";

@@ -67,7 +67,7 @@ function ExperimentsPage() {
                   <TableRow>
                     <TableCell colSpan={7} className="text-muted-foreground">
                       <code className="font-mono">/api/v1/experiments</code> is not yet exposed by
-                      manteion-go — see <code className="font-mono">docs/API-NEEDED.md</code>.
+                      manteion-go — see <code className="font-mono">docs/api/api-needed.md</code>.
                       Showing an empty list for now.
                     </TableCell>
                   </TableRow>
