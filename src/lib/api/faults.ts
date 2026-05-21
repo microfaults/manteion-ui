@@ -10,7 +10,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "hang 5s",
     category: "inline",
     fault_type: "hang",
-    config: { duration_ms: 5000 },
+    params: { duration_ms: 5000 },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -18,7 +18,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "latency 100ms",
     category: "inline",
     fault_type: "latency",
-    config: { latency_ms: 100, jitter_ms: 0 },
+    params: { latency_ms: 100, jitter_ms: 0 },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -26,7 +26,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "blackhole",
     category: "network",
     fault_type: "blackhole",
-    config: { direction: "inbound" },
+    params: { direction: "inbound" },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -34,7 +34,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "http-error 500",
     category: "inline",
     fault_type: "error",
-    config: { status_code: 500 },
+    params: { status_code: 500 },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -42,7 +42,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "latency 120ms",
     category: "inline",
     fault_type: "latency",
-    config: { latency_ms: 120, jitter_ms: 0 },
+    params: { latency_ms: 120, jitter_ms: 0 },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -50,7 +50,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "cpu 80%",
     category: "resource",
     fault_type: "cpu",
-    config: { percent: 80, cores: 2 },
+    params: { percent: 80, cores: 2 },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -58,7 +58,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "RST toxic",
     category: "network",
     fault_type: "rst",
-    config: { interval_s: 5 },
+    params: { interval_s: 5 },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -66,7 +66,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "hang 30s",
     category: "inline",
     fault_type: "hang",
-    config: { duration_ms: 30000 },
+    params: { duration_ms: 30000 },
     created_at: "2026-04-01T10:00:00Z",
   },
 ];
@@ -95,7 +95,10 @@ export interface FaultSpecInput {
   name: string;
   category: "inline" | "network" | "resource";
   fault_type: string;
-  config: unknown;
+  /** Backend wire field name. Type-specific config blob — keeps Zod-loose
+   *  (z.unknown) since validation happens in the FaultEditor form, not at
+   *  the API boundary. */
+  params: unknown;
   description?: string;
   duration_ms?: number;
   ramp_up_ms?: number;

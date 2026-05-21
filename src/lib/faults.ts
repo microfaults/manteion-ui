@@ -3,7 +3,7 @@ import type { FaultSpec } from "@/types/api";
 /** Returns a human-readable one-line summary of a fault spec's parameters,
  *  matching the PARAMS column format in the design. */
 export function formatParams(spec: FaultSpec): string {
-  const cfg = spec.config as Record<string, unknown> | null | undefined;
+  const cfg = spec.params as Record<string, unknown> | null | undefined;
   const get = (k: string): number => Number(cfg?.[k] ?? 0);
 
   switch (spec.fault_type) {

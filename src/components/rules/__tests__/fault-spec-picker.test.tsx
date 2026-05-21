@@ -22,7 +22,7 @@ describe("FaultSpecPicker", () => {
         name: "p99-latency",
         category: "inline",
         fault_type: "latency",
-        config: {},
+        params: {},
         created_at: "2026-01-01T00:00:00Z",
       },
     ]);

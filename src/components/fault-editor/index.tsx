@@ -103,7 +103,7 @@ const defaultConfig = (): ConfigState => ({
 
 function configFromSpec(spec: FaultSpec): ConfigState {
   const state = defaultConfig();
-  const c = spec.config as Record<string, unknown> | null | undefined;
+  const c = spec.params as Record<string, unknown> | null | undefined;
   if (!c) return state;
   const num = (k: string, fallback: number) => (c[k] != null ? Number(c[k]) : fallback);
   const str = <T extends string>(k: string, fallback: T): T =>
@@ -230,7 +230,7 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
         name,
         category,
         fault_type: faultType,
-        config: buildConfig(faultType, cfg),
+        params: buildConfig(faultType, cfg),
         description: description || undefined,
         duration_ms: faultType === "hang" ? Math.round(cfg.hang_duration_s * 1000) : undefined,
         ramp_up_ms: rampUpS > 0 ? Math.round(rampUpS * 1000) : undefined,

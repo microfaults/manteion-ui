@@ -14,7 +14,7 @@ live manteion-go backend on VM1.
   ```sh
   curl -s -X POST http://localhost:9090/api/v1/faults/specs \
     -H 'Content-Type: application/json' \
-    -d '{"id":"spec-e2e","name":"e2e-latency","category":"inline","fault_type":"latency","config":{"latency_ms":50,"jitter_ms":0}}'
+    -d '{"id":"spec-e2e","name":"e2e-latency","category":"inline","fault_type":"latency","params":{"latency_ms":50,"jitter_ms":0}}'
   ```
 
 ## Create a fault_spec rule

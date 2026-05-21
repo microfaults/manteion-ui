@@ -198,7 +198,7 @@ export const FaultSpecSchema = z.object({
   name: z.string(),
   category: FaultCategorySchema,
   fault_type: z.string(),
-  config: z.unknown(),
+  params: z.unknown(),
   description: z.string().optional(),
   duration_ms: z.number().int().optional(),
   ramp_up_ms: z.number().int().optional(),
