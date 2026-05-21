@@ -473,7 +473,15 @@ function RuleEditorForm({
             <Button variant="outline" size="sm" disabled>
               Test push
             </Button>
-            <Button size="sm" onClick={() => save.mutate()} disabled={save.isPending}>
+            <Button
+              size="sm"
+              onClick={() => save.mutate()}
+              disabled={
+                save.isPending ||
+                (actionType === "fault_spec" && !faultSpecId) ||
+                (actionType === "fault_composition" && !faultCompId)
+              }
+            >
               {save.isPending ? "Saving…" : "Save"}
             </Button>
           </div>

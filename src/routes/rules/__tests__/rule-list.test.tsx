@@ -47,7 +47,7 @@ const MOCK_RULES: Rule[] = [
     },
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
-    match: { labels: { _target: "cache-box", _cachebox_mode: "replay" } },
+    match: {},
   },
   {
     id: "r2",
@@ -59,7 +59,7 @@ const MOCK_RULES: Rule[] = [
     action: { type: "fault_spec", fault_spec_id: "spec-inline-http-error" },
     created_at: "2026-01-01T00:00:00Z",
     updated_at: "2026-01-01T00:00:00Z",
-    match: { labels: { _target: "inline" } },
+    match: {},
   },
 ];
 

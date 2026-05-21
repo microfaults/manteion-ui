@@ -1,7 +1,7 @@
 import { RuleEditorPanel } from "@/components/rules/rule-editor-panel";
 import type { Rule } from "@/types/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -110,10 +110,17 @@ describe("RuleEditorPanel — new rule", () => {
     const { onSaved } = renderPanel({ isNew: true, ruleId: null });
 
     await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
+    // FaultSpecPicker falls back to a free-text input on empty list; type an
+    // ID so the Save guard (faultSpecId required for fault_spec action) lets
+    // the click through.
+    await user.type(await screen.findByPlaceholderText("spec-…"), "spec-x");
     await user.click(screen.getByText("Save"));
 
     expect(rulesApi.createRule).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "test-rule" }),
+      expect.objectContaining({
+        name: "test-rule",
+        action: { type: "fault_spec", fault_spec_id: expect.any(String) },
+      }),
     );
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledWith(newRule));
   });
@@ -122,6 +129,8 @@ describe("RuleEditorPanel — new rule", () => {
     const user = userEvent.setup();
     vi.mocked(rulesApi.createRule).mockRejectedValue(new Error("validation failed"));
     renderPanel({ isNew: true, ruleId: null });
+    // Fill faultSpecId so the Save guard doesn't block the click.
+    await user.type(await screen.findByPlaceholderText("spec-…"), "spec-x");
     await user.click(screen.getByText("Save"));
     expect(await screen.findByText("validation failed")).toBeTruthy();
   });
@@ -183,6 +192,41 @@ describe("RuleEditorPanel — existing rule", () => {
     await screen.findByDisplayValue("freeze-productcatalog");
     await user.click(screen.getByRole("button", { name: /Delete/i }));
     await vi.waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  it("saves cachebox action with mode + key_strategy", async () => {
+    const user = userEvent.setup();
+    const existingCachebox: Rule = {
+      id: "rule-cachebox-test",
+      name: "cachebox-test",
+      service: "cartservice",
+      enabled: true,
+      priority: 50,
+      mode: "inline",
+      action: { type: "cachebox", cachebox: { mode: "replay", key_strategy: "exact_with_body" } },
+      match: {},
+      created_at: "2026-01-01T00:00:00Z",
+      updated_at: "2026-01-01T00:00:00Z",
+    };
+    vi.mocked(rulesApi.getRule).mockResolvedValue(existingCachebox);
+    vi.mocked(rulesApi.updateRule).mockResolvedValue(existingCachebox);
+
+    renderPanel({ isNew: false, ruleId: "rule-cachebox-test" });
+
+    // Wait for load, then save without changing anything.
+    await screen.findByDisplayValue("cachebox-test");
+    await user.click(screen.getByRole("button", { name: /^save$/i }));
+
+    await waitFor(() => expect(rulesApi.updateRule).toHaveBeenCalled());
+    expect(rulesApi.updateRule).toHaveBeenCalledWith(
+      "rule-cachebox-test",
+      expect.objectContaining({
+        action: {
+          type: "cachebox",
+          cachebox: { mode: "replay", key_strategy: "exact_with_body" },
+        },
+      }),
+    );
   });
 
   it("preserves background mode on save (regression: F7)", async () => {
