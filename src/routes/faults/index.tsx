@@ -49,7 +49,9 @@ function FaultsPage() {
 
   // Count how many rules reference each spec
   const usedByCount = (id: string): number =>
-    (rulesQuery.data ?? []).filter((r) => r.fault_spec_id === id).length;
+    (rulesQuery.data ?? []).filter(
+      (r) => r.action.type === "fault_spec" && r.action.fault_spec_id === id,
+    ).length;
 
   function handleNewFault() {
     setSelectedId("new");

@@ -73,28 +73,42 @@ export const MatchNodeSchema: z.ZodType<MatchNode> = z.lazy(() =>
   z.union([MatchLeafSchema, MatchGroupSchema]),
 );
 
+// ─── Rule action (discriminated union per backend internal/model/rule.go) ───
+
+export const CacheBoxConfigSchema = z.object({
+  mode: z.enum(["passthrough", "replay", "replay_with_delay"]),
+  key_strategy: z.enum(["exact", "exact_with_host", "exact_with_body"]),
+});
+export type CacheBoxConfig = z.infer<typeof CacheBoxConfigSchema>;
+
+export const RuleActionSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("fault_spec"), fault_spec_id: z.string().min(1) }),
+  z.object({ type: z.literal("fault_composition"), fault_composition_id: z.string().min(1) }),
+  z.object({ type: z.literal("cachebox"), cachebox: CacheBoxConfigSchema }),
+]);
+export type RuleAction = z.infer<typeof RuleActionSchema>;
+
+export const ModeSchema = z.enum(["inline", "background"]);
+export const StartPolicySchema = z.enum(["deduplicate_by_rule", "always_start"]);
+export const InjectionPointSchema = z.enum(["", "ingress", "egress", "transient", "custom"]);
+
 export const RuleSchema = z.object({
   id: z.string(),
   name: z.string(),
   service: z.string(),
   enabled: z.boolean(),
   priority: z.number().int(),
-  /** Backend currently stores: `match.injection_point`, `match.labels{}`.
-   *  UI treats these as a projection of the richer match_ast/match_expr. */
+  mode: ModeSchema,
+  start_policy: StartPolicySchema.optional(),
   match: z
     .object({
-      injection_point: z.string().optional(),
+      injection_point: InjectionPointSchema.optional(),
       labels: z.record(z.string()).optional(),
     })
     .optional(),
-  /** NEW — sent on save, backend must store (see docs/api/api-needed.md §B.3#2). */
-  match_ast: MatchNodeSchema.optional(),
-  /** NEW — compiled rego; backend source of truth once implemented. */
+  action: RuleActionSchema,
   match_expr: z.string().optional(),
-  /** XOR with fault_composition_id. */
-  fault_spec_id: z.string().optional(),
-  fault_composition_id: z.string().optional(),
-  mode: z.enum(["inline", "background"]),
+  match_ast: MatchNodeSchema.optional(),
   created_at: Timestamp,
   updated_at: Timestamp,
 });

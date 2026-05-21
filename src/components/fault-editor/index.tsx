@@ -268,7 +268,8 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
 
   // ── Derived ─────────────────────────────────────────────────────────
   const usedByRules: Rule[] = (rulesQuery.data ?? []).filter(
-    (r) => !isNew && faultId && r.fault_spec_id === faultId,
+    (r) =>
+      !isNew && faultId && r.action.type === "fault_spec" && r.action.fault_spec_id === faultId,
   );
 
   const categoryLabel =

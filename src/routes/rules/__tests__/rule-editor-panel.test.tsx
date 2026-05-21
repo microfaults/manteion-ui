@@ -27,12 +27,11 @@ const EXISTING_RULE: Rule = {
   enabled: true,
   priority: 100,
   mode: "inline",
-  fault_spec_id: "inline:hang 5s",
+  start_policy: "deduplicate_by_rule",
+  action: { type: "fault_spec", fault_spec_id: "spec-inline-hang-5s" },
+  match: { labels: { "atropos.workflow": "browse", tenant: "demo" } },
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-01T00:00:00Z",
-  match: {
-    labels: { _target: "inline", "atropos.workflow": "browse", tenant: "demo" },
-  },
 };
 
 function wrapper({ children }: { children: React.ReactNode }) {
@@ -57,9 +56,33 @@ describe("RuleEditorPanel — new rule", () => {
     expect(screen.getByText("Service")).toBeTruthy();
   });
 
-  it("renders fault primitive field", () => {
+  it("renders action type and fault-spec sub-field", () => {
     renderPanel({ isNew: true, ruleId: null });
+    expect(screen.getByText("Action type")).toBeTruthy();
+    expect(screen.getByText("Fault spec")).toBeTruthy();
     expect(screen.getByPlaceholderText("spec-…")).toBeTruthy();
+  });
+
+  it("switches sub-field when action type is cachebox", async () => {
+    // Radix Select doesn't drive cleanly in jsdom (hasPointerCapture /
+    // scrollIntoView aren't polyfilled). Verify the conditional rendering
+    // by hydrating the form from an existing cachebox rule instead of
+    // simulating the select click.
+    const cacheboxRule: Rule = {
+      ...EXISTING_RULE,
+      action: {
+        type: "cachebox",
+        cachebox: { mode: "replay", key_strategy: "exact_with_host" },
+      },
+    };
+    vi.mocked(rulesApi.getRule).mockResolvedValue(cacheboxRule);
+
+    renderPanel({ isNew: false, ruleId: "rule-001" });
+    await screen.findByDisplayValue("freeze-productcatalog");
+
+    expect(screen.getByText("Cachebox mode")).toBeTruthy();
+    expect(screen.getByText("Key strategy")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("spec-…")).toBeNull();
   });
 
   it("renders match criteria section with RuleBuilder", () => {
@@ -119,7 +142,7 @@ describe("RuleEditorPanel — existing rule", () => {
   it("populates fault spec id after load", async () => {
     renderPanel({ isNew: false, ruleId: "rule-001" });
     await screen.findByDisplayValue("freeze-productcatalog");
-    expect(screen.getByDisplayValue("inline:hang 5s")).toBeTruthy();
+    expect(screen.getByDisplayValue("spec-inline-hang-5s")).toBeTruthy();
   });
 
   it("renders match criteria builder for existing rule", async () => {

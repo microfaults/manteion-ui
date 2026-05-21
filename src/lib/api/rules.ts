@@ -1,4 +1,4 @@
-import { type MatchNode, type Rule, RuleSchema } from "@/types/api";
+import { type MatchNode, type Rule, type RuleAction, RuleSchema } from "@/types/api";
 import { z } from "zod";
 import { apiClient } from "./client";
 
@@ -14,11 +14,11 @@ let _mockRules: Rule[] = [
     enabled: true,
     priority: 100,
     mode: "inline",
-    fault_spec_id: "inline:hang 5s",
+    action: { type: "fault_spec", fault_spec_id: "spec-inline-hang-5s" },
     created_at: "2026-04-01T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
     match: {
-      labels: { _target: "inline", "atropos.workflow": "browse", tenant: "demo" },
+      labels: { "atropos.workflow": "browse", tenant: "demo" },
     },
   },
   {
@@ -28,10 +28,10 @@ let _mockRules: Rule[] = [
     enabled: true,
     priority: 90,
     mode: "inline",
-    fault_spec_id: "inline:http-error",
+    action: { type: "fault_spec", fault_spec_id: "spec-inline-http-error" },
     created_at: "2026-04-02T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
-    match: { injection_point: "ingress", labels: { _target: "inline" } },
+    match: { injection_point: "ingress" },
   },
   {
     id: "rule-003",
@@ -40,10 +40,9 @@ let _mockRules: Rule[] = [
     enabled: true,
     priority: 80,
     mode: "inline",
-    fault_spec_id: "inline:latency 120ms",
+    action: { type: "fault_spec", fault_spec_id: "spec-inline-latency-120ms" },
     created_at: "2026-04-03T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
-    match: { labels: { _target: "inline" } },
   },
   {
     id: "rule-004",
@@ -52,10 +51,9 @@ let _mockRules: Rule[] = [
     enabled: true,
     priority: 70,
     mode: "inline",
-    fault_spec_id: "inline:latency 100ms",
+    action: { type: "fault_spec", fault_spec_id: "spec-inline-latency-100ms" },
     created_at: "2026-04-04T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
-    match: { labels: { _target: "inline" } },
   },
   {
     id: "rule-005",
@@ -64,10 +62,9 @@ let _mockRules: Rule[] = [
     enabled: true,
     priority: 60,
     mode: "background",
-    fault_spec_id: "resource:cpu 80%",
+    action: { type: "fault_spec", fault_spec_id: "spec-resource-cpu-80" },
     created_at: "2026-04-05T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
-    match: { labels: { _target: "resource" } },
   },
   {
     id: "rule-006",
@@ -76,10 +73,10 @@ let _mockRules: Rule[] = [
     enabled: false,
     priority: 50,
     mode: "inline",
-    fault_spec_id: "network:RST toxic",
+    action: { type: "fault_spec", fault_spec_id: "spec-network-rst" },
     created_at: "2026-04-06T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
-    match: { injection_point: "ingress", labels: { _target: "network" } },
+    match: { injection_point: "ingress" },
   },
   {
     id: "rule-007",
@@ -88,10 +85,9 @@ let _mockRules: Rule[] = [
     enabled: false,
     priority: 40,
     mode: "inline",
-    fault_spec_id: "inline:hang 30s",
+    action: { type: "fault_spec", fault_spec_id: "spec-inline-hang-30s" },
     created_at: "2026-04-07T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
-    match: { labels: { _target: "inline" } },
   },
   {
     id: "rule-008",
@@ -100,10 +96,9 @@ let _mockRules: Rule[] = [
     enabled: false,
     priority: 30,
     mode: "inline",
-    fault_spec_id: "network:blackhole",
+    action: { type: "fault_spec", fault_spec_id: "spec-network-blackhole" },
     created_at: "2026-04-08T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
-    match: { labels: { _target: "network" } },
   },
 ];
 
@@ -136,12 +131,15 @@ export interface RuleInput {
   service: string;
   enabled: boolean;
   priority: number;
-  match_ast?: MatchNode;
-  match_expr?: string;
-  match?: { injection_point?: string; labels?: Record<string, string> };
-  fault_spec_id?: string;
-  fault_composition_id?: string;
   mode: "inline" | "background";
+  start_policy?: "deduplicate_by_rule" | "always_start";
+  match?: {
+    injection_point?: "" | "ingress" | "egress" | "transient" | "custom";
+    labels?: Record<string, string>;
+  };
+  action: RuleAction;
+  match_expr?: string;
+  match_ast?: MatchNode;
 }
 
 export async function createRule(input: RuleInput): Promise<Rule> {
@@ -154,10 +152,11 @@ export async function createRule(input: RuleInput): Promise<Rule> {
       enabled: input.enabled,
       priority: input.priority,
       mode: input.mode,
-      fault_spec_id: input.fault_spec_id,
-      fault_composition_id: input.fault_composition_id,
-      match_ast: input.match_ast,
+      start_policy: input.start_policy,
+      match: input.match,
+      action: input.action,
       match_expr: input.match_expr,
+      match_ast: input.match_ast,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -179,10 +178,11 @@ export async function updateRule(id: string, input: RuleInput): Promise<Rule> {
       enabled: input.enabled,
       priority: input.priority,
       mode: input.mode,
-      fault_spec_id: input.fault_spec_id,
-      fault_composition_id: input.fault_composition_id,
-      match_ast: input.match_ast,
+      start_policy: input.start_policy,
+      match: input.match,
+      action: input.action,
       match_expr: input.match_expr,
+      match_ast: input.match_ast,
       updated_at: new Date().toISOString(),
     };
     _mockRules = _mockRules.map((r) => (r.id === id ? updated : r));

@@ -12,10 +12,11 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { rulesApi, servicesApi } from "@/lib/api";
+import type { RuleInput } from "@/lib/api/rules";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
 import { parse } from "@/lib/rego/parse";
-import { MatchNodeSchema, type Rule } from "@/types/api";
+import { MatchNodeSchema, type Rule, type RuleAction } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
@@ -146,24 +147,61 @@ function RuleEditorForm({
   const [service, setService] = useState(existing?.service ?? "");
   const [enabled, setEnabled] = useState(existing?.enabled ?? true);
   const [priority, setPriority] = useState(existing?.priority ?? 50);
-  const [faultSpecId, setFaultSpecId] = useState(existing?.fault_spec_id ?? "");
-  const [mode] = useState<"inline" | "background">(existing?.mode ?? "inline");
+  const [mode, setMode] = useState<"inline" | "background">(existing?.mode ?? "inline");
+  const [startPolicy, setStartPolicy] = useState<"deduplicate_by_rule" | "always_start">(
+    existing?.start_policy ?? "deduplicate_by_rule",
+  );
+  const [injectionPoint, setInjectionPoint] = useState<
+    "" | "ingress" | "egress" | "transient" | "custom"
+  >(existing?.match?.injection_point ?? "");
+  const [actionType, setActionType] = useState<"fault_spec" | "fault_composition" | "cachebox">(
+    existing?.action?.type ?? "fault_spec",
+  );
+  const [faultSpecId, setFaultSpecId] = useState(
+    existing?.action?.type === "fault_spec" ? existing.action.fault_spec_id : "",
+  );
+  const [faultCompId, setFaultCompId] = useState(
+    existing?.action?.type === "fault_composition" ? existing.action.fault_composition_id : "",
+  );
+  const [cacheboxMode, setCacheboxMode] = useState<"passthrough" | "replay" | "replay_with_delay">(
+    existing?.action?.type === "cachebox" ? existing.action.cachebox.mode : "passthrough",
+  );
+  const [cacheboxKeyStrategy, setCacheboxKeyStrategy] = useState<
+    "exact" | "exact_with_host" | "exact_with_body"
+  >(existing?.action?.type === "cachebox" ? existing.action.cachebox.key_strategy : "exact");
+  // Match-builder state unchanged:
   const [ast, setAst] = useState<MatchNode | undefined>(initAst);
   const [rego, setRego] = useState(existing?.match_expr ?? compile(initAst));
   const [custom, setCustom] = useState(false);
 
   const save = useMutation({
     mutationFn: () => {
-      const input = {
+      const action: RuleAction =
+        actionType === "fault_spec"
+          ? { type: "fault_spec", fault_spec_id: faultSpecId }
+          : actionType === "fault_composition"
+            ? { type: "fault_composition", fault_composition_id: faultCompId }
+            : {
+                type: "cachebox",
+                cachebox: { mode: cacheboxMode, key_strategy: cacheboxKeyStrategy },
+              };
+
+      const labelsForBackend = ast ? astToMatchCriteria(ast).labels : undefined;
+
+      const input: RuleInput = {
         name,
         service,
         enabled,
         priority,
         mode,
-        fault_spec_id: faultSpecId || undefined,
-        match_ast: custom ? undefined : ast,
+        start_policy: startPolicy,
+        action,
+        match: {
+          injection_point: injectionPoint || undefined,
+          labels: labelsForBackend,
+        },
         match_expr: rego,
-        match: ast ? astToMatchCriteria(ast) : undefined,
+        match_ast: custom ? undefined : ast,
       };
       return isNew ? rulesApi.createRule(input) : rulesApi.updateRule(ruleId as string, input);
     },
@@ -219,13 +257,136 @@ function RuleEditorForm({
           </Select>
         </Field>
 
-        <Field label="Fault primitive">
-          <Input
-            value={faultSpecId}
-            onChange={(e) => setFaultSpecId(e.target.value)}
-            placeholder="spec-…"
-            className="font-mono text-sm"
-          />
+        <Field label="Action type">
+          <Select value={actionType} onValueChange={(v) => setActionType(v as typeof actionType)}>
+            <SelectTrigger aria-label="Action type" className="font-mono text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="fault_spec" className="font-mono text-sm">
+                fault_spec
+              </SelectItem>
+              <SelectItem value="fault_composition" className="font-mono text-sm">
+                fault_composition
+              </SelectItem>
+              <SelectItem value="cachebox" className="font-mono text-sm">
+                cachebox
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        {actionType === "fault_spec" && (
+          <Field label="Fault spec">
+            <Input
+              value={faultSpecId}
+              onChange={(e) => setFaultSpecId(e.target.value)}
+              placeholder="spec-…"
+              className="font-mono text-sm"
+            />
+          </Field>
+        )}
+        {actionType === "fault_composition" && (
+          <Field label="Fault composition">
+            <Input
+              value={faultCompId}
+              onChange={(e) => setFaultCompId(e.target.value)}
+              placeholder="comp-…"
+              className="font-mono text-sm"
+            />
+          </Field>
+        )}
+        {actionType === "cachebox" && (
+          <>
+            <Field label="Cachebox mode">
+              <Select
+                value={cacheboxMode}
+                onValueChange={(v) => setCacheboxMode(v as typeof cacheboxMode)}
+              >
+                <SelectTrigger aria-label="Cachebox mode" className="font-mono text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="passthrough" className="font-mono text-sm">
+                    passthrough
+                  </SelectItem>
+                  <SelectItem value="replay" className="font-mono text-sm">
+                    replay
+                  </SelectItem>
+                  <SelectItem value="replay_with_delay" className="font-mono text-sm">
+                    replay_with_delay
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Key strategy">
+              <Select
+                value={cacheboxKeyStrategy}
+                onValueChange={(v) => setCacheboxKeyStrategy(v as typeof cacheboxKeyStrategy)}
+              >
+                <SelectTrigger aria-label="Key strategy" className="font-mono text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="exact" className="font-mono text-sm">
+                    exact
+                  </SelectItem>
+                  <SelectItem value="exact_with_host" className="font-mono text-sm">
+                    exact_with_host
+                  </SelectItem>
+                  <SelectItem value="exact_with_body" className="font-mono text-sm">
+                    exact_with_body
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </>
+        )}
+
+        <Field label="Mode">
+          <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
+            <SelectTrigger aria-label="Mode" className="font-mono text-sm">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="inline" className="font-mono text-sm">
+                inline
+              </SelectItem>
+              <SelectItem value="background" className="font-mono text-sm">
+                background
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </Field>
+
+        <Field label="Injection point">
+          <Select
+            value={injectionPoint || "any"}
+            onValueChange={(v) =>
+              setInjectionPoint(v === "any" ? "" : (v as typeof injectionPoint))
+            }
+          >
+            <SelectTrigger aria-label="Injection point" className="font-mono text-sm">
+              <SelectValue placeholder="(any)" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="any" className="font-mono text-sm">
+                (any)
+              </SelectItem>
+              <SelectItem value="ingress" className="font-mono text-sm">
+                ingress
+              </SelectItem>
+              <SelectItem value="egress" className="font-mono text-sm">
+                egress
+              </SelectItem>
+              <SelectItem value="transient" className="font-mono text-sm">
+                transient
+              </SelectItem>
+              <SelectItem value="custom" className="font-mono text-sm">
+                custom
+              </SelectItem>
+            </SelectContent>
+          </Select>
         </Field>
 
         <Separator />
@@ -254,6 +415,32 @@ function RuleEditorForm({
             className="font-mono text-sm"
           />
         </Field>
+
+        <details className="space-y-2">
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">
+            Advanced
+          </summary>
+          <div className="space-y-4 pt-2">
+            <Field label="Start policy">
+              <Select
+                value={startPolicy}
+                onValueChange={(v) => setStartPolicy(v as typeof startPolicy)}
+              >
+                <SelectTrigger aria-label="Start policy" className="font-mono text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="deduplicate_by_rule" className="font-mono text-sm">
+                    deduplicate_by_rule
+                  </SelectItem>
+                  <SelectItem value="always_start" className="font-mono text-sm">
+                    always_start
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          </div>
+        </details>
       </div>
 
       <div className="space-y-2 border-t px-4 py-3">

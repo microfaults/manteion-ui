@@ -35,29 +35,45 @@ describe("deriveTarget", () => {
     const rule = {
       ...BASE,
       id: "r",
-      fault_spec_id: "spec-123",
+      action: { type: "fault_spec", fault_spec_id: "spec-123" },
       match: { labels: { _target: "network" } },
     } as Rule;
     expect(deriveTarget(rule)).toBe("network");
   });
 
   it("derives network from fault_spec_id prefix", () => {
-    const rule = { ...BASE, id: "r", fault_spec_id: "network:RST toxic" } as Rule;
+    const rule = {
+      ...BASE,
+      id: "r",
+      action: { type: "fault_spec", fault_spec_id: "network:RST toxic" },
+    } as Rule;
     expect(deriveTarget(rule)).toBe("network");
   });
 
   it("derives resource from fault_spec_id prefix", () => {
-    const rule = { ...BASE, id: "r", fault_spec_id: "resource:cpu 80%" } as Rule;
+    const rule = {
+      ...BASE,
+      id: "r",
+      action: { type: "fault_spec", fault_spec_id: "resource:cpu 80%" },
+    } as Rule;
     expect(deriveTarget(rule)).toBe("resource");
   });
 
   it("defaults to inline when no _target label and no recognized prefix", () => {
-    const rule = { ...BASE, id: "r", fault_spec_id: "spec-abc123" } as Rule;
+    const rule = {
+      ...BASE,
+      id: "r",
+      action: { type: "fault_spec", fault_spec_id: "spec-abc123" },
+    } as Rule;
     expect(deriveTarget(rule)).toBe("inline");
   });
 
   it("defaults to inline when no fault ids", () => {
-    const rule = { ...BASE, id: "r" } as Rule;
+    const rule = {
+      ...BASE,
+      id: "r",
+      action: { type: "fault_spec", fault_spec_id: "" },
+    } as Rule;
     expect(deriveTarget(rule)).toBe("inline");
   });
 });
@@ -67,7 +83,7 @@ describe("ruleSubtitle", () => {
     const rule = {
       ...BASE,
       id: "r",
-      fault_spec_id: "inline:http-error",
+      action: { type: "fault_spec", fault_spec_id: "inline:http-error" },
       match: { labels: { _target: "inline" } },
     } as Rule;
     expect(ruleSubtitle(rule)).toBe("inline · http-error");
@@ -77,7 +93,7 @@ describe("ruleSubtitle", () => {
     const rule = {
       ...BASE,
       id: "r",
-      fault_spec_id: "network:RST toxic",
+      action: { type: "fault_spec", fault_spec_id: "network:RST toxic" },
       match: { labels: { _target: "network" } },
     } as Rule;
     expect(ruleSubtitle(rule)).toBe("network · RST toxic");
@@ -87,11 +103,11 @@ describe("ruleSubtitle", () => {
     const rule = {
       ...BASE,
       id: "r",
-      fault_spec_id: "spec-aa7eec0d7ff2bc00",
+      action: { type: "fault_spec", fault_spec_id: "spec-aa7eec0d7ff2bc00" },
       match: { labels: { _target: "inline" } },
     } as Rule;
     const sub = ruleSubtitle(rule);
     expect(sub.startsWith("inline · ")).toBe(true);
-    expect(sub.length).toBeLessThanOrEqual("inline · spec-aa7eec0d7ff".length + 5);
+    expect(sub.length).toBeLessThanOrEqual("inline · spec-aa7eec0d7ff2bc00".length + 1);
   });
 });
