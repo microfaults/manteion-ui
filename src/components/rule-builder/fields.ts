@@ -1,7 +1,11 @@
+import catalog from "@/config/match-fields.json";
 /**
  * Field catalog for the rule builder.
  * Known fields get typed operators + optional enum values; unknown fields
  * (typed free-form by the operator) default to string ops.
+ *
+ * The catalog itself lives in src/config/match-fields.json so it can grow
+ * without code changes. The types and helpers stay here.
  */
 import type { MatchOperator } from "@/lib/rego/ast";
 
@@ -25,57 +29,8 @@ const stringOps: MatchOperator[] = [
   "starts_with",
   "ends_with",
 ];
-const numericOps: MatchOperator[] = ["eq", "neq", "gt", "gte", "lt", "lte"];
 
-export const KNOWN_FIELDS: FieldSpec[] = [
-  {
-    name: "service",
-    label: "Service",
-    kind: "string",
-    ops: stringOps,
-    description: "Service name from the SDK registration.",
-  },
-  {
-    name: "injection_point",
-    label: "Injection point",
-    kind: "enum",
-    ops: ["eq", "neq", "in", "not_in"],
-    values: ["ingress", "egress", "transient", "custom"],
-    description: "Where in the request lifecycle atropos applies the rule.",
-  },
-  {
-    name: "atropos.workflow",
-    label: "atropos.workflow",
-    kind: "string",
-    ops: stringOps,
-    description: "Workflow identifier (e.g. browse, checkout).",
-  },
-  {
-    name: "tenant",
-    label: "Tenant",
-    kind: "string",
-    ops: stringOps,
-  },
-  {
-    name: "method",
-    label: "HTTP method",
-    kind: "enum",
-    ops: ["eq", "neq", "in", "not_in"],
-    values: ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"],
-  },
-  {
-    name: "path",
-    label: "HTTP path",
-    kind: "string",
-    ops: stringOps,
-  },
-  {
-    name: "priority",
-    label: "Priority",
-    kind: "number",
-    ops: numericOps,
-  },
-];
+export const KNOWN_FIELDS: FieldSpec[] = catalog as FieldSpec[];
 
 /** Lookup a field spec; fall back to a free-form string field. */
 export function fieldSpec(name: string): FieldSpec {

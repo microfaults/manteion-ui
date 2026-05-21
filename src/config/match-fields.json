@@ -1,0 +1,49 @@
+[
+  {
+    "name": "service",
+    "label": "Service",
+    "kind": "string",
+    "ops": ["eq", "neq", "in", "not_in", "matches", "starts_with", "ends_with"],
+    "description": "Service name from the SDK registration."
+  },
+  {
+    "name": "injection_point",
+    "label": "Injection point",
+    "kind": "enum",
+    "ops": ["eq", "neq", "in", "not_in"],
+    "values": ["ingress", "egress", "transient", "custom"],
+    "description": "Where in the request lifecycle atropos applies the rule."
+  },
+  {
+    "name": "atropos.workflow",
+    "label": "atropos.workflow",
+    "kind": "string",
+    "ops": ["eq", "neq", "in", "not_in", "matches", "starts_with", "ends_with"],
+    "description": "Workflow identifier (e.g. browse, checkout)."
+  },
+  {
+    "name": "tenant",
+    "label": "Tenant",
+    "kind": "string",
+    "ops": ["eq", "neq", "in", "not_in", "matches", "starts_with", "ends_with"]
+  },
+  {
+    "name": "method",
+    "label": "HTTP method",
+    "kind": "enum",
+    "ops": ["eq", "neq", "in", "not_in"],
+    "values": ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"]
+  },
+  {
+    "name": "path",
+    "label": "HTTP path",
+    "kind": "string",
+    "ops": ["eq", "neq", "in", "not_in", "matches", "starts_with", "ends_with"]
+  },
+  {
+    "name": "priority",
+    "label": "Priority",
+    "kind": "number",
+    "ops": ["eq", "neq", "gt", "gte", "lt", "lte"]
+  }
+]
