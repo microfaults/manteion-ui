@@ -31,8 +31,14 @@ archive.
   layout (`docs/UI-DESIGN.md`, `docs/figma-changes.md`, etc.) and have not
   been rewritten — read them as historical artifacts.
 
-## Where new specs go
+## What belongs here
 
-Future brainstorming specs live under `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md`
-(per the `superpowers:brainstorming` skill). Once a spec is complete and the
-work has shipped, move it to `archive/plans/`.
+This tree is the **current knowledge base** — it reflects how the system
+actually is (design, API contract, ops runbooks). It is **not** a home for
+forward-looking implementation plans.
+
+Brainstorming specs and implementation plans are agent **working artifacts**:
+they live under `docs/superpowers/` (gitignored, local-only) and are never
+committed. When that work ships, the change is reflected here by **updating the
+relevant knowledge-base doc** (e.g. `api/api-needed.md`, `design/ui-design.md`,
+a new `ops/` runbook) — not by committing the plan.

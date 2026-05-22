@@ -47,3 +47,9 @@ coverage
 
 # build cache
 *.tsbuildinfo
+
+# Agent working artifacts — brainstorming specs + implementation plans.
+# These are forward-looking "what we'll build", not current knowledge base,
+# so they stay local and are never committed. The committed docs/ tree
+# (design/, api/, ops/, archive/) reflects current reality only.
+docs/superpowers/
