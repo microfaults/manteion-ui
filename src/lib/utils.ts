@@ -34,6 +34,24 @@ export function formatDurationMs(ms: number | null | undefined): string {
   return rm ? `${h}h ${rm}m` : `${h}h`;
 }
 
+/** Bytes → short human string: "0 B", "184 B", "1.2 KB", "43 KB". */
+export function formatBytes(n: number | null | undefined): string {
+  if (!n || n <= 0) return "0 B";
+  const units = ["B", "KB", "MB", "GB"];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
+  const v = n / 1024 ** i;
+  return `${v >= 10 || i === 0 ? Math.round(v) : v.toFixed(1)} ${units[i]}`;
+}
+
+/** TTL seconds → human string; 0 / null means no expiry. */
+export function formatTtl(ttlS: number | null | undefined): string {
+  if (!ttlS || ttlS <= 0) return "no expiry";
+  if (ttlS % 86400 === 0) return `${ttlS / 86400}d`;
+  if (ttlS % 3600 === 0) return `${ttlS / 3600}h`;
+  if (ttlS % 60 === 0) return `${ttlS / 60}m`;
+  return `${ttlS}s`;
+}
+
 /** Relative "N minutes ago" style timestamp. */
 export function formatRelative(iso: string | null | undefined): string {
   if (!iso) return "—";

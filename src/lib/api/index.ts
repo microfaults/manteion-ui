@@ -5,3 +5,4 @@ export * as experimentsApi from "./experiments";
 export * as workflowsApi from "./workflows";
 export * as catalogApi from "./catalog";
 export * as faultsApi from "./faults";
+export * as datasetsApi from "./datasets";

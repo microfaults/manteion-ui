@@ -321,6 +321,52 @@ export const WorkflowSchema = WorkflowListItemSchema.extend({
 });
 export type Workflow = z.infer<typeof WorkflowSchema>;
 
+// ─── Dataset ───────────────────────────────────────────────────────────
+// Zeus-owned today, reached via the /api/v1/zeus/datasets proxy. `source`
+// holds zeus's values ("upload" | "inline" | "cache_box_dump"); kept as a
+// plain string (not a strict enum) so the planned rename to "traffic_capture"
+// — and manteion taking ownership — don't break parsing. TTL is exposed as
+// `ttl_s` (seconds), not a duration string.
+
+/** List-row summary (GET /api/v1/datasets → { datasets: [...] }). No pools. */
+export const DatasetListItemSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  source: z.string(),
+  size_bytes: z.number().default(0),
+  ttl_s: z.number().int().default(0),
+  created_at: Timestamp,
+});
+export type DatasetListItem = z.infer<typeof DatasetListItemSchema>;
+
+/** Per-pool stats on the detail payload. */
+export const PoolStatsSchema = z.object({
+  row_count: z.number().int().default(0),
+  size_bytes: z.number().default(0),
+  fields: z.array(z.string()).default([]),
+});
+export type PoolStats = z.infer<typeof PoolStatsSchema>;
+
+/** Full dataset metadata (GET /api/v1/datasets/{id}). `pool_stats` is keyed
+ *  by pool name. Rows are fetched separately via the sample endpoint. */
+export const DatasetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  source: z.string(),
+  pool_stats: z.record(PoolStatsSchema).default({}),
+  size_bytes: z.number().default(0),
+  ttl_s: z.number().int().default(0),
+  created_at: Timestamp,
+});
+export type Dataset = z.infer<typeof DatasetSchema>;
+
+/** Sample rows from one pool (GET /api/v1/datasets/{id}/sample?pool=…). */
+export const DatasetSampleSchema = z.object({
+  pool: z.string(),
+  rows: z.array(z.record(z.unknown())).default([]),
+});
+export type DatasetSample = z.infer<typeof DatasetSampleSchema>;
+
 // ─── Catalog endpoint (workflow builder picker) ────────────────────────
 
 /** Live SDK-route inventory entry. Aggregated server-side from
