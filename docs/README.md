@@ -18,6 +18,11 @@ archive.
 - **[ops/](./ops/)** — how to run it.
   - [`connecting-to-vm1.md`](./ops/connecting-to-vm1.md) — SSH tunnel from a
     laptop to manteion-go on the VM1 k3s cluster.
+  - [`working-with-the-vms.md`](./ops/working-with-the-vms.md) — conventions for
+    editing, building, and debugging the backend services on the lab VMs
+    (edit locally → push → pull; build-verify; blob transfer; `[AGENT]` log tag).
+  - [`testing-rules-end-to-end.md`](./ops/testing-rules-end-to-end.md) — manual
+    end-to-end test plan for the rules editor against the live VM1 backend.
 
 ## Archive
 
