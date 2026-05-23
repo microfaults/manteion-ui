@@ -74,6 +74,15 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
     },
   });
 
+  const cacheBox = useMutation({
+    mutationFn: () =>
+      servicesApi.cacheBoxMode(instanceId, { mode: "replay", key_strategy: "exact" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["rules"] });
+      qc.invalidateQueries({ queryKey: ["sdk-instance", instanceId] });
+    },
+  });
+
   function onKillSwitch() {
     const count = activeRules.length;
     const msg =
@@ -81,6 +90,13 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
         ? `Disable all ${count} active rule${count === 1 ? "" : "s"} on this instance?`
         : "Run the kill switch on this instance? (No active rules are currently reported.)";
     if (window.confirm(msg)) killSwitch.mutate();
+  }
+
+  function onCacheBox() {
+    const msg =
+      "Switch this instance to cache-box mode (replay, exact key)? " +
+      "A per-instance cache-box rule will be created server-side.";
+    if (window.confirm(msg)) cacheBox.mutate();
   }
 
   const service = detail.data?.service ?? fallbackService ?? "—";
@@ -192,16 +208,19 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
           {killSwitch.isPending ? "Disabling…" : "Kill switch"}
         </Button>
         <Button
-          variant="secondary"
-          className={cn("mt-2 w-full")}
-          disabled
-          title="Endpoint not yet defined — see docs/api/api-needed.md"
+          className={cn(
+            "mt-2 w-full bg-zinc-900 text-zinc-50 shadow hover:bg-zinc-900/90",
+            "dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100/90",
+          )}
+          onClick={onCacheBox}
+          disabled={cacheBox.isPending}
         >
           <Box className="size-4" />
-          Cache-box mode
+          {cacheBox.isPending ? "Enabling…" : "Cache-box mode"}
         </Button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Kill switch disables all active rules on this instance immediately.
+          Kill switch disables all active rules immediately. Cache-box mode replays recorded
+          responses instead.
         </p>
       </div>
     </div>

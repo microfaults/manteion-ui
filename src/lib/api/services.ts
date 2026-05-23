@@ -1,4 +1,7 @@
 import {
+  type CacheBoxConfig,
+  type CacheBoxModeResult,
+  CacheBoxModeResultSchema,
   KillSwitchResultSchema,
   type KillSwitchResult,
   type SDKInstance,
@@ -133,5 +136,22 @@ export async function killSwitch(id: string): Promise<KillSwitchResult> {
     `/api/v1/sdk/instances/${encodeURIComponent(id)}/kill-switch`,
     {},
     KillSwitchResultSchema,
+  );
+}
+
+/** NEW endpoint — flip the instance into cache-box mode (creates a
+ *  per-instance cache-box rule server-side). See docs/api/api-needed.md §B.2. */
+export async function cacheBoxMode(
+  id: string,
+  config: CacheBoxConfig,
+): Promise<CacheBoxModeResult> {
+  if (USE_MOCK) {
+    await mockDelay();
+    return { rule_id: `cachebox-${id}`, at: new Date().toISOString() };
+  }
+  return apiClient.post(
+    `/api/v1/sdk/instances/${encodeURIComponent(id)}/cachebox`,
+    config,
+    CacheBoxModeResultSchema,
   );
 }

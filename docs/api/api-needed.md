@@ -77,6 +77,7 @@ priority · status (✔ exists / ◻ missing).
 | GET | `/api/v1/sdk/instances` | — | `SDKInstance[]` | list | P1 | ✔ |
 | GET | `/api/v1/sdk/instances/{id}` | — | `SDKInstance & {last_error?: string, last_rule_version_acked?: uint64, active_rule_ids: string[], recent_run_ids: string[]}` | detail panel | P1 | ◻ |
 | POST | `/api/v1/sdk/instances/{id}/kill-switch` | — | `{disabled_rule_ids: string[], at: timestamp}` | primary "Kill switch" action | P1 | ◻ |
+| POST | `/api/v1/sdk/instances/{id}/cachebox` | `{mode: "passthrough"\|"replay"\|"replay_with_delay", key_strategy?: "exact"\|"exact_with_host"\|"exact_with_body"}` | `{rule_id: string, at: timestamp}` | "Cache-box mode" action in detail panel — toggles a per-instance cache-box rule | P2 | ◻ |
 
 ### B.3 Rules (`/rules`, `/rules/:id`)  — redesigned, see `../design/figma-changes.md`
 

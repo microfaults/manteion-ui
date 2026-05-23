@@ -145,6 +145,13 @@ export const KillSwitchResultSchema = z.object({
 });
 export type KillSwitchResult = z.infer<typeof KillSwitchResultSchema>;
 
+/** POST /api/v1/sdk/instances/{id}/cachebox response envelope. */
+export const CacheBoxModeResultSchema = z.object({
+  rule_id: z.string(),
+  at: Timestamp,
+});
+export type CacheBoxModeResult = z.infer<typeof CacheBoxModeResultSchema>;
+
 // ─── Fault ────────────────────────────────────────────────────────────
 
 export const FaultCategorySchema = z.enum(["inline", "network", "resource"]);
