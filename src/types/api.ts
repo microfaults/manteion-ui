@@ -128,6 +128,23 @@ export const SDKInstanceSchema = z.object({
 });
 export type SDKInstance = z.infer<typeof SDKInstanceSchema>;
 
+/** Detail payload — superset of SDKInstance returned by
+ *  GET /api/v1/sdk/instances/{id}. See docs/api/api-needed.md §B.2. */
+export const SDKInstanceDetailSchema = SDKInstanceSchema.extend({
+  last_error: z.string().optional(),
+  last_rule_version_acked: z.number().int().optional(),
+  active_rule_ids: z.array(z.string()).default([]),
+  recent_run_ids: z.array(z.string()).default([]),
+});
+export type SDKInstanceDetail = z.infer<typeof SDKInstanceDetailSchema>;
+
+/** POST /api/v1/sdk/instances/{id}/kill-switch response envelope. */
+export const KillSwitchResultSchema = z.object({
+  disabled_rule_ids: z.array(z.string()).default([]),
+  at: Timestamp,
+});
+export type KillSwitchResult = z.infer<typeof KillSwitchResultSchema>;
+
 // ─── Fault ────────────────────────────────────────────────────────────
 
 export const FaultCategorySchema = z.enum(["inline", "network", "resource"]);
