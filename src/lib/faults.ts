@@ -5,6 +5,7 @@ import type { FaultSpec } from "@/types/api";
 export function formatParams(spec: FaultSpec): string {
   const cfg = spec.params as Record<string, unknown> | null | undefined;
   const get = (k: string): number => Number(cfg?.[k] ?? 0);
+  const getStr = (k: string): string => String(cfg?.[k] ?? "");
 
   switch (spec.fault_type) {
     // Inline
@@ -22,11 +23,11 @@ export function formatParams(spec: FaultSpec): string {
 
     // Network
     case "blackhole": {
-      const dir = String(cfg?.direction ?? "inbound");
+      const dir = getStr("direction") || "downstream";
       return `drop ${dir}`;
     }
-    case "loss":
-      return `packet loss ${get("percent")}%`;
+    case "retransmit-delay":
+      return `retransmit rate ${get("rate")} delay ${getStr("delay")}`;
     case "rst":
       return `rst every ${get("interval_s")}s - TCP proxy`;
     case "throttle":
@@ -36,11 +37,16 @@ export function formatParams(spec: FaultSpec): string {
 
     // Resource
     case "cpu":
-      return `cpu ${get("percent")}% · ${get("cores")} cores`;
-    case "memory":
-      return `memory ${get("size_mb")} MiB`;
+      return `cpu ${(get("target_load") * 100).toFixed(0)}% · window ${getStr("window")}`;
+    case "memory": {
+      const pct = (get("target_load") * 100).toFixed(0);
+      const thrash = cfg?.thrashing ? " · thrashing" : "";
+      return `memory ${pct}%${thrash}`;
+    }
+    case "disk":
+      return `disk write ${get("write_rate")} B/s · max ${get("max_disk_usage")} bytes`;
     case "io":
-      return `io ${get("rate_mbps")} MiB/s`;
+      return `io ${getStr("mode")} · ${get("workers")} workers`;
 
     default:
       return spec.fault_type;

@@ -143,40 +143,61 @@ export interface InlineLatencyConfig {
 }
 export interface InlineErrorConfig {
   status_code: number;
+  message?: string;
 }
 export type InlineHangConfig = Record<string, never>;
 
-// Network
-export interface NetworkBlackholeConfig {
-  direction: "inbound" | "outbound" | "both";
+// Network — all network faults share proxy fields (direction, scope, listen, upstream)
+export interface NetworkProxyConfig {
+  direction: "upstream" | "downstream";
+  scope?: number;
+  listen?: string;
+  upstream?: string;
 }
-export interface NetworkLossConfig {
-  percent: number;
+export interface NetworkBlackholeConfig extends NetworkProxyConfig {}
+export interface NetworkRetransmitDelayConfig extends NetworkProxyConfig {
+  rate: number;
+  delay: string;
+  reset_threshold: number;
 }
-export interface NetworkRstConfig {
+export interface NetworkRstConfig extends NetworkProxyConfig {
   interval_s: number;
 }
-export interface NetworkThrottleConfig {
+export interface NetworkThrottleConfig extends NetworkProxyConfig {
   rate_kbps: number;
 }
-export interface NetworkLatencyConfig {
+export interface NetworkLatencyConfig extends NetworkProxyConfig {
   latency_ms: number;
   jitter_ms: number;
 }
-export interface NetworkDripConfig {
+export interface NetworkDripConfig extends NetworkProxyConfig {
   rate_bytes_s: number;
 }
 
 // Resource
 export interface ResourceCpuConfig {
-  percent: number;
-  cores: number;
+  target_load: number;
+  window: string;
 }
 export interface ResourceMemoryConfig {
-  size_mb: number;
+  target_load: number;
+  chunk_size: number;
+  thrashing?: boolean;
+  thrash_workers?: number;
+}
+export interface ResourceDiskConfig {
+  write_rate: number;
+  max_disk_usage: number;
+  chunk_size: number;
+  path?: string;
 }
 export interface ResourceIoConfig {
-  rate_mbps: number;
+  read_rate: number;
+  file_size: number;
+  file_count: number;
+  workers: number;
+  path?: string;
+  mode: "read" | "write" | "readwrite";
 }
 
 export type FaultConfig =
@@ -184,13 +205,14 @@ export type FaultConfig =
   | InlineErrorConfig
   | InlineHangConfig
   | NetworkBlackholeConfig
-  | NetworkLossConfig
+  | NetworkRetransmitDelayConfig
   | NetworkRstConfig
   | NetworkThrottleConfig
   | NetworkLatencyConfig
   | NetworkDripConfig
   | ResourceCpuConfig
   | ResourceMemoryConfig
+  | ResourceDiskConfig
   | ResourceIoConfig;
 
 export const FaultSpecSchema = z.object({

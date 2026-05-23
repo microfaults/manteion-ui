@@ -26,7 +26,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "blackhole",
     category: "network",
     fault_type: "blackhole",
-    params: { direction: "inbound" },
+    params: { direction: "downstream" },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
@@ -50,7 +50,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "cpu 80%",
     category: "resource",
     fault_type: "cpu",
-    params: { percent: 80, cores: 2 },
+    params: { target_load: 0.8, window: "10s" },
     created_at: "2026-04-01T10:00:00Z",
   },
   {
