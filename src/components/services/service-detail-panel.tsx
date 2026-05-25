@@ -150,6 +150,7 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
                   <div className="flex shrink-0 items-center gap-2">
                     <RuleTypeBadge rule={r} />
                     <button
+                      type="button"
                       className={cn(
                         "h-[22px] cursor-pointer rounded border px-2 text-[11px] font-medium transition-colors",
                         r.enabled
@@ -171,9 +172,7 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
 
         {/* Recent runs */}
         <Section title="Recent runs">
-          {detail.data && detail.data.recent_run_ids.length === 0 && (
-            <Muted>No recent runs.</Muted>
-          )}
+          {detail.data && detail.data.recent_run_ids.length === 0 && <Muted>No recent runs.</Muted>}
           {detail.data && detail.data.recent_run_ids.length > 0 && (
             <ul className="flex flex-col divide-y">
               {detail.data.recent_run_ids.map((id) => (
@@ -208,7 +207,11 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
           disabled={cacheBox.isPending || isInCacheBoxMode}
         >
           <Box className="size-4" />
-          {isInCacheBoxMode ? "In cache-box mode" : cacheBox.isPending ? "Enabling…" : "Cache-box mode"}
+          {isInCacheBoxMode
+            ? "In cache-box mode"
+            : cacheBox.isPending
+              ? "Enabling…"
+              : "Cache-box mode"}
         </Button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
           Kill switch disables all active rules immediately. Cache-box mode replays recorded
@@ -234,13 +237,7 @@ function Field({ label, value, mono }: { label: string; value: string; mono?: bo
   return (
     <>
       <dt className="whitespace-nowrap text-xs text-muted-foreground">{label}</dt>
-      <dd
-        className={cn(
-          "truncate text-sm",
-          mono && "font-mono text-xs",
-        )}
-        title={value}
-      >
+      <dd className={cn("truncate text-sm", mono && "font-mono text-xs")} title={value}>
         {value}
       </dd>
     </>

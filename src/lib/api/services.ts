@@ -2,8 +2,8 @@ import {
   type CacheBoxConfig,
   type CacheBoxModeResult,
   CacheBoxModeResultSchema,
-  KillSwitchResultSchema,
   type KillSwitchResult,
+  KillSwitchResultSchema,
   type SDKInstance,
   type SDKInstanceDetail,
   SDKInstanceDetailSchema,
@@ -119,10 +119,7 @@ export async function getSDKInstance(id: string): Promise<SDKInstanceDetail> {
     const extra = _mockDetail[id] ?? { active_rule_ids: [], recent_run_ids: [] };
     return { ...inst, ...extra };
   }
-  return apiClient.get(
-    `/api/v1/sdk/instances/${encodeURIComponent(id)}`,
-    SDKInstanceDetailSchema,
-  );
+  return apiClient.get(`/api/v1/sdk/instances/${encodeURIComponent(id)}`, SDKInstanceDetailSchema);
 }
 
 /** NEW endpoint — disable all active rules attached to this instance. */

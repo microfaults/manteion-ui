@@ -8,6 +8,4 @@ export const instanceRow = cva(
 );
 
 /** Group header row (one per service). */
-export const groupRow = cva(
-  "cursor-pointer select-none bg-muted/40 hover:bg-muted/60 [&_td]:py-2",
-);
+export const groupRow = cva("cursor-pointer select-none bg-muted/40 hover:bg-muted/60 [&_td]:py-2");

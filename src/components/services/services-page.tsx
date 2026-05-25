@@ -1,11 +1,7 @@
 import { Topbar } from "@/components/layout/topbar";
 import { CacheBoxBadge } from "@/components/services/service-badges";
 import { ServiceDetailPanel } from "@/components/services/service-detail-panel";
-import {
-  groupRow,
-  instanceRow,
-  listHeader,
-} from "@/components/services/services-page.styles";
+import { groupRow, instanceRow, listHeader } from "@/components/services/services-page.styles";
 import { StatusDot } from "@/components/status-dot";
 import { Input } from "@/components/ui/input";
 import {
@@ -75,10 +71,7 @@ export function ServicesPage() {
   }, [data, search]);
 
   const totalInstances = data?.length ?? 0;
-  const totalServices = useMemo(
-    () => new Set((data ?? []).map((i) => i.service)).size,
-    [data],
-  );
+  const totalServices = useMemo(() => new Set((data ?? []).map((i) => i.service)).size, [data]);
   const selectedInstance = useMemo(
     () => (data ?? []).find((i) => i.id === selectedId) ?? null,
     [data, selectedId],
@@ -148,7 +141,9 @@ export function ServicesPage() {
                   {!isLoading && !isError && grouped.length === 0 && (
                     <TableRow>
                       <TableCell colSpan={4} className="text-muted-foreground">
-                        {search ? "No instances match your search." : "No SDK instances registered."}
+                        {search
+                          ? "No instances match your search."
+                          : "No SDK instances registered."}
                       </TableCell>
                     </TableRow>
                   )}
@@ -188,7 +183,9 @@ export function ServicesPage() {
                                   )}
                                 </div>
                               </TableCell>
-                              <TableCell className="font-mono text-xs">{i.version ?? "—"}</TableCell>
+                              <TableCell className="font-mono text-xs">
+                                {i.version ?? "—"}
+                              </TableCell>
                               <TableCell className="font-mono text-xs text-muted-foreground">
                                 {i.last_poll_at ?? "—"}
                               </TableCell>
