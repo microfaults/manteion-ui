@@ -1,31 +1,13 @@
-import { StatusDot } from "@/components/status-dot";
-import { Badge } from "@/components/ui/badge";
+import { CacheBoxBadge, RuleTypeBadge, StatusBadge } from "@/components/services/service-badges";
 import { Button } from "@/components/ui/button";
-import { Switch } from "@/components/ui/switch";
 import { rulesApi, servicesApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import type { Rule, SDKInstance } from "@/types/api";
+import type { Rule } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Box, X, Zap } from "lucide-react";
 
-type Status = SDKInstance["status"];
-
-function dotStatus(s: Status) {
-  if (s === "alive") return "healthy" as const;
-  if (s === "stale") return "degraded" as const;
-  if (s === "dead") return "down" as const;
-  return "unknown" as const;
-}
-
-/** Map a rule's action+mode to a short type label for the badge. */
-function ruleTypeLabel(rule: Rule): string {
-  if (rule.action.type === "cachebox") return "cache-box";
-  return rule.mode;
-}
-
 interface Props {
   instanceId: string;
-  /** Service name from the list row, used while the detail fetch is in flight. */
   fallbackService?: string;
   onClose: () => void;
 }
@@ -47,6 +29,7 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
 
   const activeRuleIds = new Set(detail.data?.active_rule_ids ?? []);
   const activeRules = (rulesQuery.data ?? []).filter((r) => activeRuleIds.has(r.id));
+  const isInCacheBoxMode = activeRules.some((r) => r.action.type === "cachebox");
 
   const toggleEnabled = useMutation({
     mutationFn: (rule: Rule) =>
@@ -111,8 +94,9 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
           <div className="mt-0.5 truncate font-mono text-[11px] text-muted-foreground">
             {instanceId}
           </div>
-          <div className="mt-2">
-            <StatusDot status={dotStatus(status)} label={status ?? "—"} />
+          <div className="mt-2 flex items-center gap-2">
+            <StatusBadge status={status} />
+            {isInCacheBoxMode && <CacheBoxBadge />}
           </div>
         </div>
         <Button variant="ghost" size="icon" className="size-7" onClick={onClose}>
@@ -164,14 +148,20 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <Badge variant="outline" className="font-normal">
-                      {ruleTypeLabel(r)}
-                    </Badge>
-                    <Switch
-                      checked={r.enabled}
+                    <RuleTypeBadge rule={r} />
+                    <button
+                      className={cn(
+                        "h-[22px] cursor-pointer rounded border px-2 text-[11px] font-medium transition-colors",
+                        r.enabled
+                          ? "border-green-300 bg-green-100 text-green-800 hover:bg-green-200"
+                          : "border-red-300 bg-red-100 text-red-800 hover:bg-red-200",
+                        "disabled:cursor-not-allowed disabled:opacity-50",
+                      )}
                       disabled={toggleEnabled.isPending}
-                      onCheckedChange={() => toggleEnabled.mutate(r)}
-                    />
+                      onClick={() => toggleEnabled.mutate(r)}
+                    >
+                      {r.enabled ? "Enabled" : "Disabled"}
+                    </button>
                   </div>
                 </div>
               ))}
@@ -179,16 +169,18 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
           )}
         </Section>
 
-        {/* Recent runs — IDs only until a runs list endpoint exists. */}
+        {/* Recent runs */}
         <Section title="Recent runs">
           {detail.data && detail.data.recent_run_ids.length === 0 && (
             <Muted>No recent runs.</Muted>
           )}
           {detail.data && detail.data.recent_run_ids.length > 0 && (
-            <ul className="flex flex-col gap-1">
+            <ul className="flex flex-col divide-y">
               {detail.data.recent_run_ids.map((id) => (
-                <li key={id} className="font-mono text-xs text-muted-foreground">
-                  {id}
+                <li key={id} className="py-1.5">
+                  <span className="cursor-pointer font-mono text-[11px] text-blue-600 hover:underline">
+                    {id}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -213,10 +205,10 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
             "dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100/90",
           )}
           onClick={onCacheBox}
-          disabled={cacheBox.isPending}
+          disabled={cacheBox.isPending || isInCacheBoxMode}
         >
           <Box className="size-4" />
-          {cacheBox.isPending ? "Enabling…" : "Cache-box mode"}
+          {isInCacheBoxMode ? "In cache-box mode" : cacheBox.isPending ? "Enabling…" : "Cache-box mode"}
         </Button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
           Kill switch disables all active rules immediately. Cache-box mode replays recorded

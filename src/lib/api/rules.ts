@@ -138,6 +138,32 @@ let _mockRules: Rule[] = [
     created_at: "2026-04-12T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
   },
+  {
+    id: "rule-012",
+    name: "checkout-replay",
+    service: "checkoutservice",
+    enabled: true,
+    priority: 90,
+    mode: "inline",
+    start_policy: "deduplicate_by_rule",
+    action: { type: "cachebox", cachebox: { mode: "replay", key_strategy: "exact" } },
+    match: {},
+    created_at: "2026-05-01T08:00:00Z",
+    updated_at: "2026-05-20T10:00:00Z",
+  },
+  {
+    id: "rule-013",
+    name: "payment-replay",
+    service: "paymentservice",
+    enabled: true,
+    priority: 90,
+    mode: "inline",
+    start_policy: "deduplicate_by_rule",
+    action: { type: "cachebox", cachebox: { mode: "replay", key_strategy: "exact_with_body" } },
+    match: {},
+    created_at: "2026-05-02T08:00:00Z",
+    updated_at: "2026-05-21T10:00:00Z",
+  },
 ];
 
 function mockDelay() {

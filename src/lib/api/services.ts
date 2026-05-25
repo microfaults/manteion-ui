@@ -64,7 +64,7 @@ const _mockInstances: SDKInstance[] = [
     address: "10.0.0.41:50051",
     registered_at: "2026-05-22T09:12:00Z",
     last_poll_at: "2026-05-23T11:59:57Z",
-    status: "alive",
+    status: "stale",
   },
 ];
 
@@ -76,23 +76,23 @@ const _mockDetail: Record<string, Omit<SDKInstanceDetail, keyof SDKInstance>> = 
   },
   "prod-cat-sdk-d3e4f": {
     last_rule_version_acked: 41,
-    active_rule_ids: ["rule-001", "rule-009"],
+    active_rule_ids: ["rule-001"],
     recent_run_ids: ["run-8f2a", "run-7c1b"],
   },
   "checkout-sdk-g5h6i": {
     last_rule_version_acked: 42,
-    active_rule_ids: ["rule-003"],
+    active_rule_ids: ["rule-003", "rule-012"],
     recent_run_ids: ["run-8f2a"],
   },
   "cart-sdk-j7k8l": {
     last_error: "context deadline exceeded polling /api/v1/sdk/rules",
     last_rule_version_acked: 39,
-    active_rule_ids: ["rule-002"],
+    active_rule_ids: [],
     recent_run_ids: ["run-5a9c"],
   },
   "payment-sdk-m9n0o": {
-    last_rule_version_acked: 42,
-    active_rule_ids: ["rule-004"],
+    last_rule_version_acked: 41,
+    active_rule_ids: ["rule-004", "rule-013"],
     recent_run_ids: ["run-8f2a", "run-7c1b"],
   },
 };
