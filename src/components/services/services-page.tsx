@@ -17,7 +17,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { rulesApi, servicesApi } from "@/lib/api";
-import { cn } from "@/lib/utils";
 import type { SDKInstance } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
