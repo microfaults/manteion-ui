@@ -16,7 +16,7 @@ import { rulesApi, servicesApi } from "@/lib/api";
 import type { SDKInstance } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown, ChevronRight, Search } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, type KeyboardEvent, useMemo, useState } from "react";
 
 type Status = SDKInstance["status"];
 
@@ -25,6 +25,16 @@ function dotStatus(s: Status) {
   if (s === "stale") return "degraded" as const;
   if (s === "dead") return "down" as const;
   return "unknown" as const;
+}
+
+/** Activate a row from the keyboard (Enter/Space), mirroring its onClick. */
+function onActivate(handler: () => void) {
+  return (e: KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      handler();
+    }
+  };
 }
 
 export function ServicesPage() {
@@ -151,7 +161,13 @@ export function ServicesPage() {
                     const isCollapsed = !!collapsed[service];
                     return (
                       <Fragment key={service}>
-                        <TableRow className={groupRow()} onClick={() => toggleGroup(service)}>
+                        <TableRow
+                          className={groupRow()}
+                          onClick={() => toggleGroup(service)}
+                          onKeyDown={onActivate(() => toggleGroup(service))}
+                          tabIndex={0}
+                          aria-expanded={!isCollapsed}
+                        >
                           <TableCell colSpan={4} className="font-medium">
                             <span className="inline-flex items-center gap-1.5">
                               {isCollapsed ? (
@@ -173,6 +189,9 @@ export function ServicesPage() {
                               data-selected={selectedId === i.id || undefined}
                               className={instanceRow()}
                               onClick={() => setSelectedId(i.id)}
+                              onKeyDown={onActivate(() => setSelectedId(i.id))}
+                              tabIndex={0}
+                              aria-current={selectedId === i.id || undefined}
                             >
                               <TableCell className="font-mono text-xs">{i.id}</TableCell>
                               <TableCell>

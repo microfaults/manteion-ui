@@ -44,16 +44,15 @@ export function CacheBoxBadge({ className }: { className?: string }) {
 
 // ── RuleTypeBadge ─────────────────────────────────────────────────────────────
 
-const ruleTypeColor: Record<string, "blue" | "amber" | "red" | "outline"> = {
+// Non-cachebox rules show their execution mode (not the fault category).
+const modeColor: Record<Rule["mode"], "blue" | "muted"> = {
   inline: "blue",
-  network: "amber",
-  resource: "red",
+  background: "muted",
 };
 
 export function RuleTypeBadge({ rule }: { rule: Rule }) {
   if (rule.action.type === "cachebox") {
     return <span className={pill({ color: "outline" })}>cache-box</span>;
   }
-  const color = ruleTypeColor[rule.mode] ?? "blue";
-  return <span className={pill({ color })}>{rule.mode ?? "inline"}</span>;
+  return <span className={pill({ color: modeColor[rule.mode] })}>{rule.mode}</span>;
 }
