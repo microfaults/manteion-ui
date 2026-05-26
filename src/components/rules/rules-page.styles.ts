@@ -6,7 +6,7 @@ export const newRuleButton = cva(
 );
 
 /** Header chrome above the rules table (title/count on the left, search on the right). */
-export const listHeader = cva("flex items-center justify-between border-b px-4 py-3");
+export const listHeader = cva("flex items-center justify-between border-b px-5 py-4");
 
 /** Clickable rule row in the table; honors data-selected for the open editor. */
 export const ruleRow = cva("cursor-pointer hover:bg-accent data-[selected]:bg-accent");

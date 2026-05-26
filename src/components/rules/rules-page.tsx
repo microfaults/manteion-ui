@@ -2,6 +2,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { RuleEditorPanel } from "@/components/rules/rule-editor-panel";
 import { listHeader, newRuleButton, ruleRow } from "@/components/rules/rules-page.styles";
 import { TargetBadge, deriveTarget, ruleSubtitle } from "@/components/rules/target-badge";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -81,10 +82,10 @@ export function RulesPage() {
         }
       />
 
-      <div className="flex flex-1 overflow-hidden">
-        <div
+      <div className="flex flex-1 gap-6 overflow-hidden px-6 py-6">
+        <Card
           className={cn(
-            "flex flex-col border-r transition-all duration-200",
+            "flex flex-col overflow-hidden p-0 transition-all duration-200",
             showPanel ? "w-[55%]" : "w-full",
           )}
         >
@@ -112,11 +113,11 @@ export function RulesPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Rule</TableHead>
+                  <TableHead className="pl-5">Rule</TableHead>
                   <TableHead>Service</TableHead>
                   <TableHead>Target</TableHead>
                   <TableHead className="text-right">Match priority</TableHead>
-                  <TableHead>Status</TableHead>
+                  <TableHead className="pr-5 text-right">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -150,7 +151,7 @@ export function RulesPage() {
                     className={ruleRow()}
                     onClick={() => openRule(r.id)}
                   >
-                    <TableCell>
+                    <TableCell className="pl-5">
                       <div className="font-mono text-xs font-medium">{r.name}</div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
                         {ruleSubtitle(r)}
@@ -163,22 +164,24 @@ export function RulesPage() {
                     <TableCell className="text-right font-mono text-xs tabular-nums">
                       {r.priority}
                     </TableCell>
-                    <TableCell onClick={(e) => e.stopPropagation()}>
-                      <Switch
-                        checked={r.enabled}
-                        disabled={toggleEnabled.isPending}
-                        onCheckedChange={() => toggleEnabled.mutate(r)}
-                      />
+                    <TableCell className="pr-5" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex justify-end">
+                        <Switch
+                          checked={r.enabled}
+                          disabled={toggleEnabled.isPending}
+                          onCheckedChange={() => toggleEnabled.mutate(r)}
+                        />
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
             </Table>
           </div>
-        </div>
+        </Card>
 
         {showPanel && (
-          <div className="w-[45%] overflow-hidden">
+          <Card className="flex w-[45%] flex-col overflow-hidden p-0">
             <RuleEditorPanel
               ruleId={selectedId}
               isNew={isNew}
@@ -188,7 +191,7 @@ export function RulesPage() {
               }}
               onDeleted={closePanel}
             />
-          </div>
+          </Card>
         )}
       </div>
     </>
