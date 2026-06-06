@@ -1,5 +1,11 @@
 # manteion-ui
 
+<p align="center">
+  <img src="docs/assets/manteion-ui.png" alt="manteion-ui — the operator console for faults-lab experiments" width="220">
+</p>
+
+<p align="center"><em>The control room of faults-lab: configure rules, run experiments, read the verdict.</em></p>
+
 Operator console for the **faults-lab** platform. A React admin that talks only
 to `manteion-go` (which in turn proxies a narrow slice of `zeus-go`). Every
 screen corresponds to a step in the experiment loop defined in
