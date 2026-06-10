@@ -107,7 +107,6 @@ export const RuleSchema = z.object({
     })
     .optional(),
   action: RuleActionSchema,
-  match_expr: z.string().optional(),
   match_ast: MatchNodeSchema.optional(),
   created_at: Timestamp,
   updated_at: Timestamp,
@@ -157,93 +156,65 @@ export type CacheBoxModeResult = z.infer<typeof CacheBoxModeResultSchema>;
 export const FaultCategorySchema = z.enum(["inline", "network", "resource"]);
 export type FaultCategory = z.infer<typeof FaultCategorySchema>;
 
-// Config sub-schemas per category/type — kept loose (passthrough) for API
-// validation; the UI uses typed helpers in the fault-editor component.
+/** Network-category envelope: selects which traffic the toxic applies to.
+ *  Lives OUTSIDE `params` (schema epoch 2) — `target` is the logical
+ *  upstream name, `scope` the fraction of connections (0 = all). */
+export const NetworkEnvelopeSchema = z.object({
+  target: z.string().optional(),
+  direction: z.enum(["upstream", "downstream"]).optional(),
+  scope: z.number().optional(),
+});
+export type NetworkEnvelope = z.infer<typeof NetworkEnvelopeSchema>;
 
-// Inline
-export interface InlineLatencyConfig {
-  latency_ms: number;
-  jitter_ms: number;
-}
-export interface InlineErrorConfig {
-  status_code: number;
-  message?: string;
-}
-export type InlineHangConfig = Record<string, never>;
+// ─── Fault catalog (GET /api/v1/faults/catalog) ────────────────────────
+// Single source of truth for the supported fault vocabulary and per-type
+// param field specs. Served from manteion-go/internal/faultcatalog, which
+// mirrors atropos-go/faultparams — the same schemas the SDK decoders
+// consume, so forms rendered from this catalog can't drift from the wire.
 
-// Network — all network faults share proxy fields (direction, scope, listen, upstream)
-export interface NetworkProxyConfig {
-  direction: "upstream" | "downstream";
-  scope?: number;
-  listen?: string;
-  upstream?: string;
-}
-export interface NetworkBlackholeConfig extends NetworkProxyConfig {}
-export interface NetworkRetransmitDelayConfig extends NetworkProxyConfig {
-  rate: number;
-  delay: string;
-  reset_threshold: number;
-}
-export interface NetworkRstConfig extends NetworkProxyConfig {
-  interval_s: number;
-}
-export interface NetworkThrottleConfig extends NetworkProxyConfig {
-  rate_kbps: number;
-}
-export interface NetworkLatencyConfig extends NetworkProxyConfig {
-  latency_ms: number;
-  jitter_ms: number;
-}
-export interface NetworkDripConfig extends NetworkProxyConfig {
-  rate_bytes_s: number;
-}
+export const FaultParamTypeSchema = z.enum(["duration", "int", "float", "bool", "string", "enum"]);
+export type FaultParamType = z.infer<typeof FaultParamTypeSchema>;
 
-// Resource
-export interface ResourceCpuConfig {
-  target_load: number;
-  window: string;
-}
-export interface ResourceMemoryConfig {
-  target_load: number;
-  chunk_size: number;
-  thrashing?: boolean;
-  thrash_workers?: number;
-}
-export interface ResourceDiskConfig {
-  write_rate: number;
-  max_disk_usage: number;
-  chunk_size: number;
-  path?: string;
-}
-export interface ResourceIoConfig {
-  read_rate: number;
-  file_size: number;
-  file_count: number;
-  workers: number;
-  path?: string;
-  mode: "read" | "write" | "readwrite";
-}
+/** One params field, as the UI should render it. `duration` values are Go
+ *  duration strings ("250ms", "1.5s"); byte sizes and rates are plain ints. */
+export const FaultParamSpecSchema = z.object({
+  name: z.string(),
+  type: FaultParamTypeSchema,
+  required: z.boolean().default(false),
+  default: z.unknown().optional(),
+  enum: z.array(z.string()).optional(),
+  description: z.string().optional(),
+});
+export type FaultParamSpec = z.infer<typeof FaultParamSpecSchema>;
 
-export type FaultConfig =
-  | InlineLatencyConfig
-  | InlineErrorConfig
-  | InlineHangConfig
-  | NetworkBlackholeConfig
-  | NetworkRetransmitDelayConfig
-  | NetworkRstConfig
-  | NetworkThrottleConfig
-  | NetworkLatencyConfig
-  | NetworkDripConfig
-  | ResourceCpuConfig
-  | ResourceMemoryConfig
-  | ResourceDiskConfig
-  | ResourceIoConfig;
+export const FaultCatalogEntrySchema = z.object({
+  category: FaultCategorySchema,
+  fault_type: z.string(),
+  description: z.string().default(""),
+  network_required: z.boolean().default(false),
+  // Param-less types (e.g. network/blackhole) may serialize as null.
+  params: z
+    .array(FaultParamSpecSchema)
+    .nullish()
+    .transform((v) => v ?? []),
+});
+export type FaultCatalogEntry = z.infer<typeof FaultCatalogEntrySchema>;
+
+/** Envelope returned by GET /api/v1/faults/catalog. */
+export const FaultCatalogResponseSchema = z.object({
+  catalog: z.array(FaultCatalogEntrySchema).default([]),
+});
+export type FaultCatalogResponse = z.infer<typeof FaultCatalogResponseSchema>;
 
 export const FaultSpecSchema = z.object({
   id: z.string(),
   name: z.string(),
   category: FaultCategorySchema,
   fault_type: z.string(),
+  host: z.string().optional(),
+  network: NetworkEnvelopeSchema.optional(),
+  /** Type-specific params blob. Strictly validated server-side against the
+   *  fault catalog (unknown fields and out-of-range values 400). */
   params: z.unknown(),
   description: z.string().optional(),
   duration_ms: z.number().int().optional(),
@@ -277,12 +248,30 @@ export type PhaseName = z.infer<typeof PhaseNameSchema>;
 export const PhaseStatusSchema = z.enum(["pending", "running", "completed", "failed"]);
 export type PhaseStatus = z.infer<typeof PhaseStatusSchema>;
 
+/** Per-(phase, workflow) attack config row — mirrors
+ *  manteion-go/internal/model.PhaseWorkflow. Workflows attach to experiments
+ *  per-phase only (schema epoch 2); the experiment-level workflow list is
+ *  derived client-side from these rows. */
+export const PhaseWorkflowSchema = z.object({
+  phase_id: z.string().optional(),
+  workflow_id: z.string(),
+  vus: z.number().int().optional(),
+  rate_rps: z.number().optional(),
+  duration_sec: z.number().int().optional(),
+  target_url: z.string().optional(),
+  target_method: z.string().optional(),
+  zeus_attack_id: z.string().optional(),
+});
+export type PhaseWorkflow = z.infer<typeof PhaseWorkflowSchema>;
+
 /** Denormalised phase summary used by the experiments list hover card
  *  and the experiment detail phases tab. */
 export const PhaseSummarySchema = z.object({
   name: PhaseNameSchema,
   status: PhaseStatusSchema,
   workflow_id: z.string().optional(),
+  /** Per-(phase, workflow) attack configs attached to this phase. */
+  workflows: z.array(PhaseWorkflowSchema).default([]),
   dataset_id: z.string().optional(),
   vus: z.number().int().optional(),
   duration_ms: z.number().int().optional(),
@@ -327,7 +316,8 @@ export const ExperimentSchema = z.object({
   description: z.string().optional(),
   hypothesis: z.string().optional(),
   status: ExperimentStatusSchema,
-  workflow_ids: z.array(z.string()).default([]),
+  // NOTE: no workflow_ids — workflows attach per-phase (schema epoch 2).
+  // Derive the experiment-level list via experimentsApi.workflowIdsForExperiment.
   targeted_services: z.array(z.string()).default([]),
   phases: z.array(PhaseSummarySchema).default([]),
   created_by: z.string().optional(),
@@ -339,31 +329,55 @@ export type Experiment = z.infer<typeof ExperimentSchema>;
 
 // ─── Workflow (DSL v2 definition; manteion-owned) ──────────────────────
 
-/** Bare-bones list-row shape served by GET /api/v1/workflows. Steps and
- *  thresholds are omitted from the list payload — fetch
+/** Bare-bones list-row shape served by GET /api/v1/workflows. The DSL
+ *  document is omitted from the list payload — fetch
  *  /api/v1/workflows/{id} for the tree. */
 export const WorkflowListItemSchema = z.object({
   id: z.string(),
   name: z.string(),
+  version: z.string().default("2"),
   description: z.string().optional(),
   targets: z.array(z.string()).default([]),
   estimated_rps_per_vu: z.number().default(0),
-  /** Precomputed by manteion-go so the workflows list doesn't need the steps tree. */
+  /** Precomputed by manteion-go so the workflows list doesn't need the DSL tree. */
   request_node_count: z.number().int().default(0),
   created_at: Timestamp,
   updated_at: Timestamp.optional(),
 });
 export type WorkflowListItem = z.infer<typeof WorkflowListItemSchema>;
 
-/** Full payload served by GET /api/v1/workflows/{id} and returned by POST.
- *  `steps` is the DSL v2 tree — typed as `unknown` here and validated by the
- *  client-side WorkflowNode parser in lib/workflow-types.ts.
- *
- *  Storage split: manteion serves the *definition*; zeus serves
- *  *execution* state. The detail page fans out two parallel queries. */
-export const WorkflowSchema = WorkflowListItemSchema.extend({
-  steps: z.unknown(),
+/** Full zeus DSL v2 document (schema epoch 2: workflows are stored as one
+ *  `dsl` JSONB document). Only the metadata the UI consumes is typed here;
+ *  the node tree at `root` stays `unknown` and is coerced by the
+ *  client-side WorkflowNode parser in lib/workflow-types.ts. */
+export const WorkflowDslSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().optional(),
+  version: z.union([z.string(), z.number()]).optional(),
+  targets: z.array(z.string()).default([]),
+  estimated_rps_per_vu: z.number().default(0),
+  root: z.unknown(),
   thresholds: z.unknown().optional(),
+  data_schema: z.unknown().optional(),
+  default_delay: z.unknown().optional(),
+  base_url: z.string().optional(),
+});
+export type WorkflowDsl = z.infer<typeof WorkflowDslSchema>;
+
+/** Full payload served by GET /api/v1/workflows/{id} and returned by POST.
+ *  `dsl` is the full zeus DSL v2 document (node tree at `dsl.root`).
+ *
+ *  Storage split: manteion serves the *definition*; zeus validates it
+ *  (stateless POST /workflows/validate) and serves *execution* state. The
+ *  detail page fans out two parallel queries. */
+export const WorkflowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  version: z.string().default("2"),
+  description: z.string().optional(),
+  dsl: WorkflowDslSchema,
+  created_at: Timestamp,
+  updated_at: Timestamp.optional(),
 });
 export type Workflow = z.infer<typeof WorkflowSchema>;
 

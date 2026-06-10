@@ -6,20 +6,23 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { faultsApi, rulesApi } from "@/lib/api";
+import type { FaultSpecInput } from "@/lib/api/faults";
 import { cn } from "@/lib/utils";
 import type { FaultCategory, FaultSpec, Rule } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { ConfigFields, Field } from "./config-fields";
+import { CatalogParamFields, Field, NetworkEnvelopeFields } from "./config-fields";
 import {
-  type ConfigState,
-  DEFAULT_FAULT_TYPE,
-  INLINE_TYPES,
-  NETWORK_TYPES,
-  RESOURCE_TYPES,
-  buildConfig,
-  configFromSpec,
-  defaultConfig,
+  type NetworkEnvelopeState,
+  type ParamValues,
+  buildNetworkEnvelope,
+  buildParams,
+  defaultNetworkEnvelope,
+  entriesForCategory,
+  findEntry,
+  missingRequiredParams,
+  networkFromSpec,
+  paramValuesFromSpec,
 } from "./config-state";
 
 // ─── Props ─────────────────────────────────────────────────────────────
@@ -30,11 +33,21 @@ interface FaultEditorProps {
   onDeleted: () => void;
 }
 
+const CATEGORIES: FaultCategory[] = ["inline", "network", "resource"];
+
 // ─── Component ─────────────────────────────────────────────────────────
 
 export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
   const isNew = faultId === "new";
   const qc = useQueryClient();
+
+  // Form vocabulary + per-type param specs come from the fault catalog —
+  // static per backend build, so cache aggressively.
+  const catalogQuery = useQuery({
+    queryKey: ["fault-catalog"],
+    queryFn: faultsApi.getFaultCatalog,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 
   const specQuery = useQuery({
     queryKey: ["fault-spec", faultId],
@@ -51,7 +64,9 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<FaultCategory>("inline");
   const [faultType, setFaultType] = useState("latency");
-  const [cfg, setCfg] = useState<ConfigState>(defaultConfig());
+  // Sparse overrides on top of the catalog defaults; see config-state.ts.
+  const [params, setParams] = useState<ParamValues>({});
+  const [network, setNetwork] = useState<NetworkEnvelopeState>(defaultNetworkEnvelope());
   const [description, setDescription] = useState("");
   const [rampUpS, setRampUpS] = useState(5);
   const [rampDownS, setRampDownS] = useState(5);
@@ -63,28 +78,40 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
     setName(s.name);
     setCategory(s.category);
     setFaultType(s.fault_type);
-    setCfg(configFromSpec(s));
+    setParams(paramValuesFromSpec(s));
+    setNetwork(networkFromSpec(s));
     setDescription(s.description ?? "");
     setRampUpS(s.ramp_up_ms ? s.ramp_up_ms / 1000 : 0);
     setRampDownS(s.ramp_down_ms ? s.ramp_down_ms / 1000 : 0);
   }, [isNew, specQuery.data]);
 
+  const catalog = catalogQuery.data;
+  const subtypeOptions = entriesForCategory(catalog, category);
+  const entry = findEntry(catalog, category, faultType);
+
   function handleCategoryChange(cat: FaultCategory) {
     setCategory(cat);
-    setFaultType(DEFAULT_FAULT_TYPE[cat]);
-    setCfg(defaultConfig());
+    const first = entriesForCategory(catalog, cat)[0];
+    setFaultType(first ? first.fault_type : "");
+    setParams({});
+    setNetwork(defaultNetworkEnvelope());
+  }
+
+  function handleTypeChange(type: string) {
+    setFaultType(type);
+    setParams({});
   }
 
   // ── Mutations ───────────────────────────────────────────────────────
   const save = useMutation({
     mutationFn: () => {
-      const input = {
+      const input: FaultSpecInput = {
         name,
         category,
         fault_type: faultType,
-        params: buildConfig(category, faultType, cfg),
+        params: entry ? buildParams(entry, params) : {},
+        network: category === "network" ? buildNetworkEnvelope(network) : undefined,
         description: description || undefined,
-        duration_ms: faultType === "hang" ? Math.round(cfg.hang_duration_s * 1000) : undefined,
         ramp_up_ms: rampUpS > 0 ? Math.round(rampUpS * 1000) : undefined,
         ramp_down_ms: rampDownS > 0 ? Math.round(rampDownS * 1000) : undefined,
       };
@@ -100,7 +127,8 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
         setName("");
         setCategory("inline");
         setFaultType("latency");
-        setCfg(defaultConfig());
+        setParams({});
+        setNetwork(defaultNetworkEnvelope());
         setDescription("");
         setRampUpS(5);
         setRampDownS(5);
@@ -125,8 +153,10 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
   const categoryLabel =
     category === "inline" ? "Inline" : category === "network" ? "Network" : "Resource";
 
-  const subtypeOptions =
-    category === "inline" ? INLINE_TYPES : category === "network" ? NETWORK_TYPES : RESOURCE_TYPES;
+  const missingRequired = entry ? missingRequiredParams(entry, params) : [];
+  const missingTarget = category === "network" && network.target.trim() === "";
+  const saveDisabled =
+    save.isPending || name.trim() === "" || !entry || missingRequired.length > 0 || missingTarget;
 
   // ── Render ───────────────────────────────────────────────────────────
 
@@ -184,7 +214,7 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
           <Label className="text-xs font-medium">Type</Label>
           <Tabs value={category} onValueChange={(v) => handleCategoryChange(v as FaultCategory)}>
             <TabsList className="grid w-full grid-cols-3">
-              {(["inline", "network", "resource"] as FaultCategory[]).map((cat) => (
+              {CATEGORIES.map((cat) => (
                 <TabsTrigger key={cat} value={cat} className="w-full min-w-0 px-1.5">
                   <span className="truncate">{cat.charAt(0).toUpperCase() + cat.slice(1)}</span>
                 </TabsTrigger>
@@ -193,47 +223,65 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
           </Tabs>
         </div>
 
-        {/* Sub-type radio */}
+        {/* Sub-type radio — rendered from the fault catalog */}
         <div className="space-y-2">
           <Label className="text-xs font-medium">{categoryLabel} fault</Label>
-          <RadioGroup
-            value={faultType}
-            onValueChange={(v) => {
-              setFaultType(v);
-              setCfg(defaultConfig());
-            }}
-            className="gap-0 divide-y divide-border rounded-md border border-border"
-          >
-            {subtypeOptions.map((opt) => (
-              <label
-                key={opt.value}
-                htmlFor={`fe-type-${opt.value}`}
-                className={cn(
-                  "flex cursor-pointer items-start gap-3 px-3 py-2.5 transition-colors",
-                  faultType === opt.value ? "bg-muted/60" : "hover:bg-muted/30",
-                )}
-              >
-                <RadioGroupItem
-                  id={`fe-type-${opt.value}`}
-                  value={opt.value}
-                  className="mt-0.5 shrink-0"
-                />
-                <div>
-                  <p className="text-sm font-medium leading-tight">{opt.label}</p>
-                  <p className="text-xs text-muted-foreground">{opt.description}</p>
-                </div>
-              </label>
-            ))}
-          </RadioGroup>
+          {catalogQuery.isLoading ? (
+            <p className="text-xs text-muted-foreground">Loading fault catalog…</p>
+          ) : catalogQuery.isError ? (
+            <p className="text-xs text-destructive">
+              Could not load the fault catalog (
+              <code className="font-mono">GET /api/v1/faults/catalog</code>).
+            </p>
+          ) : (
+            <RadioGroup
+              value={faultType}
+              onValueChange={handleTypeChange}
+              className="gap-0 divide-y divide-border rounded-md border border-border"
+            >
+              {subtypeOptions.map((opt) => (
+                <label
+                  key={opt.fault_type}
+                  htmlFor={`fe-type-${opt.fault_type}`}
+                  className={cn(
+                    "flex cursor-pointer items-start gap-3 px-3 py-2.5 transition-colors",
+                    faultType === opt.fault_type ? "bg-muted/60" : "hover:bg-muted/30",
+                  )}
+                >
+                  <RadioGroupItem
+                    id={`fe-type-${opt.fault_type}`}
+                    value={opt.fault_type}
+                    className="mt-0.5 shrink-0"
+                  />
+                  <div>
+                    <p className="text-sm font-medium leading-tight">{opt.fault_type}</p>
+                    <p className="text-xs text-muted-foreground">{opt.description}</p>
+                  </div>
+                </label>
+              ))}
+            </RadioGroup>
+          )}
         </div>
 
-        {/* Config fields */}
-        <ConfigFields
-          category={category}
-          faultType={faultType}
-          cfg={cfg}
-          onChange={(patch) => setCfg((prev) => ({ ...prev, ...patch }))}
-        />
+        {/* Network envelope (network category only) */}
+        {entry?.network_required ? (
+          <>
+            <NetworkEnvelopeFields
+              value={network}
+              onChange={(patch) => setNetwork((prev) => ({ ...prev, ...patch }))}
+            />
+            <Separator />
+          </>
+        ) : null}
+
+        {/* Params — rendered from the catalog field specs */}
+        {entry ? (
+          <CatalogParamFields
+            entry={entry}
+            values={params}
+            onChange={(paramName, value) => setParams((prev) => ({ ...prev, [paramName]: value }))}
+          />
+        ) : null}
 
         {/* Timing */}
         <div className="grid grid-cols-2 gap-3">
@@ -306,6 +354,11 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
             : "Save failed. Check the fields above."}
         </p>
       )}
+      {!save.isError && (missingRequired.length > 0 || missingTarget) ? (
+        <p className="px-5 pb-1 text-xs text-muted-foreground">
+          Required: {[...(missingTarget ? ["network target"] : []), ...missingRequired].join(", ")}
+        </p>
+      ) : null}
       <div className="flex items-center justify-between border-t border-border px-5 py-4">
         <Button
           variant="ghost"
@@ -317,7 +370,7 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
         </Button>
         <Button
           onClick={() => save.mutate()}
-          disabled={save.isPending || name.trim() === ""}
+          disabled={saveDisabled}
           variant={save.isError ? "destructive" : "default"}
         >
           {save.isPending ? "Saving…" : "Save"}

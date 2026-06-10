@@ -202,7 +202,6 @@ export interface RuleInput {
     labels?: Record<string, string>;
   };
   action: RuleAction;
-  match_expr?: string;
   match_ast?: MatchNode;
 }
 
@@ -219,7 +218,6 @@ export async function createRule(input: RuleInput): Promise<Rule> {
       start_policy: input.start_policy,
       match: input.match,
       action: input.action,
-      match_expr: input.match_expr,
       match_ast: input.match_ast,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -245,7 +243,6 @@ export async function updateRule(id: string, input: RuleInput): Promise<Rule> {
       start_policy: input.start_policy,
       match: input.match,
       action: input.action,
-      match_expr: input.match_expr,
       match_ast: input.match_ast,
       updated_at: new Date().toISOString(),
     };

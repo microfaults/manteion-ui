@@ -25,7 +25,6 @@ import { rulesApi, servicesApi } from "@/lib/api";
 import type { RuleInput } from "@/lib/api/rules";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
-import { parse } from "@/lib/rego/parse";
 import { MatchNodeSchema, type Rule, type RuleAction } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -85,10 +84,6 @@ function initialAstFromRule(rule: Rule | undefined): MatchNode {
   if (rule.match_ast) {
     const parsed = MatchNodeSchema.safeParse(rule.match_ast);
     if (parsed.success) return parsed.data as MatchNode;
-  }
-  if (rule.match_expr) {
-    const p = parse(rule.match_expr);
-    if (p.ok) return p.ast;
   }
   if (rule.match) return matchCriteriaToAst(rule.match);
   return emptyRoot();
@@ -179,9 +174,11 @@ function RuleEditorForm({
   const [cacheboxKeyStrategy, setCacheboxKeyStrategy] = useState<
     "exact" | "exact_with_host" | "exact_with_body"
   >(existing?.action?.type === "cachebox" ? existing.action.cachebox.key_strategy : "exact");
-  // Match-builder state unchanged:
+  // Match-builder state unchanged. The compiled rego is display-only since
+  // schema epoch 2 dropped match_expr from the rule model — the builder AST
+  // (match_ast) plus the derived match criteria are what get persisted.
   const [ast, setAst] = useState<MatchNode | undefined>(initAst);
-  const [rego, setRego] = useState(existing?.match_expr ?? compile(initAst));
+  const [rego, setRego] = useState(compile(initAst));
   const [custom, setCustom] = useState(false);
 
   const save = useMutation({
@@ -210,7 +207,6 @@ function RuleEditorForm({
           injection_point: injectionPoint || undefined,
           labels: labelsForBackend,
         },
-        match_expr: rego,
         match_ast: custom ? undefined : ast,
       };
       return isNew ? rulesApi.createRule(input) : rulesApi.updateRule(ruleId as string, input);

@@ -599,7 +599,7 @@ function NewWorkflowDialog({
                 }}
               />
               <p className="text-[11px] text-muted-foreground">
-                Lowercase, dashes only — used as the URL slug.
+                Lowercase, dashes only — becomes the workflow name (ids are server-minted).
               </p>
             </div>
             <div className="space-y-1.5">

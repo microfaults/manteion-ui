@@ -80,6 +80,9 @@ function ExperimentsPage() {
                   </TableRow>
                 ) : null}
                 {data?.map((e) => {
+                  // Workflows attach per-phase (schema epoch 2); derive the
+                  // experiment-level list from the phase configs.
+                  const workflowIds = experimentsApi.workflowIdsForExperiment(e);
                   const durationMs =
                     e.started_at && e.completed_at
                       ? new Date(e.completed_at).getTime() - new Date(e.started_at).getTime()
@@ -95,7 +98,7 @@ function ExperimentsPage() {
                           {e.name}
                         </Link>
                         <div className="mt-0.5 text-[11px] font-mono text-muted-foreground">
-                          {e.workflow_ids.join(" + ") || "—"}
+                          {workflowIds.join(" + ") || "—"}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -121,7 +124,7 @@ function ExperimentsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {e.workflow_ids.join(", ") || "—"}
+                        {workflowIds.join(", ") || "—"}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {e.started_at ? formatRelative(e.started_at) : "—"}

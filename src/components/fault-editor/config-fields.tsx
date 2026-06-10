@@ -7,133 +7,175 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import type { FaultCategory } from "@/types/api";
-import type { ConfigState } from "./config-state";
+import type { FaultCatalogEntry, FaultParamSpec } from "@/types/api";
+import {
+  type NetworkEnvelopeState,
+  type ParamScalar,
+  type ParamValues,
+  paramValue,
+} from "./config-state";
 
-// ─── Props ────────────────────────────────────────────────────────────
+// ─── Catalog-driven param fields ──────────────────────────────────────
+// Renders one input per catalog FieldSpec. The field vocabulary comes from
+// GET /api/v1/faults/catalog, so there is no per-fault-type JSX to keep in
+// sync with the backend's strict params validation.
 
-interface ConfigFieldsProps {
-  category: FaultCategory;
-  faultType: string;
-  cfg: ConfigState;
-  onChange: (patch: Partial<ConfigState>) => void;
+interface CatalogParamFieldsProps {
+  entry: FaultCatalogEntry;
+  values: ParamValues;
+  onChange: (name: string, value: ParamScalar) => void;
 }
 
-// ─── Main component ──────────────────────────────────────────────────
-
-export function ConfigFields({ category, faultType, cfg, onChange }: ConfigFieldsProps) {
-  if (category === "inline")
-    return <InlineFields faultType={faultType} cfg={cfg} onChange={onChange} />;
-  if (category === "network")
-    return <NetworkFields faultType={faultType} cfg={cfg} onChange={onChange} />;
-  return <ResourceFields faultType={faultType} cfg={cfg} onChange={onChange} />;
-}
-
-// ─── Inline ──────────────────────────────────────────────────────────
-
-function InlineFields({
-  faultType,
-  cfg,
-  onChange,
-}: { faultType: string; cfg: ConfigState; onChange: ConfigFieldsProps["onChange"] }) {
-  if (faultType === "latency") {
+export function CatalogParamFields({ entry, values, onChange }: CatalogParamFieldsProps) {
+  if (entry.params.length === 0) {
     return (
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Latency (ms)" htmlFor="fe-lat-ms">
-          <Input
-            id="fe-lat-ms"
-            type="number"
-            min={0}
-            value={cfg.latency_ms}
-            onChange={(e) => onChange({ latency_ms: Number(e.target.value) })}
-          />
-        </Field>
-        <Field label="Jitter ± (ms)" htmlFor="fe-jitter-ms">
-          <Input
-            id="fe-jitter-ms"
-            type="number"
-            min={0}
-            value={cfg.jitter_ms}
-            onChange={(e) => onChange({ jitter_ms: Number(e.target.value) })}
-          />
-        </Field>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        <code className="font-mono">{entry.fault_type}</code> takes no parameters.
+      </p>
     );
   }
-  if (faultType === "error") {
-    return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Status code" htmlFor="fe-status">
-            <Input
-              id="fe-status"
-              type="number"
-              min={100}
-              max={599}
-              value={cfg.status_code}
-              onChange={(e) => onChange({ status_code: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <Field label="Response body" htmlFor="fe-error-msg">
-          <Input
-            id="fe-error-msg"
-            value={cfg.error_message}
-            onChange={(e) => onChange({ error_message: e.target.value })}
-            placeholder="Service temporarily unavailable"
-          />
-        </Field>
-      </div>
-    );
-  }
-  if (faultType === "hang") {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Duration (s)" htmlFor="fe-hang-dur">
-          <Input
-            id="fe-hang-dur"
-            type="number"
-            min={1}
-            value={cfg.hang_duration_s}
-            onChange={(e) => onChange({ hang_duration_s: Number(e.target.value) })}
-          />
-        </Field>
-      </div>
-    );
-  }
-  return null;
-}
-
-// ─── Network ─────────────────────────────────────────────────────────
-
-function NetworkFields({
-  faultType,
-  cfg,
-  onChange,
-}: { faultType: string; cfg: ConfigState; onChange: ConfigFieldsProps["onChange"] }) {
+  const switches = entry.params.filter((p) => p.type === "bool");
+  const inputs = entry.params.filter((p) => p.type !== "bool");
   return (
-    <div className="space-y-4">
-      <NetworkProxyFields cfg={cfg} onChange={onChange} />
-      <Separator />
-      <NetworkToxicFields faultType={faultType} cfg={cfg} onChange={onChange} />
+    <div className="space-y-3">
+      {inputs.length > 0 ? (
+        <div className="grid grid-cols-2 gap-3">
+          {inputs.map((param) => (
+            <ParamInput
+              key={param.name}
+              param={param}
+              value={paramValue(param, values)}
+              onChange={(v) => onChange(param.name, v)}
+            />
+          ))}
+        </div>
+      ) : null}
+      {switches.map((param) => (
+        <ParamSwitch
+          key={param.name}
+          param={param}
+          value={paramValue(param, values) === true}
+          onChange={(v) => onChange(param.name, v)}
+        />
+      ))}
     </div>
   );
 }
 
-function NetworkProxyFields({
-  cfg,
+function paramLabel(param: FaultParamSpec): string {
+  const pretty = param.name.replace(/_/g, " ");
+  return param.required ? `${pretty} *` : pretty;
+}
+
+function ParamInput({
+  param,
+  value,
   onChange,
-}: { cfg: ConfigState; onChange: ConfigFieldsProps["onChange"] }) {
+}: {
+  param: FaultParamSpec;
+  value: ParamScalar;
+  onChange: (v: ParamScalar) => void;
+}) {
+  const id = `fe-param-${param.name}`;
+  if (param.type === "enum") {
+    return (
+      <Field label={paramLabel(param)} htmlFor={id} hint={param.description}>
+        <Select value={String(value)} onValueChange={(v) => onChange(v)}>
+          <SelectTrigger id={id}>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(param.enum ?? []).map((opt) => (
+              <SelectItem key={opt} value={opt}>
+                {opt}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+    );
+  }
+  if (param.type === "int" || param.type === "float") {
+    return (
+      <Field label={paramLabel(param)} htmlFor={id} hint={param.description}>
+        <Input
+          id={id}
+          type="number"
+          step={param.type === "float" ? 0.05 : 1}
+          value={Number(value)}
+          onChange={(e) => onChange(Number(e.target.value))}
+        />
+      </Field>
+    );
+  }
+  // duration | string
+  return (
+    <Field label={paramLabel(param)} htmlFor={id} hint={param.description}>
+      <Input
+        id={id}
+        value={String(value)}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={param.type === "duration" ? "250ms" : undefined}
+        className="font-mono"
+      />
+    </Field>
+  );
+}
+
+function ParamSwitch({
+  param,
+  value,
+  onChange,
+}: {
+  param: FaultParamSpec;
+  value: boolean;
+  onChange: (v: boolean) => void;
+}) {
+  const id = `fe-param-${param.name}`;
+  return (
+    <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
+      <div>
+        <Label htmlFor={id} className="text-sm font-medium">
+          {param.name.replace(/_/g, " ")}
+        </Label>
+        {param.description ? (
+          <p className="text-xs text-muted-foreground">{param.description}</p>
+        ) : null}
+      </div>
+      <Switch id={id} checked={value} onCheckedChange={onChange} />
+    </div>
+  );
+}
+
+// ─── Network envelope ─────────────────────────────────────────────────
+// Lives OUTSIDE params (FaultSpec.network): selects which traffic the toxic
+// applies to. Required for the network category; target is mandatory with
+// the default proxy host.
+
+interface NetworkEnvelopeFieldsProps {
+  value: NetworkEnvelopeState;
+  onChange: (patch: Partial<NetworkEnvelopeState>) => void;
+}
+
+export function NetworkEnvelopeFields({ value, onChange }: NetworkEnvelopeFieldsProps) {
   return (
     <div className="space-y-3">
-      <p className="text-xs font-medium text-muted-foreground">Proxy config</p>
+      <p className="text-xs font-medium text-muted-foreground">Network envelope</p>
+      <Field label="Target *" htmlFor="fe-net-target" hint="Logical upstream service name">
+        <Input
+          id="fe-net-target"
+          value={value.target}
+          onChange={(e) => onChange({ target: e.target.value })}
+          placeholder="productcatalog"
+          className="font-mono"
+        />
+      </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Direction" htmlFor="fe-net-dir">
           <Select
-            value={cfg.net_direction}
-            onValueChange={(v) => onChange({ net_direction: v as "upstream" | "downstream" })}
+            value={value.direction || "downstream"}
+            onValueChange={(v) => onChange({ direction: v as "upstream" | "downstream" })}
           >
             <SelectTrigger id="fe-net-dir">
               <SelectValue />
@@ -144,35 +186,15 @@ function NetworkProxyFields({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Scope (0–1)" htmlFor="fe-net-scope">
+        <Field label="Scope (0–1)" htmlFor="fe-net-scope" hint="Fraction of connections; 0 = all">
           <Input
             id="fe-net-scope"
             type="number"
             min={0}
             max={1}
             step={0.1}
-            value={cfg.net_scope}
-            onChange={(e) => onChange({ net_scope: Number(e.target.value) })}
-          />
-        </Field>
-      </div>
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Listen" htmlFor="fe-net-listen">
-          <Input
-            id="fe-net-listen"
-            value={cfg.net_listen}
-            onChange={(e) => onChange({ net_listen: e.target.value })}
-            placeholder="localhost:0"
-            className="font-mono"
-          />
-        </Field>
-        <Field label="Upstream" htmlFor="fe-net-upstream">
-          <Input
-            id="fe-net-upstream"
-            value={cfg.net_upstream}
-            onChange={(e) => onChange({ net_upstream: e.target.value })}
-            placeholder="host:port"
-            className="font-mono"
+            value={value.scope}
+            onChange={(e) => onChange({ scope: Number(e.target.value) })}
           />
         </Field>
       </div>
@@ -180,350 +202,17 @@ function NetworkProxyFields({
   );
 }
 
-function NetworkToxicFields({
-  faultType,
-  cfg,
-  onChange,
-}: { faultType: string; cfg: ConfigState; onChange: ConfigFieldsProps["onChange"] }) {
-  if (faultType === "blackhole") return null;
-
-  if (faultType === "retransmit-delay") {
-    return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Rate (0–1)" htmlFor="fe-rt-rate">
-            <Input
-              id="fe-rt-rate"
-              type="number"
-              min={0}
-              max={1}
-              step={0.01}
-              value={cfg.retransmit_rate}
-              onChange={(e) => onChange({ retransmit_rate: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Delay" htmlFor="fe-rt-delay">
-            <Input
-              id="fe-rt-delay"
-              value={cfg.retransmit_delay}
-              onChange={(e) => onChange({ retransmit_delay: e.target.value })}
-              placeholder="1s"
-              className="font-mono"
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Reset threshold" htmlFor="fe-rt-thresh">
-            <Input
-              id="fe-rt-thresh"
-              type="number"
-              min={0}
-              value={cfg.retransmit_reset_threshold}
-              onChange={(e) => onChange({ retransmit_reset_threshold: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-      </div>
-    );
-  }
-
-  if (faultType === "rst") {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Interval (s)" htmlFor="fe-rst-int">
-          <Input
-            id="fe-rst-int"
-            type="number"
-            min={1}
-            value={cfg.interval_s}
-            onChange={(e) => onChange({ interval_s: Number(e.target.value) })}
-          />
-        </Field>
-      </div>
-    );
-  }
-
-  if (faultType === "throttle") {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Rate (kbps)" htmlFor="fe-throttle">
-          <Input
-            id="fe-throttle"
-            type="number"
-            min={1}
-            value={cfg.rate_kbps}
-            onChange={(e) => onChange({ rate_kbps: Number(e.target.value) })}
-          />
-        </Field>
-      </div>
-    );
-  }
-
-  if (faultType === "latency") {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Latency (ms)" htmlFor="fe-net-lat">
-          <Input
-            id="fe-net-lat"
-            type="number"
-            min={0}
-            value={cfg.latency_ms}
-            onChange={(e) => onChange({ latency_ms: Number(e.target.value) })}
-          />
-        </Field>
-        <Field label="Jitter ± (ms)" htmlFor="fe-net-jitter">
-          <Input
-            id="fe-net-jitter"
-            type="number"
-            min={0}
-            value={cfg.jitter_ms}
-            onChange={(e) => onChange({ jitter_ms: Number(e.target.value) })}
-          />
-        </Field>
-      </div>
-    );
-  }
-
-  if (faultType === "drip") {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Rate (B/s)" htmlFor="fe-drip">
-          <Input
-            id="fe-drip"
-            type="number"
-            min={1}
-            value={cfg.rate_bytes_s}
-            onChange={(e) => onChange({ rate_bytes_s: Number(e.target.value) })}
-          />
-        </Field>
-      </div>
-    );
-  }
-
-  return null;
-}
-
-// ─── Resource ────────────────────────────────────────────────────────
-
-function ResourceFields({
-  faultType,
-  cfg,
-  onChange,
-}: { faultType: string; cfg: ConfigState; onChange: ConfigFieldsProps["onChange"] }) {
-  if (faultType === "cpu") {
-    return (
-      <div className="grid grid-cols-2 gap-3">
-        <Field label="Target load (0–1)" htmlFor="fe-cpu-load">
-          <Input
-            id="fe-cpu-load"
-            type="number"
-            min={0}
-            max={1}
-            step={0.05}
-            value={cfg.cpu_target_load}
-            onChange={(e) => onChange({ cpu_target_load: Number(e.target.value) })}
-          />
-        </Field>
-        <Field label="Window" htmlFor="fe-cpu-window">
-          <Input
-            id="fe-cpu-window"
-            value={cfg.cpu_window}
-            onChange={(e) => onChange({ cpu_window: e.target.value })}
-            placeholder="10s"
-            className="font-mono"
-          />
-        </Field>
-      </div>
-    );
-  }
-
-  if (faultType === "memory") {
-    return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Target load (0–1)" htmlFor="fe-mem-load">
-            <Input
-              id="fe-mem-load"
-              type="number"
-              min={0}
-              max={1}
-              step={0.05}
-              value={cfg.mem_target_load}
-              onChange={(e) => onChange({ mem_target_load: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Chunk size (bytes)" htmlFor="fe-mem-chunk">
-            <Input
-              id="fe-mem-chunk"
-              type="number"
-              min={1}
-              value={cfg.mem_chunk_size}
-              onChange={(e) => onChange({ mem_chunk_size: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <div className="flex items-center justify-between rounded-md border border-border px-3 py-2.5">
-          <div>
-            <Label htmlFor="fe-mem-thrash" className="text-sm font-medium">
-              Thrashing
-            </Label>
-            <p className="text-xs text-muted-foreground">Continuously churn allocated memory</p>
-          </div>
-          <Switch
-            id="fe-mem-thrash"
-            checked={cfg.mem_thrashing}
-            onCheckedChange={(v) => onChange({ mem_thrashing: v })}
-          />
-        </div>
-        {cfg.mem_thrashing && (
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Thrash workers" htmlFor="fe-mem-thrash-w">
-              <Input
-                id="fe-mem-thrash-w"
-                type="number"
-                min={1}
-                value={cfg.mem_thrash_workers}
-                onChange={(e) => onChange({ mem_thrash_workers: Number(e.target.value) })}
-              />
-            </Field>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  if (faultType === "disk") {
-    return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Write rate (B/s)" htmlFor="fe-disk-rate">
-            <Input
-              id="fe-disk-rate"
-              type="number"
-              min={1}
-              value={cfg.disk_write_rate}
-              onChange={(e) => onChange({ disk_write_rate: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Max usage (bytes)" htmlFor="fe-disk-max">
-            <Input
-              id="fe-disk-max"
-              type="number"
-              min={1}
-              value={cfg.disk_max_usage}
-              onChange={(e) => onChange({ disk_max_usage: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Chunk size (bytes)" htmlFor="fe-disk-chunk">
-            <Input
-              id="fe-disk-chunk"
-              type="number"
-              min={1}
-              value={cfg.disk_chunk_size}
-              onChange={(e) => onChange({ disk_chunk_size: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Path" htmlFor="fe-disk-path">
-            <Input
-              id="fe-disk-path"
-              value={cfg.disk_path}
-              onChange={(e) => onChange({ disk_path: e.target.value })}
-              placeholder="/tmp/atropos-disk"
-              className="font-mono"
-            />
-          </Field>
-        </div>
-      </div>
-    );
-  }
-
-  if (faultType === "io") {
-    return (
-      <div className="space-y-3">
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Mode" htmlFor="fe-io-mode">
-            <Select
-              value={cfg.io_mode}
-              onValueChange={(v) => onChange({ io_mode: v as "read" | "write" | "readwrite" })}
-            >
-              <SelectTrigger id="fe-io-mode">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="read">read</SelectItem>
-                <SelectItem value="write">write</SelectItem>
-                <SelectItem value="readwrite">readwrite</SelectItem>
-              </SelectContent>
-            </Select>
-          </Field>
-          <Field label="Read rate (B/s)" htmlFor="fe-io-rate">
-            <Input
-              id="fe-io-rate"
-              type="number"
-              min={1}
-              value={cfg.io_read_rate}
-              onChange={(e) => onChange({ io_read_rate: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="File size (bytes)" htmlFor="fe-io-fsize">
-            <Input
-              id="fe-io-fsize"
-              type="number"
-              min={1}
-              value={cfg.io_file_size}
-              onChange={(e) => onChange({ io_file_size: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="File count" htmlFor="fe-io-fcount">
-            <Input
-              id="fe-io-fcount"
-              type="number"
-              min={1}
-              value={cfg.io_file_count}
-              onChange={(e) => onChange({ io_file_count: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <Field label="Workers" htmlFor="fe-io-workers">
-            <Input
-              id="fe-io-workers"
-              type="number"
-              min={1}
-              value={cfg.io_workers}
-              onChange={(e) => onChange({ io_workers: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Path" htmlFor="fe-io-path">
-            <Input
-              id="fe-io-path"
-              value={cfg.io_path}
-              onChange={(e) => onChange({ io_path: e.target.value })}
-              placeholder="/tmp/atropos-io"
-              className="font-mono"
-            />
-          </Field>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
-}
-
 // ─── Field helper ────────────────────────────────────────────────────
 
 export function Field({
   label,
   htmlFor,
+  hint,
   children,
 }: {
   label: string;
   htmlFor: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -532,6 +221,7 @@ export function Field({
         {label}
       </Label>
       {children}
+      {hint ? <p className="text-[11px] text-muted-foreground">{hint}</p> : null}
     </div>
   );
 }

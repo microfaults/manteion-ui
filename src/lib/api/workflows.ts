@@ -1,15 +1,19 @@
 /**
  * Workflow client — talks to manteion-go's workflow-definition endpoints:
  *   GET    /api/v1/workflows                  paginated list cards
- *   GET    /api/v1/workflows/{id}             detail view (full DSL tree)
- *   POST   /api/v1/workflows                  create
+ *   GET    /api/v1/workflows/{id}             detail view (full DSL document)
+ *   POST   /api/v1/workflows                  create (zeus-validated)
+ *   POST   /api/v1/workflows/{id}/validate    re-validate the stored doc
  *   DELETE /api/v1/workflows/{id}             delete
  *
- * Manteion owns workflow DEFINITIONS (this client); zeus owns workflow
- * EXECUTION (runs, attacks, validation results). For the detail page the
- * UI fans out two parallel queries — one here for the definition, one to
- * /api/v1/zeus/runs?workflow_id=... for live state.
+ * Manteion owns workflow DEFINITIONS (this client); zeus validates them
+ * (stateless POST /workflows/validate) and owns EXECUTION (runs, attacks).
+ * For the detail page the UI fans out two parallel queries — one here for
+ * the definition, one to /api/v1/zeus/runs?workflow_id=... for live state.
  *
+ * Schema epoch 2: the definition is one full zeus DSL v2 document under
+ * `dsl` (node tree at `dsl.root`); create/update send `{name?, dsl}` and
+ * the server injects the resolved id/name into the stored document.
  * Backend models live in manteion-go/internal/model/workflow.go and the
  * DTOs in internal/api/workflow_handler.go. This module is the boundary
  * where the snake_case JSON gets mapped to the UI types.
@@ -22,20 +26,23 @@ import {
   WorkflowListItemSchema,
   WorkflowSchema,
 } from "@/types/api";
+import { z } from "zod";
 import type { Workflow, WorkflowNode, WorkflowSummary } from "../workflow-types";
-import { apiClient } from "./client";
+import { ApiError, apiClient } from "./client";
 
 const WorkflowListPageSchema = PageEnvelope(WorkflowListItemSchema);
 
-/** Hard-coded until backend Workflow grows a `version` column. The Figma
- *  calls these "DSL v2 workflow definitions" so we render that string. */
-const DSL_VERSION = "v2";
+/** Backend stores the bare DSL major version ("2"); the UI renders "v2". */
+function formatDslVersion(v: string | number | undefined): string {
+  const s = String(v ?? "2");
+  return s.startsWith("v") ? s : `v${s}`;
+}
 
 function summaryFromListItem(w: WorkflowListItem): WorkflowSummary {
   return {
     id: w.id,
     name: w.name,
-    version: DSL_VERSION,
+    version: formatDslVersion(w.version),
     targets: w.targets,
     estRpsPerVu: w.estimated_rps_per_vu,
     updatedAt: w.updated_at ?? w.created_at,
@@ -46,19 +53,17 @@ function summaryFromListItem(w: WorkflowListItem): WorkflowSummary {
 
 function workflowFromWire(w: WireWorkflow): Workflow {
   return {
-    ...summaryFromListItem({
-      id: w.id,
-      name: w.name,
-      description: w.description,
-      targets: w.targets,
-      estimated_rps_per_vu: w.estimated_rps_per_vu,
-      // The detail payload omits this; it's a list-only field. Render
-      // a tree-walk count once instead of hoping the backend filled it.
-      request_node_count: countRequestNodes(w.steps),
-      created_at: w.created_at,
-      updated_at: w.updated_at,
-    }),
-    root: parseStepsTree(w.steps),
+    id: w.id,
+    name: w.name,
+    version: formatDslVersion(w.version),
+    targets: w.dsl.targets,
+    estRpsPerVu: w.dsl.estimated_rps_per_vu,
+    updatedAt: w.updated_at ?? w.created_at,
+    description: w.description,
+    // The full DTO omits the precomputed list-only count; tree-walk once
+    // instead of hoping the backend filled it.
+    requestNodeCount: countRequestNodes(w.dsl.root),
+    root: parseStepsTree(w.dsl.root),
   };
 }
 
@@ -83,16 +88,16 @@ function countRequestNodes(node: unknown): number {
   }
 }
 
-/** Coerce the opaque `steps` JSON into the WorkflowNode discriminated union.
- *  We don't run a strict zod schema here because the tree shapes are highly
- *  recursive (sequence/parallel children, optional child) and zod's
- *  discriminated union is awkward with `child` vs `children`. Backend
- *  already validates that `steps` is non-empty JSON; we trust the shape and
- *  fall back to an empty sequence root if something is genuinely missing
- *  so the UI can still render. */
-function parseStepsTree(steps: unknown): WorkflowNode {
-  if (steps && typeof steps === "object") {
-    return steps as WorkflowNode;
+/** Coerce the opaque `dsl.root` JSON into the WorkflowNode discriminated
+ *  union. We don't run a strict zod schema here because the tree shapes are
+ *  highly recursive (sequence/parallel children, optional child) and zod's
+ *  discriminated union is awkward with `child` vs `children`. Zeus already
+ *  validated the document at create time; we trust the shape and fall back
+ *  to an empty sequence root if something is genuinely missing so the UI
+ *  can still render. */
+function parseStepsTree(root: unknown): WorkflowNode {
+  if (root && typeof root === "object") {
+    return root as WorkflowNode;
   }
   return { type: "sequence", id: "root", children: [] };
 }
@@ -169,13 +174,15 @@ export interface CreateWorkflowInput {
   steps?: WorkflowStepInput[];
 }
 
+/** POST /api/v1/workflows and PUT /api/v1/workflows/{id} body. `dsl` is the
+ *  full zeus DSL v2 document; `name` falls back to dsl.name and the server
+ *  injects the resolved id/name back into the stored document. The id is
+ *  server-minted ("wf-{uuidv7}") unless explicitly provided. */
 interface CreateWorkflowBody {
   id?: string;
-  name: string;
+  name?: string;
   description?: string;
-  targets?: string[];
-  estimated_rps_per_vu?: number;
-  steps?: unknown;
+  dsl: unknown;
 }
 
 export async function createWorkflow(input: CreateWorkflowInput): Promise<Workflow> {
@@ -205,20 +212,51 @@ export async function createWorkflow(input: CreateWorkflowInput): Promise<Workfl
     : [{ type: "request", id: `r-${slug}-init`, method: "GET", path: "/" }];
 
   const body: CreateWorkflowBody = {
-    id: slug,
     name: slug,
     description: input.description,
-    targets,
-    steps: {
-      type: "sequence",
-      id: "root",
-      label: slug,
-      children,
+    dsl: {
+      name: slug,
+      version: "2",
+      targets,
+      root: {
+        type: "sequence",
+        id: "root",
+        label: slug,
+        children,
+      },
     },
   };
 
-  const wf = await apiClient.post("/api/v1/workflows", body, WorkflowSchema);
-  return workflowFromWire(wf);
+  try {
+    const wf = await apiClient.post("/api/v1/workflows", body, WorkflowSchema);
+    return workflowFromWire(wf);
+  } catch (err) {
+    // 400 = zeus rejected the document (message already in err.message);
+    // 409 = duplicate name; 502 = zeus unreachable — validation could not
+    // run at all, which is a different failure mode than a bad document.
+    if (err instanceof ApiError && err.status === 502) {
+      throw new Error(`Validation unavailable — ${err.message}`);
+    }
+    throw err;
+  }
+}
+
+const ValidateWorkflowResultSchema = z.object({
+  ok: z.literal(true),
+  name: z.string(),
+});
+export type ValidateWorkflowResult = z.infer<typeof ValidateWorkflowResultSchema>;
+
+/** POST /api/v1/workflows/{id}/validate — re-runs the STORED definition
+ *  through zeus's stateless validator (no body needed). Resolves with
+ *  {ok: true, name}; rejects with ApiError 400 ({error}) when zeus rejects
+ *  the document and 502 when zeus is unreachable. */
+export async function validateWorkflow(id: string): Promise<ValidateWorkflowResult> {
+  return apiClient.post(
+    `/api/v1/workflows/${encodeURIComponent(id)}/validate`,
+    undefined,
+    ValidateWorkflowResultSchema,
+  );
 }
 
 /** stepToNode maps a single picker step to its DSL v2 node. Stable per-workflow

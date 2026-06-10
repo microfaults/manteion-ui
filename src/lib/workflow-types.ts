@@ -72,15 +72,14 @@ export type WorkflowNode = RequestNode | DelayNode | SequenceNode | ParallelNode
 export interface WorkflowSummary {
   id: string;
   name: string;
-  /** Major DSL version, e.g. "v2". Backend doesn't model versioning yet; the
-   *  UI hard-codes "v2" until /api/v1/workflows starts returning it. */
+  /** Major DSL version rendered as "v2". Backend stores the bare version
+   *  ("2") on the workflow row and inside the DSL document. */
   version: string;
   /** Services this workflow exercises. */
   targets: string[];
   /** Estimated requests-per-second per VU. */
   estRpsPerVu: number;
-  /** ISO timestamp. Backend currently exposes only `created_at`, surfaced as
-   *  the card's "updated" label until an explicit update timestamp lands. */
+  /** ISO timestamp — `updated_at`, falling back to `created_at`. */
   updatedAt: string;
   description?: string;
   requestNodeCount: number;

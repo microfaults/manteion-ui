@@ -297,7 +297,8 @@ function DashboardPage() {
                         : null;
                     const p99us = latestPhase?.metrics?.p99_us;
                     const p99Display = p99us != null ? `${Math.round(p99us / 1000)} ms` : "—";
-                    const wf = e.workflow_ids?.length > 0 ? `${e.workflow_ids.length}` : "—";
+                    const workflowIds = experimentsApi.workflowIdsForExperiment(e);
+                    const wf = workflowIds.length > 0 ? `${workflowIds.length}` : "—";
                     const { dotStatus, label } = experimentStatusPresentation(e.status);
                     return (
                       <TableRow key={e.id}>
