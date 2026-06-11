@@ -110,8 +110,9 @@ function ExperimentsPage() {
                         <div className="flex items-center gap-1">
                           {e.phases.map((p) => (
                             <PhaseHoverCard
-                              key={p.name}
+                              key={p.id}
                               experimentId={e.id}
+                              phaseId={p.id}
                               phase={p.name}
                               statusHint={p.status}
                               fallbackSummary={p}

@@ -235,17 +235,22 @@ export const ExperimentStatusSchema = z.enum([
 ]);
 export type ExperimentStatus = z.infer<typeof ExperimentStatusSchema>;
 
-export const PhaseNameSchema = z.enum([
-  "baseline",
-  "isolation-1a",
-  "isolation-1b",
-  "isolation-2a",
-  "isolation-2b",
-  "combined",
-]);
+/** Free-form phase label (e.g. "baseline", "isolation-productcatalog").
+ *  The backend enforces UNIQUE(experiment_id, name) — it is not an enum;
+ *  the old baseline/isolation/combined typology survives only as a naming
+ *  convention (see manteion-go internal/model/experiment.go). */
+export const PhaseNameSchema = z.string();
 export type PhaseName = z.infer<typeof PhaseNameSchema>;
 
-export const PhaseStatusSchema = z.enum(["pending", "running", "completed", "failed"]);
+/** Mirrors manteion-go internal/model/enums.go PhaseStatusValues. */
+export const PhaseStatusSchema = z.enum([
+  "pending",
+  "running",
+  "paused",
+  "completed",
+  "failed",
+  "skipped",
+]);
 export type PhaseStatus = z.infer<typeof PhaseStatusSchema>;
 
 /** Per-(phase, workflow) attack config row — mirrors
@@ -265,8 +270,12 @@ export const PhaseWorkflowSchema = z.object({
 export type PhaseWorkflow = z.infer<typeof PhaseWorkflowSchema>;
 
 /** Denormalised phase summary used by the experiments list hover card
- *  and the experiment detail phases tab. */
+ *  and the experiment detail phases tab. Parses the backend's phaseDetail
+ *  shape (GET /api/v1/experiments/{id}/phases/{phaseId}); backend-only
+ *  fields (experiment_id, position, persist_cache, rule_ids) pass through
+ *  unvalidated. */
 export const PhaseSummarySchema = z.object({
+  id: z.string(),
   name: PhaseNameSchema,
   status: PhaseStatusSchema,
   workflow_id: z.string().optional(),

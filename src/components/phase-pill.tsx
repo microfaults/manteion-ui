@@ -12,25 +12,28 @@ interface PhasePillProps {
 const statusClasses: Record<PhaseStatus, string> = {
   pending: "bg-phase-pending",
   running: "bg-phase-isolation animate-pulse",
+  paused: "bg-status-degraded",
   completed: "bg-phase-baseline",
   failed: "bg-phase-failed",
+  skipped: "bg-phase-pending/50",
 };
 
-const familyClasses: Partial<Record<string, string>> = {
-  baseline: "bg-phase-baseline",
-  "isolation-1a": "bg-phase-isolation",
-  "isolation-1b": "bg-phase-isolation/80",
-  "isolation-2a": "bg-phase-isolation",
-  "isolation-2b": "bg-phase-isolation/80",
-  combined: "bg-phase-combined",
-};
+/** Phase names are free-form; the baseline/isolation/combined typology is a
+ *  naming convention (e.g. "isolation-productcatalog"), so match by prefix. */
+function familyClass(name: string): string | undefined {
+  if (name.startsWith("baseline")) return "bg-phase-baseline";
+  if (name.startsWith("isolation")) return "bg-phase-isolation";
+  if (name.startsWith("combined")) return "bg-phase-combined";
+  return undefined;
+}
 
 export function PhasePill({ name, status, widthPx = 32, className }: PhasePillProps) {
-  // Prefer family color unless pending/failed — those override with status color.
+  // Family color only while the phase ran or is running — pending/failed/
+  // paused/skipped override with status color.
   const colorClass =
-    status === "pending" || status === "failed"
-      ? statusClasses[status]
-      : (familyClasses[name] ?? statusClasses[status]);
+    status === "running" || status === "completed"
+      ? (familyClass(name) ?? statusClasses[status])
+      : statusClasses[status];
 
   return (
     <span

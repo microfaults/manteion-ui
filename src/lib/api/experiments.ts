@@ -2,7 +2,6 @@ import {
   type Experiment,
   ExperimentSchema,
   PageEnvelope,
-  type PhaseName,
   type PhaseSummary,
   PhaseSummarySchema,
 } from "@/types/api";
@@ -49,13 +48,13 @@ export async function getExperiment(id: string): Promise<Experiment> {
   return apiClient.get(`/api/v1/experiments/${encodeURIComponent(id)}`, ExperimentSchema);
 }
 
-/** NEW endpoint — drives the Experiments-list phase-pill hover card (Task C.2). */
-export async function getPhaseStatus(
-  experimentId: string,
-  phase: PhaseName,
-): Promise<PhaseSummary> {
+/** Fetches one phase by id — `GET /api/v1/experiments/{id}/phases/{phaseId}`.
+ *  Drives the Experiments-list phase-pill hover card (Task C.2). Phases are
+ *  addressed by id, not name: names are free-form and only unique per
+ *  experiment. */
+export async function getPhaseStatus(experimentId: string, phaseId: string): Promise<PhaseSummary> {
   return apiClient.get(
-    `/api/v1/experiments/${encodeURIComponent(experimentId)}/phase/${encodeURIComponent(phase)}/status`,
+    `/api/v1/experiments/${encodeURIComponent(experimentId)}/phases/${encodeURIComponent(phaseId)}`,
     PhaseSummarySchema,
   );
 }

@@ -9,6 +9,9 @@ import type { ReactNode } from "react";
 
 interface PhaseHoverCardProps {
   experimentId: string;
+  /** Phase row id — phases are fetched by id (names are only unique per experiment). */
+  phaseId: string;
+  /** Free-form display name (e.g. "isolation-productcatalog"). */
   phase: PhaseName;
   statusHint: PhaseStatus;
   /** Optional inline summary so the card renders immediately without waiting for fetch. */
@@ -19,12 +22,15 @@ interface PhaseHoverCardProps {
 const statusVariants: Record<PhaseStatus, string> = {
   pending: "bg-muted text-muted-foreground",
   running: "bg-phase-isolation text-white",
+  paused: "bg-status-degraded text-white",
   completed: "bg-status-healthy text-white",
   failed: "bg-status-down text-white",
+  skipped: "bg-muted text-muted-foreground",
 };
 
 export function PhaseHoverCard({
   experimentId,
+  phaseId,
   phase,
   statusHint,
   fallbackSummary,
@@ -33,8 +39,8 @@ export function PhaseHoverCard({
   const isLive = statusHint === "running";
 
   const query = useQuery({
-    queryKey: ["phase", experimentId, phase],
-    queryFn: () => experimentsApi.getPhaseStatus(experimentId, phase),
+    queryKey: ["phase", experimentId, phaseId],
+    queryFn: () => experimentsApi.getPhaseStatus(experimentId, phaseId),
     // Only fetch when user actually hovers (triggered by HoverCard — always enabled, but cached).
     staleTime: isLive ? 2_000 : 30_000,
     refetchInterval: isLive ? 2_000 : false,
