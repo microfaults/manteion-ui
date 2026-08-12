@@ -13,6 +13,9 @@
 
 import { type CatalogEndpoint, CatalogResponseSchema } from "@/types/api";
 import { apiClient } from "./client";
+import { mockCatalogEndpoints } from "./mock-fixtures";
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 export interface CatalogResult {
   endpoints: CatalogEndpoint[];
@@ -20,6 +23,10 @@ export interface CatalogResult {
 }
 
 export async function listEndpoints(): Promise<CatalogResult> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 80));
+    return { endpoints: mockCatalogEndpoints.map((e) => ({ ...e })) };
+  }
   const resp = await apiClient.get("/api/v1/catalog/endpoints", CatalogResponseSchema);
   return { endpoints: resp.data, hint: resp.hint };
 }

@@ -6,12 +6,23 @@ import {
   PhaseSummarySchema,
 } from "@/types/api";
 import { ApiError, apiClient } from "./client";
+import { mockExperiments } from "./mock-fixtures";
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+
+function mockDelay() {
+  return new Promise((r) => setTimeout(r, 80));
+}
 
 const ExperimentPageSchema = PageEnvelope(ExperimentSchema);
 
 /** Lists experiments from manteion-go `GET /api/v1/experiments` (paginated
  *  envelope; empty array when DB has no rows). */
 export async function listExperiments(): Promise<Experiment[]> {
+  if (USE_MOCK) {
+    await mockDelay();
+    return mockExperiments.map((e) => ({ ...e }));
+  }
   const envelope = await apiClient.get("/api/v1/experiments", ExperimentPageSchema);
   return envelope.data;
 }
@@ -45,6 +56,12 @@ export async function listExperimentsLenient(): Promise<Experiment[]> {
 
 /** NEW endpoint. */
 export async function getExperiment(id: string): Promise<Experiment> {
+  if (USE_MOCK) {
+    await mockDelay();
+    const exp = mockExperiments.find((e) => e.id === id);
+    if (!exp) throw new Error(`Mock: experiment ${id} not found`);
+    return { ...exp };
+  }
   return apiClient.get(`/api/v1/experiments/${encodeURIComponent(id)}`, ExperimentSchema);
 }
 
@@ -53,6 +70,14 @@ export async function getExperiment(id: string): Promise<Experiment> {
  *  addressed by id, not name: names are free-form and only unique per
  *  experiment. */
 export async function getPhaseStatus(experimentId: string, phaseId: string): Promise<PhaseSummary> {
+  if (USE_MOCK) {
+    await mockDelay();
+    const phase = mockExperiments
+      .find((e) => e.id === experimentId)
+      ?.phases.find((p) => p.id === phaseId);
+    if (!phase) throw new Error(`Mock: phase ${phaseId} not found`);
+    return { ...phase };
+  }
   return apiClient.get(
     `/api/v1/experiments/${encodeURIComponent(experimentId)}/phases/${encodeURIComponent(phaseId)}`,
     PhaseSummarySchema,

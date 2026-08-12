@@ -97,6 +97,11 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: ["./src/test-setup.ts"],
+    // Vitest loads .env.local too. The api/ modules short-circuit to fixtures
+    // when VITE_USE_MOCK=true, which would make tests assert against mock data
+    // instead of the real fetch path — pin it off so the suite is independent
+    // of whatever a developer has set locally.
+    env: { VITE_USE_MOCK: "false" },
     // Claude Code worktrees stash scratch copies of the repo under
     // .claude/worktrees/<branch>/ — Vitest's default include picks up
     // their *.test.tsx files and fails to resolve @/ imports because

@@ -5,6 +5,55 @@
 /** Never fall back to VITE_MANTEION_URL — that sends PromQL to manteion and yields 404s. */
 const BASE = import.meta.env.VITE_PROMETHEUS_URL ?? "http://localhost:9091";
 
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+
+/** Demo services, matching the SDK/rule fixtures in api/. */
+const MOCK_SERVICES = [
+  "frontend",
+  "productcatalog",
+  "cartservice",
+  "checkoutservice",
+  "paymentservice",
+  "shippingservice",
+  "currencyservice",
+  "adservice",
+  "emailservice",
+];
+
+/**
+ * Deterministic pseudo-random in [0,1) — a demo series should wobble like real
+ * traffic but stay stable across refetches so the bars don't jitter wildly.
+ */
+function noise(seed: number): number {
+  const x = Math.sin(seed * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+/** Synthesizes a range series: base level + slow wave + light noise. */
+function mockSeries(
+  rangeMinutes: number,
+  base: number,
+  amplitude: number,
+  seedOffset: number,
+): TimeSeriesPoint[] {
+  const stepSec = 15;
+  const count = Math.min(Math.floor((rangeMinutes * 60) / stepSec), 240);
+  const endMs = Date.now();
+  // Bucket the wave by wall-clock so consecutive refetches line up.
+  const phase = Math.floor(endMs / 30_000);
+  return Array.from({ length: count }, (_, i) => {
+    const wave = Math.sin((i / count) * Math.PI * 3 + phase * 0.05);
+    const value = base + amplitude * wave + amplitude * 0.35 * (noise(i + seedOffset) - 0.5);
+    return {
+      ts: endMs - (count - 1 - i) * stepSec * 1000,
+      value: Math.max(0, Number(value.toFixed(3))),
+    };
+  });
+}
+
+const lastOf = (pts: TimeSeriesPoint[], fallback: number): number =>
+  pts.length > 0 ? (pts[pts.length - 1]?.value ?? fallback) : fallback;
+
 /** Dev dashboards fire many parallel Prom queries; HTTP/1.1 caps ~6 connections/host so extras sit "(pending)". */
 const MAX_PROM_CONCURRENT = 5;
 let promInFlight = 0;
@@ -213,6 +262,11 @@ const CALLS_TOTAL_ERROR_RATE_PROMQL = `100 * (
 
 /** Distinct workload labels from recent `calls_total` traffic (for UI merge with SDK). */
 export async function fetchServiceNamesFromMetrics(signal?: AbortSignal): Promise<string[]> {
+  if (USE_MOCK) {
+    // Includes one service with no SDK registration so the dashboard's
+    // "Prometheus traffic only" row is exercised.
+    return [...MOCK_SERVICES].sort((a, b) => a.localeCompare(b));
+  }
   const label = await resolveCallsTotalServiceLabel(signal);
   const r = await queryInstant(
     `group by (${promByClauseLabel(label)}) (rate(calls_total[5m]))`,
@@ -233,6 +287,27 @@ export async function fetchDashboardPrometheusBundle(
   rangeMinutes: number,
   signal?: AbortSignal,
 ): Promise<DashboardPrometheusBundle> {
+  if (USE_MOCK) {
+    const requestRateRange = mockSeries(rangeMinutes, 104, 26, 1);
+    const p99LatencyRange = mockSeries(rangeMinutes, 148, 46, 2);
+    const errorRateRange = mockSeries(rangeMinutes, 1.4, 0.9, 3);
+    const cacheHitRateRange = mockSeries(rangeMinutes, 91, 6, 4);
+    const perServiceCallRate: Record<string, number> = {};
+    MOCK_SERVICES.forEach((svc, i) => {
+      perServiceCallRate[svc] = Number((6 + noise(i + 11) * 34).toFixed(1));
+    });
+    return {
+      requestRate: lastOf(requestRateRange, 104),
+      requestRateRange,
+      p99Latency: lastOf(p99LatencyRange, 148),
+      p99LatencyRange,
+      errorRate: lastOf(errorRateRange, 1.4),
+      errorRateRange,
+      cacheHitRate: lastOf(cacheHitRateRange, 91),
+      cacheHitRateRange,
+      perServiceCallRate,
+    };
+  }
   const end = now();
   const start = end - rangeMinutes * 60;
   const step = 15;

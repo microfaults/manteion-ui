@@ -29,6 +29,16 @@ import {
 import { z } from "zod";
 import type { Workflow, WorkflowNode, WorkflowSummary } from "../workflow-types";
 import { ApiError, apiClient } from "./client";
+import { mockWorkflows, workflowSummary } from "./mock-fixtures";
+
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
+
+/** Mutable in mock mode so the New-workflow dialog actually adds a card. */
+let _mockWorkflows: Workflow[] = [...mockWorkflows];
+
+function mockDelay() {
+  return new Promise((r) => setTimeout(r, 80));
+}
 
 const WorkflowListPageSchema = PageEnvelope(WorkflowListItemSchema);
 
@@ -103,6 +113,10 @@ function parseStepsTree(root: unknown): WorkflowNode {
 }
 
 export async function listWorkflows(): Promise<WorkflowSummary[]> {
+  if (USE_MOCK) {
+    await mockDelay();
+    return _mockWorkflows.map(workflowSummary).sort((a, b) => a.name.localeCompare(b.name));
+  }
   // High enough limit that the picker doesn't paginate today; the API
   // caps at 200 and we'll add proper pagination once the list scales.
   const envelope = await apiClient.get("/api/v1/workflows?limit=200", WorkflowListPageSchema);
@@ -110,10 +124,20 @@ export async function listWorkflows(): Promise<WorkflowSummary[]> {
 }
 
 export async function deleteWorkflow(id: string): Promise<void> {
+  if (USE_MOCK) {
+    await mockDelay();
+    _mockWorkflows = _mockWorkflows.filter((w) => w.id !== id);
+    return;
+  }
   await apiClient.del(`/api/v1/workflows/${encodeURIComponent(id)}`);
 }
 
 export async function getWorkflow(id: string): Promise<Workflow | undefined> {
+  if (USE_MOCK) {
+    await mockDelay();
+    const wf = _mockWorkflows.find((w) => w.id === id);
+    return wf ? { ...wf } : undefined;
+  }
   try {
     const wf = await apiClient.get(`/api/v1/workflows/${encodeURIComponent(id)}`, WorkflowSchema);
     return workflowFromWire(wf);
@@ -227,6 +251,26 @@ export async function createWorkflow(input: CreateWorkflowInput): Promise<Workfl
     },
   };
 
+  if (USE_MOCK) {
+    await mockDelay();
+    if (_mockWorkflows.some((w) => w.name === slug)) {
+      throw new Error(`Workflow "${slug}" already exists`);
+    }
+    const created: Workflow = {
+      id: `wf-${slug}`,
+      name: slug,
+      version: "v2",
+      targets,
+      estRpsPerVu: Number((children.length * 0.9).toFixed(1)),
+      updatedAt: new Date().toISOString(),
+      description: input.description,
+      requestNodeCount: countRequestNodes({ type: "sequence", children }),
+      root: parseStepsTree({ type: "sequence", id: "root", label: slug, children }),
+    };
+    _mockWorkflows = [..._mockWorkflows, created];
+    return created;
+  }
+
   try {
     const wf = await apiClient.post("/api/v1/workflows", body, WorkflowSchema);
     return workflowFromWire(wf);
@@ -252,6 +296,12 @@ export type ValidateWorkflowResult = z.infer<typeof ValidateWorkflowResultSchema
  *  {ok: true, name}; rejects with ApiError 400 ({error}) when zeus rejects
  *  the document and 502 when zeus is unreachable. */
 export async function validateWorkflow(id: string): Promise<ValidateWorkflowResult> {
+  if (USE_MOCK) {
+    await mockDelay();
+    const wf = _mockWorkflows.find((w) => w.id === id);
+    if (!wf) throw new Error(`Mock: workflow ${id} not found`);
+    return { ok: true, name: wf.name };
+  }
   return apiClient.post(
     `/api/v1/workflows/${encodeURIComponent(id)}/validate`,
     undefined,
