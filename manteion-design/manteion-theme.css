@@ -1,0 +1,155 @@
+/* ════════════════════════════════════════════════════════════════════════
+   manteion-theme.css — DROP-IN theme for the manteion-ui repo.
+
+   This is the Manteion Design System's token layer in shadcn's variable shape.
+   It REPLACES the :root / .dark / [data-theme] color block in src/globals.css.
+   Keep @tailwind directives and any non-color rules; swap only the variable
+   block for this one.
+
+   DARK is the default (:root). Add data-theme="light" on <html> for the legacy
+   light theme. Variable NAMES are unchanged from the existing globals.css, so
+   no component has to change — this is a re-skin, not a refactor.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  color-scheme: dark;
+
+  --background: #0a0a0c;
+  --foreground: #e3e3e7;
+  --card: #131316;
+  --card-foreground: #e3e3e7;
+  --popover: #161619;
+  --popover-foreground: #e3e3e7;
+  --primary: #3b82f6;
+  --primary-foreground: #0a0a0c;
+  --primary-muted: #1d2740;
+  --secondary: #1c1c20;
+  --secondary-foreground: #e3e3e7;
+  --muted: #18181b;
+  --muted-foreground: #8a8a93;
+  --accent: #202024;
+  --accent-foreground: #f4f4f5;
+  --destructive: #f0473e;
+  --destructive-foreground: #0a0a0c;
+  --destructive-muted: #3a1715;
+  --border: #26262b;
+  --border-strong: #34343b;
+  --input: #2a2a30;
+  --ring: #3b82f6;
+
+  --sidebar: #08080a;
+  --sidebar-foreground: #e3e3e7;
+  --sidebar-primary: #3b82f6;
+  --sidebar-accent: #18181c;
+  --sidebar-border: #1e1e22;
+  --sidebar-muted: #6e6e77;
+
+  --status-healthy: #3fb950;
+  --status-degraded: #d29922;
+  --status-down: #f85149;
+  --status-unknown: #6e6e77;
+  --status-healthy-muted: #11231a;
+  --status-degraded-muted: #2a2110;
+  --status-down-muted: #2c1513;
+
+  --phase-baseline: #8a8a93;
+  --phase-isolation: #3b82f6;
+  --phase-combined: #a855f7;
+  --phase-failed: #f85149;
+  --phase-pending: #2a2a30;
+
+  --chart-1: #3b82f6;
+  --chart-2: #f85149;
+  --chart-3: #3fb950;
+  --chart-4: #d29922;
+  --chart-5: #a855f7;
+  --chart-6: #2dd4bf;
+
+  --latency-good: #3fb950;
+  --latency-warn: #d29922;
+  --latency-bad: #f85149;
+
+  --surface-app: var(--background);
+  --surface-card: var(--card);
+  --surface-raised: var(--popover);
+  --surface-sunken: #0d0d10;
+  --text-body: var(--foreground);
+  --text-muted: var(--muted-foreground);
+  --text-mono: #c8c8d0;
+
+  /* spacing / radius / layout — 8-pt grid */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
+  --sidebar-width: 240px;
+  --topbar-height: 56px;
+  --row-height: 48px;
+
+  /* type */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --primary-muted: #eff5ff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --muted: #f4f4f5;
+  --muted-foreground: #71717a;
+  --accent: #f4f4f5;
+  --accent-foreground: #18181b;
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+  --destructive-muted: #fef2f2;
+  --border: #e4e4e7;
+  --border-strong: #d4d4d8;
+  --input: #e4e4e7;
+  --ring: #3b82f6;
+
+  --sidebar: #0a0a0a;
+  --sidebar-foreground: #fafafa;
+  --sidebar-primary: #2563eb;
+  --sidebar-accent: #18181b;
+  --sidebar-border: #27272a;
+  --sidebar-muted: #a1a1aa;
+
+  --status-healthy: #16a34a;
+  --status-degraded: #ca8a04;
+  --status-down: #dc2626;
+  --status-unknown: #a1a1aa;
+  --status-healthy-muted: #f0fdf4;
+  --status-degraded-muted: #fefce8;
+  --status-down-muted: #fef2f2;
+
+  --phase-baseline: #71717a;
+  --phase-isolation: #2563eb;
+  --phase-combined: #a855f7;
+  --phase-failed: #dc2626;
+  --phase-pending: #e4e4e7;
+
+  --chart-1: #2563eb;
+  --chart-2: #dc2626;
+  --chart-3: #16a34a;
+  --chart-4: #ca8a04;
+  --chart-5: #a855f7;
+  --chart-6: #0d9488;
+
+  --latency-good: #16a34a;
+  --latency-warn: #ca8a04;
+  --latency-bad: #dc2626;
+
+  --surface-sunken: #fafafa;
+  --text-mono: #3f3f46;
+}

@@ -1,8 +1,8 @@
+import { NewExperimentButton } from "@/components/experiments/new-experiment-button";
 import { Topbar } from "@/components/layout/topbar";
 import { PhaseHoverCard } from "@/components/phase-hover-card";
 import { PhasePill } from "@/components/phase-pill";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Table,
@@ -16,7 +16,6 @@ import { experimentsApi } from "@/lib/api";
 import { formatDurationMs, formatRelative } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { Plus } from "lucide-react";
 
 export const Route = createFileRoute("/experiments/")({
   component: ExperimentsPage,
@@ -31,15 +30,7 @@ function ExperimentsPage() {
 
   return (
     <>
-      <Topbar
-        breadcrumbs={["Experiments"]}
-        action={
-          <Button disabled>
-            <Plus className="size-4" />
-            New experiment
-          </Button>
-        }
-      />
+      <Topbar breadcrumbs={["Experiments"]} action={<NewExperimentButton />} />
       <div className="flex-1 overflow-y-auto px-6 py-6">
         <Card>
           <CardContent className="p-0">

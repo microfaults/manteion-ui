@@ -154,8 +154,8 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
                       className={cn(
                         "h-[22px] cursor-pointer rounded border px-2 text-[11px] font-medium transition-colors",
                         r.enabled
-                          ? "border-green-300 bg-green-100 text-green-800 hover:bg-green-200"
-                          : "border-red-300 bg-red-100 text-red-800 hover:bg-red-200",
+                          ? "border-status-healthy/30 bg-status-healthy/15 text-status-healthy hover:bg-status-healthy/25"
+                          : "border-status-down/30 bg-status-down/15 text-status-down hover:bg-status-down/25",
                         "disabled:cursor-not-allowed disabled:opacity-50",
                       )}
                       disabled={toggleEnabled.isPending}
@@ -177,7 +177,7 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
             <ul className="flex flex-col divide-y">
               {detail.data.recent_run_ids.map((id) => (
                 <li key={id} className="py-1.5">
-                  <span className="cursor-pointer font-mono text-[11px] text-blue-600 hover:underline">
+                  <span className="cursor-pointer font-mono text-[11px] text-primary hover:underline">
                     {id}
                   </span>
                 </li>
@@ -200,8 +200,7 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
         </Button>
         <Button
           className={cn(
-            "mt-2 w-full bg-zinc-900 text-zinc-50 shadow hover:bg-zinc-900/90",
-            "dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-100/90",
+            "mt-2 w-full bg-secondary text-secondary-foreground shadow hover:bg-secondary/90",
           )}
           onClick={onCacheBox}
           disabled={cacheBox.isPending || isInCacheBoxMode}

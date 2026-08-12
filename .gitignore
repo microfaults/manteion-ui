@@ -53,3 +53,6 @@ coverage
 # so they stay local and are never committed. The committed docs/ tree
 # (design/, api/, ops/, archive/) reflects current reality only.
 docs/superpowers/
+
+# Agent-local state (settings, launch config, nested worktrees)
+.claude/

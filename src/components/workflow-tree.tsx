@@ -72,11 +72,11 @@ function childrenOf(node: WorkflowNode): WorkflowNode[] {
  *  (sequence | parallel | delay | optional | request). */
 function NodeTypeChip({ type }: { type: WorkflowNode["type"] }) {
   const palette: Record<WorkflowNode["type"], string> = {
-    sequence: "bg-blue-500/15 text-blue-600 dark:text-blue-400",
-    parallel: "bg-orange-500/15 text-orange-600 dark:text-orange-400",
-    delay: "bg-zinc-500/15 text-zinc-600 dark:text-zinc-300",
-    optional: "bg-purple-500/15 text-purple-600 dark:text-purple-400",
-    request: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400",
+    sequence: "bg-chart-1/15 text-chart-1",
+    parallel: "bg-chart-4/15 text-chart-4",
+    delay: "bg-muted-foreground/15 text-muted-foreground",
+    optional: "bg-chart-5/15 text-chart-5",
+    request: "bg-chart-3/15 text-chart-3",
   };
   return (
     <span

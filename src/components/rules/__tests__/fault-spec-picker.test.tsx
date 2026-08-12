@@ -10,12 +10,16 @@ vi.mock("@/lib/api", () => ({
 import { faultsApi } from "@/lib/api";
 
 function wrap(ui: React.ReactNode) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // retryDelay 0: the picker itself passes retry: 1, so error-path tests
+  // would otherwise sit through the ~1s default backoff.
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false, retryDelay: 0 } },
+  });
   return <QueryClientProvider client={qc}>{ui}</QueryClientProvider>;
 }
 
 describe("FaultSpecPicker", () => {
-  it("renders a Select with options when the list is populated", async () => {
+  it("renders a native select with options when the list is populated", async () => {
     vi.mocked(faultsApi.listFaultSpecs).mockResolvedValue([
       {
         id: "spec-1",
@@ -27,25 +31,25 @@ describe("FaultSpecPicker", () => {
       },
     ]);
     render(wrap(<FaultSpecPicker value="" onChange={() => {}} />));
-    await waitFor(() => expect(screen.getByText("Pick a fault spec…")).toBeTruthy());
+    await waitFor(() => expect(screen.getByLabelText("Fault spec")).toBeTruthy());
+    expect(screen.getByText("Pick a fault spec…")).toBeTruthy();
+    expect(screen.getByText("inline:latency · p99-latency")).toBeTruthy();
   });
 
-  it("falls back to free-text + helper when the list is empty", async () => {
+  it("points at the Faults page when the catalog is loaded and empty", async () => {
     vi.mocked(faultsApi.listFaultSpecs).mockResolvedValue([]);
     render(wrap(<FaultSpecPicker value="" onChange={() => {}} />));
-    await waitFor(() => expect(screen.getByText(/No fault specs defined yet/i)).toBeTruthy());
+    await waitFor(() =>
+      expect(screen.getByText(/create one on the faults page first/i)).toBeTruthy(),
+    );
+    // Existing values stay visible/editable; saving is blocked by validation.
     expect(screen.getByPlaceholderText("spec-…")).toBeTruthy();
   });
 
-  it("falls back to free-text + error helper when the fetch fails", async () => {
+  it("falls back to manual ID entry when the fetch fails", async () => {
     vi.mocked(faultsApi.listFaultSpecs).mockRejectedValue(new Error("boom"));
     render(wrap(<FaultSpecPicker value="" onChange={() => {}} />));
-    // The picker passes retry: 1 to useQuery (overriding the wrapper's retry:
-    // false default), so the error state settles after the retry backoff —
-    // bump waitFor's timeout above its 1s default.
-    await waitFor(() => expect(screen.getByText(/Couldn't load fault catalog/i)).toBeTruthy(), {
-      timeout: 3000,
-    });
+    await waitFor(() => expect(screen.getByText(/couldn't load fault catalog/i)).toBeTruthy());
     expect(screen.getByPlaceholderText("spec-…")).toBeTruthy();
   });
 });

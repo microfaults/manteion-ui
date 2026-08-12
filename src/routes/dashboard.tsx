@@ -1,5 +1,7 @@
 import { Topbar } from "@/components/layout/topbar";
 import { ObservabilityCard } from "@/components/observability-card";
+import { MetricRangeSelector } from "@/components/observability/metric-range-selector";
+import { PrometheusErrorBanner } from "@/components/observability/prometheus-error-banner";
 import { StatCard } from "@/components/stat-card";
 import { StatusDot } from "@/components/status-dot";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -160,53 +162,25 @@ function DashboardPage() {
                 Grafana panels: online-boutique namespace
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-1">
-              {([5, 15, 30, 60] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  aria-label={`Show last ${m === 60 ? "1 hour" : `${m} minutes`}`}
-                  aria-pressed={chartRangeMin === m && !chartsLive}
-                  onClick={() => {
-                    setChartRangeMin(m);
-                    setChartsLive(false);
-                  }}
-                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                    chartRangeMin === m && !chartsLive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {m === 60 ? "1h" : `${m}m`}
-                </button>
-              ))}
-              <button
-                type="button"
-                aria-label="Enable live auto-refresh (8 second interval)"
-                aria-pressed={chartsLive}
-                onClick={() => setChartsLive(true)}
-                className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
-                  chartsLive
-                    ? "bg-primary text-primary-foreground"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
-              >
-                live
-              </button>
-            </div>
+            <MetricRangeSelector
+              value={chartRangeMin === 60 ? "1h" : `${chartRangeMin}m`}
+              live={chartsLive}
+              onChange={(token) => {
+                setChartRangeMin(RANGE_MIN_BY_TOKEN[token] ?? 30);
+                setChartsLive(false);
+              }}
+              onLive={() => setChartsLive(true)}
+            />
           </div>
           {dashboardMetrics.isError ? (
-            <p className="mt-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-              Prometheus unreachable or query failed:{" "}
-              {prometheusErrorMessage(dashboardMetrics.error)}. Ensure{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">
-                kubectl port-forward svc/prometheus 9091:9090
-              </code>{" "}
-              is running and{" "}
-              <code className="rounded bg-muted px-1 font-mono text-xs">VITE_PROMETHEUS_URL</code>{" "}
-              points at your dev proxy (e.g.{" "}
-              <code className="font-mono text-xs">http://localhost:5173/prometheus</code>).
-            </p>
+            <div className="mt-3">
+              <PrometheusErrorBanner
+                message={`Prometheus unreachable or query failed: ${prometheusErrorMessage(
+                  dashboardMetrics.error,
+                )}. Ensure the port-forward below is running and VITE_PROMETHEUS_URL points at your dev proxy (e.g. http://localhost:5173/prometheus).`}
+                hint="kubectl port-forward svc/prometheus 9091:9090"
+              />
+            </div>
           ) : null}
           <div className="mt-3 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <ObservabilityCard
@@ -214,7 +188,7 @@ function DashboardPage() {
               subtitle={`platform total · ${rangeLabel}`}
               value={formatPlatformRps(dashboardMetrics.data?.requestRate)}
               trend={dashboardMetrics.data?.requestRateRange}
-              trendClassName="bg-blue-500"
+              color="blue"
               grafanaUrl={makeGrafanaUrl(grafanaBase, "requests-sec")}
             />
             <ObservabilityCard
@@ -222,7 +196,7 @@ function DashboardPage() {
               subtitle={`checkout workflow · ${rangeLabel}`}
               value={`${Math.round(dashboardMetrics.data?.p99Latency ?? 0)} ms`}
               trend={dashboardMetrics.data?.p99LatencyRange}
-              trendClassName="bg-red-500"
+              color="red"
               grafanaUrl={makeGrafanaUrl(grafanaBase, "p99-latency")}
             />
             <ObservabilityCard
@@ -231,7 +205,7 @@ function DashboardPage() {
               value={`${(dashboardMetrics.data?.errorRate ?? 0).toFixed(2)}%`}
               valueHint={trendQualifier(dashboardMetrics.data?.errorRateRange, "stable", "spiky")}
               trend={dashboardMetrics.data?.errorRateRange}
-              trendClassName="bg-zinc-500"
+              trendClassName="bg-muted-foreground"
               grafanaUrl={makeGrafanaUrl(grafanaBase, "error-rate")}
             />
             <ObservabilityCard
@@ -244,7 +218,7 @@ function DashboardPage() {
                 "variable",
               )}
               trend={dashboardMetrics.data?.cacheHitRateRange}
-              trendClassName="bg-blue-500"
+              color="blue"
               grafanaUrl={makeGrafanaUrl(grafanaBase, "cache-hit-rate")}
             />
           </div>
@@ -401,6 +375,14 @@ function DashboardPage() {
     </>
   );
 }
+
+/** Range tokens rendered by MetricRangeSelector → minutes for the metrics bundle. */
+const RANGE_MIN_BY_TOKEN: Record<string, 5 | 15 | 30 | 60> = {
+  "5m": 5,
+  "15m": 15,
+  "30m": 30,
+  "1h": 60,
+};
 
 /** Bundled dashboard in `microservices-demo-go/kubernetes-manifests/grafana-dashboards.yaml`. */
 const GRAFANA_OVERVIEW_UID = "atropos-overview";

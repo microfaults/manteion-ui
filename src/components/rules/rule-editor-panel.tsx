@@ -12,19 +12,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { NativeSelect } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { rulesApi, servicesApi } from "@/lib/api";
+import { faultsApi, rulesApi, servicesApi } from "@/lib/api";
 import type { RuleInput } from "@/lib/api/rules";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
+import { type FaultSpecCatalog, validateRuleDraft } from "@/lib/rule-validation";
 import { MatchNodeSchema, type Rule, type RuleAction } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
@@ -148,6 +143,18 @@ function RuleEditorForm({
     return fromApi.length > 0 ? fromApi.sort() : FALLBACK_SERVICES;
   }, [sdkInstances.data]);
 
+  // Shared cache with FaultSpecPicker (same key) — the form needs the catalog
+  // to enforce the rules-require-faults prerequisite at save time.
+  const specsQuery = useQuery({
+    queryKey: ["fault-specs"],
+    queryFn: faultsApi.listFaultSpecs,
+    retry: 1,
+    staleTime: 30_000,
+  });
+  const catalog: FaultSpecCatalog = specsQuery.isSuccess
+    ? { status: "ready", specIds: specsQuery.data.map((s) => s.id) }
+    : { status: specsQuery.isError ? "error" : "loading" };
+
   const [name, setName] = useState(existing?.name ?? "");
   const [service, setService] = useState(existing?.service ?? "");
   const [enabled, setEnabled] = useState(existing?.enabled ?? true);
@@ -181,20 +188,19 @@ function RuleEditorForm({
   const [rego, setRego] = useState(compile(initAst));
   const [custom, setCustom] = useState(false);
 
+  const action: RuleAction =
+    actionType === "fault_spec"
+      ? { type: "fault_spec", fault_spec_id: faultSpecId }
+      : actionType === "fault_composition"
+        ? { type: "fault_composition", fault_composition_id: faultCompId }
+        : { type: "cachebox", cachebox: { mode: cacheboxMode, key_strategy: cacheboxKeyStrategy } };
+
+  const issues = validateRuleDraft({ name, service, priority, action }, catalog);
+  const issueOn = (field: string) => issues.some((i) => i.field === field);
+
   const save = useMutation({
     mutationFn: () => {
-      const action: RuleAction =
-        actionType === "fault_spec"
-          ? { type: "fault_spec", fault_spec_id: faultSpecId }
-          : actionType === "fault_composition"
-            ? { type: "fault_composition", fault_composition_id: faultCompId }
-            : {
-                type: "cachebox",
-                cachebox: { mode: cacheboxMode, key_strategy: cacheboxKeyStrategy },
-              };
-
       const labelsForBackend = ast ? astToMatchCriteria(ast).labels : undefined;
-
       const input: RuleInput = {
         name,
         service,
@@ -244,42 +250,31 @@ function RuleEditorForm({
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="my-rule"
-            className="font-mono text-sm"
+            invalid={issueOn("name") && name.length > 0}
+            mono
+            className="text-sm"
           />
         </Field>
 
         <Field label="Service">
-          <Select value={service} onValueChange={setService}>
-            <SelectTrigger className="font-mono text-sm">
-              <SelectValue placeholder="Select service…" />
-            </SelectTrigger>
-            <SelectContent>
-              {knownServices.map((s) => (
-                <SelectItem key={s} value={s} className="font-mono text-sm">
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            aria-label="Service"
+            value={service}
+            onChange={(e) => setService(e.target.value)}
+            placeholder="Select service…"
+            options={knownServices}
+            className="font-mono text-sm"
+          />
         </Field>
 
         <Field label="Action type">
-          <Select value={actionType} onValueChange={(v) => setActionType(v as typeof actionType)}>
-            <SelectTrigger aria-label="Action type" className="font-mono text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="fault_spec" className="font-mono text-sm">
-                fault_spec
-              </SelectItem>
-              <SelectItem value="fault_composition" className="font-mono text-sm">
-                fault_composition
-              </SelectItem>
-              <SelectItem value="cachebox" className="font-mono text-sm">
-                cachebox
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            aria-label="Action type"
+            value={actionType}
+            onChange={(e) => setActionType(e.target.value as typeof actionType)}
+            options={["fault_spec", "fault_composition", "cachebox"]}
+            className="font-mono text-sm"
+          />
         </Field>
 
         {actionType === "fault_spec" && (
@@ -293,101 +288,58 @@ function RuleEditorForm({
               value={faultCompId}
               onChange={(e) => setFaultCompId(e.target.value)}
               placeholder="comp-…"
-              className="font-mono text-sm"
+              mono
+              className="text-sm"
             />
           </Field>
         )}
         {actionType === "cachebox" && (
           <>
             <Field label="Cachebox mode">
-              <Select
+              <NativeSelect
+                aria-label="Cachebox mode"
                 value={cacheboxMode}
-                onValueChange={(v) => setCacheboxMode(v as typeof cacheboxMode)}
-              >
-                <SelectTrigger aria-label="Cachebox mode" className="font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="passthrough" className="font-mono text-sm">
-                    passthrough
-                  </SelectItem>
-                  <SelectItem value="replay" className="font-mono text-sm">
-                    replay
-                  </SelectItem>
-                  <SelectItem value="replay_with_delay" className="font-mono text-sm">
-                    replay_with_delay
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setCacheboxMode(e.target.value as typeof cacheboxMode)}
+                options={["passthrough", "replay", "replay_with_delay"]}
+                className="font-mono text-sm"
+              />
             </Field>
             <Field label="Key strategy">
-              <Select
+              <NativeSelect
+                aria-label="Key strategy"
                 value={cacheboxKeyStrategy}
-                onValueChange={(v) => setCacheboxKeyStrategy(v as typeof cacheboxKeyStrategy)}
-              >
-                <SelectTrigger aria-label="Key strategy" className="font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="exact" className="font-mono text-sm">
-                    exact
-                  </SelectItem>
-                  <SelectItem value="exact_with_host" className="font-mono text-sm">
-                    exact_with_host
-                  </SelectItem>
-                  <SelectItem value="exact_with_body" className="font-mono text-sm">
-                    exact_with_body
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) =>
+                  setCacheboxKeyStrategy(e.target.value as typeof cacheboxKeyStrategy)
+                }
+                options={["exact", "exact_with_host", "exact_with_body"]}
+                className="font-mono text-sm"
+              />
             </Field>
           </>
         )}
 
         <Field label="Mode">
-          <Select value={mode} onValueChange={(v) => setMode(v as typeof mode)}>
-            <SelectTrigger aria-label="Mode" className="font-mono text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="inline" className="font-mono text-sm">
-                inline
-              </SelectItem>
-              <SelectItem value="background" className="font-mono text-sm">
-                background
-              </SelectItem>
-            </SelectContent>
-          </Select>
+          <NativeSelect
+            aria-label="Mode"
+            value={mode}
+            onChange={(e) => setMode(e.target.value as typeof mode)}
+            options={["inline", "background"]}
+            className="font-mono text-sm"
+          />
         </Field>
 
         <Field label="Injection point">
-          <Select
+          <NativeSelect
+            aria-label="Injection point"
             value={injectionPoint || "any"}
-            onValueChange={(v) =>
-              setInjectionPoint(v === "any" ? "" : (v as typeof injectionPoint))
+            onChange={(e) =>
+              setInjectionPoint(
+                e.target.value === "any" ? "" : (e.target.value as typeof injectionPoint),
+              )
             }
-          >
-            <SelectTrigger aria-label="Injection point" className="font-mono text-sm">
-              <SelectValue placeholder="(any)" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="any" className="font-mono text-sm">
-                (any)
-              </SelectItem>
-              <SelectItem value="ingress" className="font-mono text-sm">
-                ingress
-              </SelectItem>
-              <SelectItem value="egress" className="font-mono text-sm">
-                egress
-              </SelectItem>
-              <SelectItem value="transient" className="font-mono text-sm">
-                transient
-              </SelectItem>
-              <SelectItem value="custom" className="font-mono text-sm">
-                custom
-              </SelectItem>
-            </SelectContent>
-          </Select>
+            options={[{ value: "any", label: "(any)" }, "ingress", "egress", "transient", "custom"]}
+            className="font-mono text-sm"
+          />
         </Field>
 
         <Separator />
@@ -416,9 +368,13 @@ function RuleEditorForm({
             type="number"
             min={0}
             max={1000}
-            value={priority}
-            onChange={(e) => setPriority(Number(e.target.value))}
-            className="font-mono text-sm"
+            value={Number.isNaN(priority) ? "" : priority}
+            onChange={(e) =>
+              setPriority(e.target.value === "" ? Number.NaN : Number(e.target.value))
+            }
+            invalid={issueOn("priority")}
+            mono
+            className="text-sm"
           />
         </Field>
 
@@ -428,28 +384,26 @@ function RuleEditorForm({
           </summary>
           <div className="space-y-4 pt-2">
             <Field label="Start policy">
-              <Select
+              <NativeSelect
+                aria-label="Start policy"
                 value={startPolicy}
-                onValueChange={(v) => setStartPolicy(v as typeof startPolicy)}
-              >
-                <SelectTrigger aria-label="Start policy" className="font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="deduplicate_by_rule" className="font-mono text-sm">
-                    deduplicate_by_rule
-                  </SelectItem>
-                  <SelectItem value="always_start" className="font-mono text-sm">
-                    always_start
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+                onChange={(e) => setStartPolicy(e.target.value as typeof startPolicy)}
+                options={["deduplicate_by_rule", "always_start"]}
+                className="font-mono text-sm"
+              />
             </Field>
           </div>
         </details>
       </div>
 
       <div className={panelFooter()}>
+        {issues.length > 0 && (
+          <ul className="space-y-0.5 text-[11px] text-muted-foreground">
+            {issues.map((i) => (
+              <li key={`${i.field}:${i.message}`}>{i.message}</li>
+            ))}
+          </ul>
+        )}
         {save.isError && (
           <p className="text-xs text-destructive">
             {save.error instanceof Error ? save.error.message : "Save failed."}
@@ -472,11 +426,7 @@ function RuleEditorForm({
             <Button
               size="sm"
               onClick={() => save.mutate()}
-              disabled={
-                save.isPending ||
-                (actionType === "fault_spec" && !faultSpecId) ||
-                (actionType === "fault_composition" && !faultCompId)
-              }
+              disabled={save.isPending || issues.length > 0}
             >
               {save.isPending ? "Saving…" : "Save"}
             </Button>

@@ -5,7 +5,7 @@ import { formatDurationMs, formatLatencyUs } from "@/lib/utils";
 import type { PhaseName, PhaseStatus, PhaseSummary } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 
 interface PhaseHoverCardProps {
   experimentId: string;
@@ -16,34 +16,46 @@ interface PhaseHoverCardProps {
   statusHint: PhaseStatus;
   /** Optional inline summary so the card renders immediately without waiting for fetch. */
   fallbackSummary?: PhaseSummary;
+  /** Open the card immediately (tests / debugging). */
+  defaultOpen?: boolean;
   children: ReactNode;
 }
 
-const statusVariants: Record<PhaseStatus, string> = {
-  pending: "bg-muted text-muted-foreground",
-  running: "bg-phase-isolation text-white",
-  paused: "bg-status-degraded text-white",
-  completed: "bg-status-healthy text-white",
-  failed: "bg-status-down text-white",
-  skipped: "bg-muted text-muted-foreground",
+const statusBadgeVariant: Record<
+  PhaseStatus,
+  "default" | "secondary" | "outline" | "status-healthy" | "status-degraded" | "status-down"
+> = {
+  pending: "secondary",
+  running: "default",
+  paused: "status-degraded",
+  completed: "status-healthy",
+  failed: "status-down",
+  skipped: "outline",
 };
 
+/**
+ * Fetches the phase summary only while the card is open. Experiment lists
+ * render one pill per phase — an always-enabled query here meant N eager
+ * requests on mount plus 2s polling for every running phase, hovered or not.
+ */
 export function PhaseHoverCard({
   experimentId,
   phaseId,
   phase,
   statusHint,
   fallbackSummary,
+  defaultOpen = false,
   children,
 }: PhaseHoverCardProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const isLive = statusHint === "running";
 
   const query = useQuery({
     queryKey: ["phase", experimentId, phaseId],
     queryFn: () => experimentsApi.getPhaseStatus(experimentId, phaseId),
-    // Only fetch when user actually hovers (triggered by HoverCard — always enabled, but cached).
+    enabled: open,
     staleTime: isLive ? 2_000 : 30_000,
-    refetchInterval: isLive ? 2_000 : false,
+    refetchInterval: open && isLive ? 2_000 : false,
     // If the backend endpoint doesn't exist yet, fall back gracefully.
     retry: false,
     initialData: fallbackSummary,
@@ -52,103 +64,116 @@ export function PhaseHoverCard({
   const summary = query.data ?? fallbackSummary;
 
   return (
-    <HoverCard openDelay={80} closeDelay={120}>
+    <HoverCard open={open} onOpenChange={setOpen} openDelay={80} closeDelay={120}>
       <HoverCardTrigger asChild>{children}</HoverCardTrigger>
       <HoverCardContent className="w-96" side="top" align="start" sideOffset={6}>
-        <div className="flex items-start justify-between gap-2">
-          <div className="font-mono text-sm font-medium">{phase}</div>
-          <Badge variant="secondary" className={statusVariants[summary?.status ?? statusHint]}>
-            {summary?.status ?? statusHint}
-          </Badge>
-        </div>
-
-        {summary?.frozen_services?.length ? (
-          <div className="mt-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Services frozen (cache-box)
-            </div>
-            <ul className="mt-1 space-y-0.5">
-              {summary.frozen_services.map((fs) => (
-                <li key={fs.service} className="font-mono text-xs">
-                  {fs.service} <span className="text-muted-foreground">· {fs.mode}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {summary?.applied_rules?.length ? (
-          <div className="mt-3">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Rules applied
-            </div>
-            <ul className="mt-1 space-y-0.5">
-              {summary.applied_rules.map((r) => (
-                <li key={r.rule_id} className="text-xs">
-                  <span className="font-mono">{r.name}</span>{" "}
-                  <span className="text-muted-foreground">· {r.target_summary}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        ) : null}
-
-        {summary?.metrics ? (
-          <div className="mt-3 grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
-            <Metric
-              label="p99"
-              value={formatLatencyUs(summary.metrics.p99_us)}
-              delta={
-                summary.metrics.p99_us && summary.metrics.baseline_p99_us
-                  ? pctDelta(summary.metrics.baseline_p99_us, summary.metrics.p99_us)
-                  : undefined
-              }
-            />
-            <Metric
-              label="RPS"
-              value={summary.metrics.rps ? summary.metrics.rps.toFixed(1) : "—"}
-            />
-            <Metric
-              label="errors"
-              value={
-                summary.metrics.error_rate != null
-                  ? `${(summary.metrics.error_rate * 100).toFixed(2)}%`
-                  : "—"
-              }
-            />
-          </div>
-        ) : summary?.status === "pending" ? (
-          <p className="mt-3 text-xs italic text-muted-foreground">Not run yet.</p>
-        ) : null}
-
-        {summary?.duration_ms ? (
-          <div className="mt-2 text-[11px] text-muted-foreground">
-            duration · {formatDurationMs(summary.duration_ms)}
-          </div>
-        ) : null}
-
-        <div className="mt-3 flex items-center justify-end border-t border-border pt-2 text-xs">
-          <a
-            href={`/experiments/${experimentId}`}
-            className="inline-flex items-center gap-1 text-primary hover:underline"
-          >
-            Open experiment <ArrowRight className="size-3" aria-hidden />
-          </a>
-        </div>
+        <PhaseSummaryContent
+          experimentId={experimentId}
+          phase={phase}
+          status={summary?.status ?? statusHint}
+          summary={summary}
+        />
       </HoverCardContent>
     </HoverCard>
   );
 }
 
-function Metric({
-  label,
-  value,
-  delta,
+/** Presentational body of the hover card — pure render of a PhaseSummary. */
+export function PhaseSummaryContent({
+  experimentId,
+  phase,
+  status,
+  summary,
 }: {
-  label: string;
-  value: string;
-  delta?: string;
+  experimentId: string;
+  phase: PhaseName;
+  status: PhaseStatus;
+  summary?: PhaseSummary;
 }) {
+  return (
+    <>
+      <div className="flex items-start justify-between gap-2">
+        <div className="font-mono text-sm font-medium">{phase}</div>
+        <Badge variant={statusBadgeVariant[status]} dot={status !== "pending"}>
+          {status}
+        </Badge>
+      </div>
+
+      {summary?.frozen_services?.length ? (
+        <div className="mt-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Services frozen (cache-box)
+          </div>
+          <ul className="mt-1 space-y-0.5">
+            {summary.frozen_services.map((fs) => (
+              <li key={fs.service} className="font-mono text-xs">
+                {fs.service} <span className="text-muted-foreground">· {fs.mode}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {summary?.applied_rules?.length ? (
+        <div className="mt-3">
+          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Rules applied
+          </div>
+          <ul className="mt-1 space-y-0.5">
+            {summary.applied_rules.map((r) => (
+              <li key={r.rule_id} className="text-xs">
+                <span className="font-mono">{r.name}</span>{" "}
+                <span className="text-muted-foreground">· {r.target_summary}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {summary?.metrics ? (
+        <div className="mt-3 grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
+          <Metric
+            label="p99"
+            value={formatLatencyUs(summary.metrics.p99_us)}
+            delta={
+              summary.metrics.p99_us && summary.metrics.baseline_p99_us
+                ? pctDelta(summary.metrics.baseline_p99_us, summary.metrics.p99_us)
+                : undefined
+            }
+          />
+          <Metric label="RPS" value={summary.metrics.rps ? summary.metrics.rps.toFixed(1) : "—"} />
+          <Metric
+            label="errors"
+            value={
+              summary.metrics.error_rate != null
+                ? `${(summary.metrics.error_rate * 100).toFixed(2)}%`
+                : "—"
+            }
+          />
+        </div>
+      ) : status === "pending" ? (
+        <p className="mt-3 text-xs italic text-muted-foreground">Not run yet.</p>
+      ) : null}
+
+      {summary?.duration_ms ? (
+        <div className="mt-2 text-[11px] text-muted-foreground">
+          duration · {formatDurationMs(summary.duration_ms)}
+        </div>
+      ) : null}
+
+      <div className="mt-3 flex items-center justify-end border-t border-border pt-2 text-xs">
+        <a
+          href={`/experiments/${experimentId}`}
+          className="inline-flex items-center gap-1 text-primary hover:underline"
+        >
+          Open experiment <ArrowRight className="size-3" aria-hidden />
+        </a>
+      </div>
+    </>
+  );
+}
+
+function Metric({ label, value, delta }: { label: string; value: string; delta?: string }) {
   return (
     <div>
       <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>

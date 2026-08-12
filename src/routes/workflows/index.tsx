@@ -2,6 +2,7 @@ import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -13,8 +14,21 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { catalogApi, workflowsApi } from "@/lib/api";
-import type { WorkflowLeafInput, WorkflowStepInput } from "@/lib/api/workflows";
 import { cn, formatRelative } from "@/lib/utils";
+import {
+  type GroupStep,
+  type LeafStep,
+  type PickedStep,
+  groupSelected,
+  mapRow,
+  moveRow,
+  pickedEndpointIds,
+  pickedToStepInput,
+  removeRow,
+  togglePick,
+  ungroup,
+  validateWorkflowDraft,
+} from "@/lib/workflow-steps";
 import type { WorkflowSummary } from "@/lib/workflow-types";
 import type { CatalogEndpoint } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -168,54 +182,8 @@ function WorkflowCard({ workflow }: { workflow: WorkflowSummary }) {
   );
 }
 
-/** Optional wraps any step with a probability gate at execution time. We
- *  keep it as a flag on the step itself rather than a separate node kind so
- *  the picked list stays a flat-ish two-level tree (top-level `Step` array
- *  with optional `parallel` groups containing leaves). createWorkflow lifts
- *  the flag into the proper DSL `optional` wrapper at submit time. */
-type OptionalFlag = { probability: number };
-
-/** A leaf step is either an HTTP request or a think-time delay. Both can
- *  carry an `optional` flag that the workflow runtime gates by probability. */
-type LeafStep =
-  | { rowId: string; kind: "request"; endpoint: CatalogEndpoint; optional?: OptionalFlag }
-  | { rowId: string; kind: "delay"; minMs: number; maxMs: number; optional?: OptionalFlag };
-
-/** A parallel group runs its children concurrently. We deliberately don't
- *  allow nested groups (parallel-in-parallel) in v1 — keeps the UI a
- *  predictable two-level list. The DSL itself supports arbitrary nesting; we
- *  lift this restriction by replacing the union if/when there's a real need. */
-type GroupStep = {
-  rowId: string;
-  kind: "parallel";
-  children: LeafStep[];
-  optional?: OptionalFlag;
-};
-
-/** Top-level entries in the picked column. Either a leaf or a group. */
-type PickedStep = LeafStep | GroupStep;
-
-/** Convert a picker row into the API client's wire-shaped step. Strips the
- *  picker-only `rowId` and reuses the LeafStep optional flag verbatim. */
-function pickedToStepInput(s: PickedStep): WorkflowStepInput {
-  if (s.kind === "delay") {
-    return { kind: "delay", minMs: s.minMs, maxMs: s.maxMs, optional: s.optional };
-  }
-  if (s.kind === "request") {
-    return { kind: "request", endpoint: s.endpoint, optional: s.optional };
-  }
-  return {
-    kind: "parallel",
-    optional: s.optional,
-    children: s.children.map(
-      (c): WorkflowLeafInput =>
-        c.kind === "delay"
-          ? { kind: "delay", minMs: c.minMs, maxMs: c.maxMs, optional: c.optional }
-          : { kind: "request", endpoint: c.endpoint, optional: c.optional },
-    ),
-  };
-}
-
+/** Step-tree types and manipulation live in src/lib/workflow-steps.ts (pure,
+ *  unit-tested); this dialog only owns React state and rendering. */
 function NewWorkflowDialog({
   open,
   onOpenChange,
@@ -243,23 +211,10 @@ function NewWorkflowDialog({
     enabled: open,
   });
 
-  // Catalog rows mark themselves "picked" when the same endpoint id appears
-  // anywhere in the tree (top-level leaves or inside parallel groups).
-  const pickedIds = useMemo(() => {
-    const ids = new Set<string>();
-    for (const s of picked) {
-      if (s.kind === "request") ids.add(s.endpoint.id);
-      else if (s.kind === "parallel") {
-        for (const c of s.children) {
-          if (c.kind === "request") ids.add(c.endpoint.id);
-        }
-      }
-    }
-    return ids;
-  }, [picked]);
+  const pickedIds = useMemo(() => pickedEndpointIds(picked), [picked]);
 
   // Multi-select state for "Group as parallel" — uses rowIds so it survives
-  // reorders. Auto-clears when picked changes shape (e.g. group formed).
+  // reorders. Cleared when a group forms or a selected row is removed.
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set());
   function toggleRowSelection(rowId: string) {
     setSelectedRowIds((prev) => {
@@ -269,6 +224,7 @@ function NewWorkflowDialog({
       return next;
     });
   }
+
   // catalog.data is the new envelope shape: { endpoints, hint }. `hint` is
   // surfaced separately as the empty-state copy when endpoints is empty.
   const catalogEndpoints = catalog.data?.endpoints ?? [];
@@ -290,133 +246,13 @@ function NewWorkflowDialog({
     );
   }, [catalogEndpoints, catalogQuery]);
 
-  // expandWithDeps does a depth-first, post-order walk of an endpoint's
-  // declared deps so the result has prerequisites before dependents — exactly
-  // the order the workflow's sequence node should run them. Already-seen ids
-  // short-circuit so cycles don't loop and shared deps aren't duplicated.
-  function expandWithDeps(
-    target: CatalogEndpoint,
-    byId: Map<string, CatalogEndpoint>,
-  ): CatalogEndpoint[] {
-    const out: CatalogEndpoint[] = [];
-    const seen = new Set<string>();
-    const visit = (e: CatalogEndpoint) => {
-      if (seen.has(e.id)) return;
-      seen.add(e.id);
-      for (const depId of e.depends_on ?? []) {
-        const dep = byId.get(depId);
-        if (dep) visit(dep);
-      }
-      out.push(e);
-    };
-    visit(target);
-    return out;
+  function handleTogglePick(e: CatalogEndpoint) {
+    setPicked((prev) => togglePick(prev, e, catalogById, newRowId));
   }
 
-  // --- tree helpers (top-level + parallel-group children) ---
-  // We flatten/replace by rowId so callers don't need to know whether a row
-  // lives at the top level or inside a parallel group.
-  function isLeaf(s: PickedStep): s is LeafStep {
-    return s.kind === "request" || s.kind === "delay";
-  }
-  function findRow(
-    tree: PickedStep[],
-    rowId: string,
-  ): { step: PickedStep; parent: GroupStep | null; index: number } | null {
-    for (let i = 0; i < tree.length; i++) {
-      const s = tree[i];
-      if (!s) continue;
-      if (s.rowId === rowId) return { step: s, parent: null, index: i };
-      if (s.kind === "parallel") {
-        for (let j = 0; j < s.children.length; j++) {
-          const c = s.children[j];
-          if (c?.rowId === rowId) return { step: c, parent: s, index: j };
-        }
-      }
-    }
-    return null;
-  }
-  /** Replace one row anywhere in the tree, preserving parent group identity. */
-  function mapRow(
-    tree: PickedStep[],
-    rowId: string,
-    fn: (s: PickedStep) => PickedStep,
-  ): PickedStep[] {
-    return tree.map((s) => {
-      if (s.rowId === rowId) return fn(s);
-      if (s.kind === "parallel") {
-        const updated = s.children.map((c) => (c.rowId === rowId ? (fn(c) as LeafStep) : c));
-        return { ...s, children: updated };
-      }
-      return s;
-    });
-  }
-  /** Remove one row anywhere; if a parallel group ends up with <2 children,
-   *  unwrap it (a parallel of 0 or 1 is degenerate and noise in the tree). */
-  function removeRow(tree: PickedStep[], rowId: string): PickedStep[] {
-    const out: PickedStep[] = [];
-    for (const s of tree) {
-      if (s.rowId === rowId) continue;
-      if (s.kind === "parallel") {
-        const kids = s.children.filter((c) => c.rowId !== rowId);
-        if (kids.length === s.children.length) {
-          out.push(s);
-        } else if (kids.length >= 2) {
-          out.push({ ...s, children: kids });
-        } else if (kids.length === 1) {
-          // unwrap singleton group back into the sequence at this position
-          const only = kids[0];
-          if (only) out.push(only);
-        }
-        // 0 children → drop entirely
-      } else {
-        out.push(s);
-      }
-    }
-    return out;
-  }
-
-  // togglePick removes every instance of an endpoint (top-level or inside a
-  // group). Otherwise appends the new request at top-level, prepending any
-  // missing transitive deps in topological order. Group-internal deps are
-  // honored when checking "already have".
-  function togglePick(e: CatalogEndpoint) {
-    setPicked((prev) => {
-      if (pickedIds.has(e.id)) {
-        return prev
-          .map((s): PickedStep | null => {
-            if (s.kind === "parallel") {
-              const kids = s.children.filter(
-                (c) => !(c.kind === "request" && c.endpoint.id === e.id),
-              );
-              if (kids.length >= 2) return { ...s, children: kids };
-              if (kids.length === 1) return kids[0] ?? null;
-              return null;
-            }
-            return s.kind === "request" && s.endpoint.id === e.id ? null : s;
-          })
-          .filter((s): s is PickedStep => s !== null);
-      }
-      const haveIds = new Set<string>();
-      for (const s of prev) {
-        if (s.kind === "request") haveIds.add(s.endpoint.id);
-        else if (s.kind === "parallel") {
-          for (const c of s.children) {
-            if (c.kind === "request") haveIds.add(c.endpoint.id);
-          }
-        }
-      }
-      const additions: LeafStep[] = expandWithDeps(e, catalogById)
-        .filter((x) => !haveIds.has(x.id))
-        .map((endpoint) => ({ rowId: newRowId(), kind: "request", endpoint }));
-      return [...prev, ...additions];
-    });
-  }
-
-  // addDelayAfter inserts a fresh delay step right after the given top-level
-  // index. Delays are intentionally only allowed at the top level — they
-  // represent inter-step think time; inside a parallel group every child
-  // races, so a "delay child" is a confusing no-op.
+  // Delays are intentionally only allowed at the top level — they represent
+  // inter-step think time; inside a parallel group every child races, so a
+  // "delay child" is a confusing no-op.
   function addDelayAfter(i: number) {
     setPicked((prev) => {
       const next = [...prev];
@@ -441,30 +277,8 @@ function NewWorkflowDialog({
     });
   }
 
-  /** Moves a row up/down within its parent (top-level or inside its group). */
-  function moveRow(rowId: string, dir: -1 | 1) {
-    setPicked((prev) => {
-      const found = findRow(prev, rowId);
-      if (!found) return prev;
-      const swap = <T,>(arr: T[], i: number, j: number): T[] => {
-        if (j < 0 || j >= arr.length) return arr;
-        const next = [...arr];
-        const a = next[i];
-        const b = next[j];
-        if (!a || !b) return arr;
-        next[i] = b;
-        next[j] = a;
-        return next;
-      };
-      if (found.parent === null) {
-        return swap(prev, found.index, found.index + dir);
-      }
-      const parentRowId = found.parent.rowId;
-      return prev.map((s) => {
-        if (s.rowId !== parentRowId || s.kind !== "parallel") return s;
-        return { ...s, children: swap(s.children, found.index, found.index + dir) };
-      });
-    });
+  function handleMoveRow(rowId: string, dir: -1 | 1) {
+    setPicked((prev) => moveRow(prev, rowId, dir));
   }
 
   /** Toggle the optional flag on a row; default probability 0.5 matches the
@@ -487,51 +301,13 @@ function NewWorkflowDialog({
     );
   }
 
-  /** Wraps the currently selected top-level leaves into a single parallel
-   *  group, inserted at the position of the first selected row. Only
-   *  top-level leaves are eligible: nesting parallel-in-parallel and grouping
-   *  rows that are already inside a different group both break the v1 model
-   *  (and the latter is rarely what the user means anyway). */
   function groupSelectedAsParallel() {
-    const ids = selectedRowIds;
-    if (ids.size < 2) return;
-    setPicked((prev) => {
-      const eligible: LeafStep[] = [];
-      const positions: number[] = [];
-      prev.forEach((s, i) => {
-        if (ids.has(s.rowId) && isLeaf(s)) {
-          eligible.push(s);
-          positions.push(i);
-        }
-      });
-      if (eligible.length < 2) return prev;
-      const insertAt = positions[0] ?? 0;
-      const remaining = prev.filter((_, i) => !positions.includes(i));
-      const group: GroupStep = {
-        rowId: newRowId(),
-        kind: "parallel",
-        children: eligible,
-      };
-      const next = [...remaining];
-      next.splice(insertAt, 0, group);
-      return next;
-    });
+    setPicked((prev) => groupSelected(prev, selectedRowIds, newRowId));
     setSelectedRowIds(new Set());
   }
 
-  /** Replace a parallel group with its children, restoring sequence order. */
-  function ungroup(groupRowId: string) {
-    setPicked((prev) => {
-      const out: PickedStep[] = [];
-      for (const s of prev) {
-        if (s.rowId === groupRowId && s.kind === "parallel") {
-          out.push(...s.children);
-        } else {
-          out.push(s);
-        }
-      }
-      return out;
-    });
+  function handleUngroup(groupRowId: string) {
+    setPicked((prev) => ungroup(prev, groupRowId));
   }
 
   function reset() {
@@ -573,8 +349,9 @@ function NewWorkflowDialog({
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!name.trim()) {
-              setError("Name is required");
+            const issues = validateWorkflowDraft(name, picked);
+            if (issues.length > 0) {
+              setError(issues.join(" "));
               return;
             }
             mutation.mutate({
@@ -647,7 +424,7 @@ function NewWorkflowDialog({
                         <li key={e.id}>
                           <button
                             type="button"
-                            onClick={() => togglePick(e)}
+                            onClick={() => handleTogglePick(e)}
                             className={cn(
                               "flex w-full items-start gap-2 px-2 py-1.5 text-left hover:bg-muted/60",
                               isPicked && "bg-accent/40",
@@ -745,15 +522,15 @@ function NewWorkflowDialog({
                           <li key={step.rowId} className="px-2 py-1.5 text-xs">
                             <div className="flex items-center gap-1">
                               <RowMoveButtons
-                                onUp={() => moveRow(step.rowId, -1)}
-                                onDown={() => moveRow(step.rowId, 1)}
+                                onUp={() => handleMoveRow(step.rowId, -1)}
+                                onDown={() => handleMoveRow(step.rowId, 1)}
                                 upDisabled={!canMoveUp}
                                 downDisabled={!canMoveDown}
                               />
                               <span className="w-5 shrink-0 text-center font-mono text-[10px] text-muted-foreground tabular-nums">
                                 {i + 1}
                               </span>
-                              <span className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded bg-violet-500/15 px-1 font-mono text-[10px] font-semibold text-violet-700 dark:text-violet-400">
+                              <span className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded bg-chart-5/15 px-1 font-mono text-[10px] font-semibold text-chart-5">
                                 <GitFork className="size-2.5" />
                                 PARALLEL · {step.children.length}
                               </span>
@@ -765,7 +542,7 @@ function NewWorkflowDialog({
                               <div className="flex-1" />
                               <button
                                 type="button"
-                                onClick={() => ungroup(step.rowId)}
+                                onClick={() => handleUngroup(step.rowId)}
                                 className="text-muted-foreground hover:text-foreground"
                                 aria-label="Ungroup"
                                 title="Ungroup back into sequence"
@@ -781,12 +558,12 @@ function NewWorkflowDialog({
                                 <X className="size-3.5" />
                               </button>
                             </div>
-                            <ol className="mt-1 space-y-0.5 border-l-2 border-violet-500/30 pl-3">
+                            <ol className="mt-1 space-y-0.5 border-l-2 border-chart-5/30 pl-3">
                               {step.children.map((child, ci) => (
                                 <li key={child.rowId} className="flex items-center gap-1">
                                   <RowMoveButtons
-                                    onUp={() => moveRow(child.rowId, -1)}
-                                    onDown={() => moveRow(child.rowId, 1)}
+                                    onUp={() => handleMoveRow(child.rowId, -1)}
+                                    onDown={() => handleMoveRow(child.rowId, 1)}
                                     upDisabled={ci === 0}
                                     downDisabled={ci === step.children.length - 1}
                                   />
@@ -822,17 +599,16 @@ function NewWorkflowDialog({
                             checked && "bg-accent/30",
                           )}
                         >
-                          <input
-                            type="checkbox"
+                          <Checkbox
                             checked={checked}
-                            onChange={() => toggleRowSelection(step.rowId)}
-                            className="size-3 shrink-0 cursor-pointer"
+                            onCheckedChange={() => toggleRowSelection(step.rowId)}
+                            className="size-3.5 shrink-0"
                             aria-label="Select for grouping"
                             title="Select to group as parallel"
                           />
                           <RowMoveButtons
-                            onUp={() => moveRow(step.rowId, -1)}
-                            onDown={() => moveRow(step.rowId, 1)}
+                            onUp={() => handleMoveRow(step.rowId, -1)}
+                            onDown={() => handleMoveRow(step.rowId, 1)}
                             upDisabled={!canMoveUp}
                             downDisabled={!canMoveDown}
                           />
@@ -982,7 +758,7 @@ function LeafRowBody({
   }
   return (
     <>
-      <span className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded bg-amber-500/15 px-1 font-mono text-[10px] font-semibold text-amber-700 dark:text-amber-400">
+      <span className="inline-flex h-4 shrink-0 items-center gap-0.5 rounded bg-chart-4/15 px-1 font-mono text-[10px] font-semibold text-chart-4">
         <Timer className="size-2.5" />
         DELAY
       </span>
@@ -1012,7 +788,7 @@ function OptionalControls({
   onToggle,
   onProbChange,
 }: {
-  step: PickedStep;
+  step: PickedStep | GroupStep;
   onToggle: () => void;
   onProbChange: (v: number) => void;
 }) {
@@ -1025,7 +801,7 @@ function OptionalControls({
         className={cn(
           "inline-flex items-center gap-0.5 rounded px-1 py-px font-mono text-[10px]",
           active
-            ? "bg-fuchsia-500/15 text-fuchsia-700 dark:text-fuchsia-400"
+            ? "bg-chart-5/15 text-chart-5"
             : "text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
         title={active ? "Disable optional" : "Make optional (probability gated)"}
@@ -1053,11 +829,11 @@ function OptionalControls({
 
 function MethodChip({ method }: { method: string }) {
   const palette: Record<string, string> = {
-    GET: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400",
-    POST: "bg-blue-500/15 text-blue-700 dark:text-blue-400",
-    PUT: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-    PATCH: "bg-amber-500/15 text-amber-700 dark:text-amber-400",
-    DELETE: "bg-red-500/15 text-red-700 dark:text-red-400",
+    GET: "bg-chart-3/15 text-chart-3",
+    POST: "bg-chart-1/15 text-chart-1",
+    PUT: "bg-chart-4/15 text-chart-4",
+    PATCH: "bg-chart-4/15 text-chart-4",
+    DELETE: "bg-chart-2/15 text-chart-2",
   };
   return (
     <span

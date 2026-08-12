@@ -1,5 +1,5 @@
 import { RuleEditorPanel } from "@/components/rules/rule-editor-panel";
-import type { Rule } from "@/types/api";
+import type { FaultSpec, Rule } from "@/types/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,11 +17,29 @@ vi.mock("@/lib/api", () => ({
     listSDKInstances: vi.fn().mockResolvedValue([]),
   },
   faultsApi: {
-    listFaultSpecs: vi.fn().mockResolvedValue([]),
+    listFaultSpecs: vi.fn(),
   },
 }));
 
-import { rulesApi } from "@/lib/api";
+import { faultsApi, rulesApi } from "@/lib/api";
+
+const HANG_SPEC: FaultSpec = {
+  id: "spec-inline-hang-5s",
+  name: "hang-5s",
+  category: "inline",
+  fault_type: "hang",
+  params: {},
+  created_at: "2026-01-01T00:00:00Z",
+};
+
+const LATENCY_SPEC: FaultSpec = {
+  id: "spec-x",
+  name: "latency-250ms",
+  category: "inline",
+  fault_type: "latency",
+  params: {},
+  created_at: "2026-01-01T00:00:00Z",
+};
 
 const EXISTING_RULE: Rule = {
   id: "rule-001",
@@ -38,7 +56,9 @@ const EXISTING_RULE: Rule = {
 };
 
 function wrapper({ children }: { children: React.ReactNode }) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  const qc = new QueryClient({
+    defaultOptions: { queries: { retry: false, retryDelay: 0 } },
+  });
   return <QueryClientProvider client={qc}>{children}</QueryClientProvider>;
 }
 
@@ -52,42 +72,32 @@ function renderPanel(props: Partial<Parameters<typeof RuleEditorPanel>[0]> = {})
   return { onSaved, onDeleted };
 }
 
+const saveButton = () => screen.getByRole("button", { name: /^save$/i }) as HTMLButtonElement;
+
+beforeEach(() => {
+  vi.mocked(faultsApi.listFaultSpecs).mockResolvedValue([HANG_SPEC, LATENCY_SPEC]);
+});
+
 describe("RuleEditorPanel — new rule", () => {
   it("renders name and service fields", () => {
     renderPanel({ isNew: true, ruleId: null });
     expect(screen.getByPlaceholderText("my-rule")).toBeTruthy();
-    expect(screen.getByText("Service")).toBeTruthy();
+    expect(screen.getByLabelText("Service")).toBeTruthy();
   });
 
-  it("renders action type and fault-spec sub-field", async () => {
+  it("renders action type and the fault-spec picker", async () => {
     renderPanel({ isNew: true, ruleId: null });
-    expect(screen.getByText("Action type")).toBeTruthy();
-    expect(screen.getByText("Fault spec")).toBeTruthy();
-    // FaultSpecPicker is async — with empty mocked list it falls back to a
-    // free-text input with placeholder "spec-…" once useQuery resolves.
-    expect(await screen.findByPlaceholderText("spec-…")).toBeTruthy();
+    expect(screen.getByLabelText("Action type")).toBeTruthy();
+    expect(await screen.findByLabelText("Fault spec")).toBeTruthy();
   });
 
-  it("switches sub-field when action type is cachebox", async () => {
-    // Radix Select doesn't drive cleanly in jsdom (hasPointerCapture /
-    // scrollIntoView aren't polyfilled). Verify the conditional rendering
-    // by hydrating the form from an existing cachebox rule instead of
-    // simulating the select click.
-    const cacheboxRule: Rule = {
-      ...EXISTING_RULE,
-      action: {
-        type: "cachebox",
-        cachebox: { mode: "replay", key_strategy: "exact_with_host" },
-      },
-    };
-    vi.mocked(rulesApi.getRule).mockResolvedValue(cacheboxRule);
-
-    renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
-
-    expect(screen.getByText("Cachebox mode")).toBeTruthy();
-    expect(screen.getByText("Key strategy")).toBeTruthy();
-    expect(screen.queryByPlaceholderText("spec-…")).toBeNull();
+  it("switches sub-fields when the action type changes to cachebox", async () => {
+    const user = userEvent.setup();
+    renderPanel({ isNew: true, ruleId: null });
+    await user.selectOptions(screen.getByLabelText("Action type"), "cachebox");
+    expect(screen.getByLabelText("Cachebox mode")).toBeTruthy();
+    expect(screen.getByLabelText("Key strategy")).toBeTruthy();
+    expect(screen.queryByLabelText("Fault spec")).toBeNull();
   });
 
   it("renders match criteria section with RuleBuilder", () => {
@@ -103,23 +113,30 @@ describe("RuleEditorPanel — new rule", () => {
     expect((deleteBtn as HTMLButtonElement).disabled).toBe(true);
   });
 
-  it("calls createRule on save", async () => {
+  it("disables Save on a pristine form and lists what is missing", async () => {
+    renderPanel({ isNew: true, ruleId: null });
+    expect(saveButton().disabled).toBe(true);
+    expect(await screen.findByText("Name is required.")).toBeTruthy();
+    expect(screen.getByText("Service is required.")).toBeTruthy();
+  });
+
+  it("calls createRule once name, service, and fault spec are set", async () => {
     const user = userEvent.setup();
     const newRule: Rule = { ...EXISTING_RULE, id: "rule-new", name: "test-rule" };
     vi.mocked(rulesApi.createRule).mockResolvedValue(newRule);
     const { onSaved } = renderPanel({ isNew: true, ruleId: null });
 
     await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
-    // FaultSpecPicker falls back to a free-text input on empty list; type an
-    // ID so the Save guard (faultSpecId required for fault_spec action) lets
-    // the click through.
-    await user.type(await screen.findByPlaceholderText("spec-…"), "spec-x");
-    await user.click(screen.getByText("Save"));
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(await screen.findByLabelText("Fault spec"), "spec-x");
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    await user.click(saveButton());
 
     expect(rulesApi.createRule).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "test-rule",
-        action: { type: "fault_spec", fault_spec_id: expect.any(String) },
+        service: "productcatalog",
+        action: { type: "fault_spec", fault_spec_id: "spec-x" },
       }),
     );
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalledWith(newRule));
@@ -129,10 +146,95 @@ describe("RuleEditorPanel — new rule", () => {
     const user = userEvent.setup();
     vi.mocked(rulesApi.createRule).mockRejectedValue(new Error("validation failed"));
     renderPanel({ isNew: true, ruleId: null });
-    // Fill faultSpecId so the Save guard doesn't block the click.
-    await user.type(await screen.findByPlaceholderText("spec-…"), "spec-x");
-    await user.click(screen.getByText("Save"));
+    await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(await screen.findByLabelText("Fault spec"), "spec-x");
+    await user.click(saveButton());
     expect(await screen.findByText("validation failed")).toBeTruthy();
+  });
+
+  it("blocks out-of-range priorities", async () => {
+    const user = userEvent.setup();
+    renderPanel({ isNew: true, ruleId: null });
+    await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(await screen.findByLabelText("Fault spec"), "spec-x");
+
+    const priority = screen.getByRole("spinbutton") as HTMLInputElement;
+    await user.clear(priority);
+    await user.type(priority, "5000");
+    expect(await screen.findByText(/between 0 and 1000/i)).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
+
+    await user.clear(priority);
+    await user.type(priority, "100");
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+  });
+});
+
+describe("RuleEditorPanel — rules require faults", () => {
+  it("blocks fault_spec rules when the catalog is loaded and empty", async () => {
+    const user = userEvent.setup();
+    vi.mocked(faultsApi.listFaultSpecs).mockResolvedValue([]);
+    renderPanel({ isNew: true, ruleId: null });
+
+    await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+
+    const notes = await screen.findAllByText(/create one on the faults page first/i);
+    expect(notes.length).toBeGreaterThan(0);
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("blocks a hydrated rule whose fault spec no longer exists", async () => {
+    vi.mocked(rulesApi.getRule).mockResolvedValue(EXISTING_RULE);
+    vi.mocked(faultsApi.listFaultSpecs).mockResolvedValue([LATENCY_SPEC]); // hang spec deleted
+    renderPanel({ isNew: false, ruleId: "rule-001" });
+
+    await screen.findByDisplayValue("freeze-productcatalog");
+    expect(await screen.findByText(/unknown fault spec "spec-inline-hang-5s"/i)).toBeTruthy();
+    expect(saveButton().disabled).toBe(true);
+  });
+
+  it("keeps the manual-ID escape hatch when the catalog fetch fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(faultsApi.listFaultSpecs).mockRejectedValue(new Error("older backend"));
+    vi.mocked(rulesApi.createRule).mockResolvedValue(EXISTING_RULE);
+    renderPanel({ isNew: true, ruleId: null });
+
+    await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.type(await screen.findByPlaceholderText("spec-…"), "spec-manual");
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    await user.click(saveButton());
+
+    expect(rulesApi.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: { type: "fault_spec", fault_spec_id: "spec-manual" },
+      }),
+    );
+  });
+
+  it("cachebox rules save without any fault prerequisite", async () => {
+    const user = userEvent.setup();
+    vi.mocked(faultsApi.listFaultSpecs).mockResolvedValue([]);
+    vi.mocked(rulesApi.createRule).mockResolvedValue(EXISTING_RULE);
+    renderPanel({ isNew: true, ruleId: null });
+
+    await user.type(screen.getByPlaceholderText("my-rule"), "freeze-cart");
+    await user.selectOptions(screen.getByLabelText("Service"), "cartservice");
+    await user.selectOptions(screen.getByLabelText("Action type"), "cachebox");
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    await user.click(saveButton());
+
+    expect(rulesApi.createRule).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: {
+          type: "cachebox",
+          cachebox: { mode: "passthrough", key_strategy: "exact" },
+        },
+      }),
+    );
   });
 });
 
@@ -153,12 +255,11 @@ describe("RuleEditorPanel — existing rule", () => {
     expect(input).toBeTruthy();
   });
 
-  it("populates fault spec id after load", async () => {
+  it("populates the fault spec select after load", async () => {
     renderPanel({ isNew: false, ruleId: "rule-001" });
     await screen.findByDisplayValue("freeze-productcatalog");
-    // FaultSpecPicker with empty mocked list falls back to a free-text input
-    // bound to faultSpecId, which is hydrated from the rule on load.
-    expect(await screen.findByDisplayValue("spec-inline-hang-5s")).toBeTruthy();
+    const select = (await screen.findByLabelText("Fault spec")) as HTMLSelectElement;
+    await waitFor(() => expect(select.value).toBe("spec-inline-hang-5s"));
   });
 
   it("renders match criteria builder for existing rule", async () => {
@@ -173,7 +274,8 @@ describe("RuleEditorPanel — existing rule", () => {
     vi.mocked(rulesApi.updateRule).mockResolvedValue(EXISTING_RULE);
     const { onSaved } = renderPanel({ isNew: false, ruleId: "rule-001" });
     await screen.findByDisplayValue("freeze-productcatalog");
-    await user.click(screen.getByText("Save"));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    await user.click(saveButton());
     expect(rulesApi.updateRule).toHaveBeenCalledWith("rule-001", expect.any(Object));
     await vi.waitFor(() => expect(onSaved).toHaveBeenCalled());
   });
@@ -213,9 +315,9 @@ describe("RuleEditorPanel — existing rule", () => {
 
     renderPanel({ isNew: false, ruleId: "rule-cachebox-test" });
 
-    // Wait for load, then save without changing anything.
     await screen.findByDisplayValue("cachebox-test");
-    await user.click(screen.getByRole("button", { name: /^save$/i }));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    await user.click(saveButton());
 
     await waitFor(() => expect(rulesApi.updateRule).toHaveBeenCalled());
     expect(rulesApi.updateRule).toHaveBeenCalledWith(
@@ -236,7 +338,8 @@ describe("RuleEditorPanel — existing rule", () => {
     const user = userEvent.setup();
     renderPanel({ isNew: false, ruleId: "rule-001" });
     await screen.findByDisplayValue("freeze-productcatalog");
-    await user.click(screen.getByText("Save"));
+    await waitFor(() => expect(saveButton().disabled).toBe(false));
+    await user.click(saveButton());
     expect(rulesApi.updateRule).toHaveBeenCalledWith(
       "rule-001",
       expect.objectContaining({ mode: "background" }),

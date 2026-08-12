@@ -1,18 +1,21 @@
 import { cn } from "@/lib/utils";
 import type { Rule } from "@/types/api";
 
-export type RuleTarget = "inline" | "network" | "resource";
+export type RuleTarget = "inline" | "network" | "resource" | "cachebox";
 
 const styles: Record<RuleTarget, string> = {
   inline: "bg-secondary text-secondary-foreground",
-  network: "bg-status-degraded text-white",
-  resource: "bg-phase-combined text-white",
+  network: "bg-status-degraded/15 text-status-degraded",
+  resource: "bg-phase-combined/15 text-phase-combined",
+  cachebox: "bg-primary/15 text-primary",
 };
 
 export function deriveTarget(rule: Pick<Rule, "action" | "match">): RuleTarget {
   const stored = rule.match?.labels?._target;
-  if (stored === "inline" || stored === "network" || stored === "resource") return stored;
+  if (stored === "inline" || stored === "network" || stored === "resource" || stored === "cachebox")
+    return stored;
   const action = rule.action;
+  if (action.type === "cachebox") return "cachebox";
   const specId =
     action.type === "fault_spec"
       ? action.fault_spec_id
@@ -42,20 +45,24 @@ export function ruleSubtitle(rule: Rule): string {
 }
 
 interface TargetBadgeProps {
-  target: RuleTarget;
+  target?: RuleTarget;
+  /** Optional param summary appended after a dot, e.g. "rst" or "250ms". */
+  detail?: string;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export function TargetBadge({ target, className }: TargetBadgeProps) {
+export function TargetBadge({ target = "inline", detail, className, style }: TargetBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-medium",
+        "inline-flex items-center rounded-md px-2 py-0.5 font-mono text-[11px] font-medium",
         styles[target],
         className,
       )}
+      style={style}
     >
-      {target}
+      {detail ? `${target} · ${detail}` : target}
     </span>
   );
 }

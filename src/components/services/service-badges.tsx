@@ -7,10 +7,10 @@ import { cva } from "class-variance-authority";
 const pill = cva("inline-flex items-center rounded border px-1.5 py-0.5 text-[11px] font-medium", {
   variants: {
     color: {
-      green: "border-green-300  bg-green-100  text-green-800",
-      amber: "border-amber-300  bg-amber-100  text-amber-800",
-      red: "border-red-300    bg-red-100    text-red-800",
-      blue: "border-blue-300   bg-blue-100   text-blue-800",
+      green: "border-status-healthy/30 bg-status-healthy/15 text-status-healthy",
+      amber: "border-status-degraded/30 bg-status-degraded/15 text-status-degraded",
+      red: "border-status-down/30 bg-status-down/15 text-status-down",
+      blue: "border-primary/30 bg-primary/15 text-primary",
       muted: "border-border     bg-muted      text-muted-foreground",
       outline: "border-border     bg-transparent text-muted-foreground",
     },

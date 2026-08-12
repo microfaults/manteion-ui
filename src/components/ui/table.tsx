@@ -2,6 +2,14 @@ import * as React from "react";
 
 import { cn } from "@/lib/utils";
 
+const alignClass = {
+  left: "text-left",
+  center: "text-center",
+  right: "text-right",
+} as const;
+
+type Align = keyof typeof alignClass;
+
 const Table = React.forwardRef<HTMLTableElement, React.HTMLAttributes<HTMLTableElement>>(
   ({ className, ...props }, ref) => (
     <div className="relative w-full overflow-auto">
@@ -39,12 +47,25 @@ const TableFooter = React.forwardRef<
 ));
 TableFooter.displayName = "TableFooter";
 
-const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTMLTableRowElement>>(
-  ({ className, ...props }, ref) => (
+export interface TableRowProps extends React.HTMLAttributes<HTMLTableRowElement> {
+  /** Pin the row highlighted (selected detail row). */
+  selected?: boolean;
+  /** Show a hover background + pointer cursor + button affordance. */
+  clickable?: boolean;
+}
+
+const TableRow = React.forwardRef<HTMLTableRowElement, TableRowProps>(
+  ({ className, selected, clickable, role, tabIndex, ...props }, ref) => (
     <tr
       ref={ref}
+      data-state={selected ? "selected" : undefined}
+      role={clickable ? (role ?? "button") : role}
+      tabIndex={clickable ? (tabIndex ?? 0) : tabIndex}
       className={cn(
-        "border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted",
+        "border-b transition-colors data-[state=selected]:bg-muted",
+        clickable
+          ? "cursor-pointer hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+          : "hover:bg-muted/50",
         className,
       )}
       {...props}
@@ -53,34 +74,48 @@ const TableRow = React.forwardRef<HTMLTableRowElement, React.HTMLAttributes<HTML
 );
 TableRow.displayName = "TableRow";
 
-const TableHead = React.forwardRef<
-  HTMLTableCellElement,
-  React.ThHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
-  <th
-    ref={ref}
-    className={cn(
-      "h-10 px-2 text-left align-middle font-medium text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-      className,
-    )}
-    {...props}
-  />
-));
+export interface TableHeadProps extends React.ThHTMLAttributes<HTMLTableCellElement> {
+  align?: Align;
+}
+
+const TableHead = React.forwardRef<HTMLTableCellElement, TableHeadProps>(
+  ({ className, align = "left", ...props }, ref) => (
+    <th
+      ref={ref}
+      className={cn(
+        "sticky top-0 z-10 h-10 bg-card px-2 align-middle text-xs uppercase tracking-wide text-muted-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        alignClass[align],
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
 TableHead.displayName = "TableHead";
 
-const TableCell = React.forwardRef<
-  HTMLTableCellElement,
-  React.TdHTMLAttributes<HTMLTableCellElement>
->(({ className, ...props }, ref) => (
-  <td
-    ref={ref}
-    className={cn(
-      "p-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-      className,
-    )}
-    {...props}
-  />
-));
+export interface TableCellProps extends React.TdHTMLAttributes<HTMLTableCellElement> {
+  align?: Align;
+  /** JetBrains Mono + tabular nums — for IDs, latencies, versions. */
+  mono?: boolean;
+  /** Muted-foreground text — for timestamps / secondary cells. */
+  muted?: boolean;
+}
+
+const TableCell = React.forwardRef<HTMLTableCellElement, TableCellProps>(
+  ({ className, align = "left", mono, muted, ...props }, ref) => (
+    <td
+      ref={ref}
+      className={cn(
+        "h-12 px-2 py-2 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+        alignClass[align],
+        mono && "font-mono tabular-nums",
+        muted && "text-muted-foreground",
+        className,
+      )}
+      {...props}
+    />
+  ),
+);
 TableCell.displayName = "TableCell";
 
 const TableCaption = React.forwardRef<
