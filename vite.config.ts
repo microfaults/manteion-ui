@@ -63,7 +63,9 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5173,
+    // Honor PORT so several worktrees (or an agent-assigned port) can run dev
+    // servers side by side; defaults to the documented 5173.
+    port: process.env.PORT ? Number(process.env.PORT) : 5173,
     strictPort: false,
     proxy: {
       "/api": {
