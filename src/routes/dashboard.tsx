@@ -23,7 +23,12 @@ import {
 } from "@/lib/prometheus";
 import { buildServicesPanelRows, displayServiceName } from "@/lib/service-panel";
 import { formatDurationMs, formatRelative } from "@/lib/utils";
-import type { ExperimentStatus, SDKInstance } from "@/types/api";
+import {
+  ACTIVE_PHASE_STATUSES,
+  type ExperimentStatus,
+  type SDKInstance,
+  TERMINAL_PHASE_STATUSES,
+} from "@/types/api";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -244,7 +249,7 @@ function DashboardPage() {
                     <TableHead>Phase</TableHead>
                     <TableHead>Started</TableHead>
                     <TableHead>Duration</TableHead>
-                    <TableHead className="text-right">P99</TableHead>
+                    <TableHead className="text-right">Progress</TableHead>
                     <TableHead>Status</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -264,13 +269,20 @@ function DashboardPage() {
                     </TableRow>
                   ) : null}
                   {experiments.data?.slice(0, 8).map((e) => {
-                    const latestPhase = e.phases[e.phases.length - 1];
+                    // The phase in flight, else the last one in plan order.
+                    const currentPhase =
+                      e.phases.find((p) => ACTIVE_PHASE_STATUSES.has(p.status)) ??
+                      e.phases[e.phases.length - 1];
                     const durationMs =
                       e.started_at && e.completed_at
                         ? new Date(e.completed_at).getTime() - new Date(e.started_at).getTime()
                         : null;
-                    const p99us = latestPhase?.metrics?.p99_us;
-                    const p99Display = p99us != null ? `${Math.round(p99us / 1000)} ms` : "—";
+                    const donePhases = e.phases.filter((p) =>
+                      TERMINAL_PHASE_STATUSES.has(p.status),
+                    );
+                    const progress = e.phases.length
+                      ? `${donePhases.length}/${e.phases.length}`
+                      : "—";
                     const workflowIds = experimentsApi.workflowIdsForExperiment(e);
                     const wf = workflowIds.length > 0 ? `${workflowIds.length}` : "—";
                     const { dotStatus, label } = experimentStatusPresentation(e.status);
@@ -279,7 +291,7 @@ function DashboardPage() {
                         <TableCell className="font-medium">{e.name}</TableCell>
                         <TableCell className="font-mono text-xs">{wf}</TableCell>
                         <TableCell className="font-mono text-xs">
-                          {latestPhase?.name ?? "—"}
+                          {currentPhase?.name ?? "—"}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
                           {formatRelative(e.started_at)}
@@ -287,7 +299,7 @@ function DashboardPage() {
                         <TableCell className="font-mono text-xs">
                           {formatDurationMs(durationMs)}
                         </TableCell>
-                        <TableCell className="text-right font-mono text-xs">{p99Display}</TableCell>
+                        <TableCell className="text-right font-mono text-xs">{progress}</TableCell>
                         <TableCell>
                           <StatusDot status={dotStatus} label={label} />
                         </TableCell>

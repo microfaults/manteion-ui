@@ -18,3 +18,13 @@ describe("PhasePill", () => {
     expect(screen.getByRole("img").className).toContain("bg-phase-pending");
   });
 });
+
+describe("PhasePill draining", () => {
+  it("renders draining with the degraded color and a pulse (frozen services flushing)", () => {
+    render(<PhasePill name="isolation-cartservice" status="draining" />);
+    const el = screen.getByRole("img");
+    expect(el.className).toContain("bg-status-degraded");
+    expect(el.className).toContain("animate-pulse");
+    expect(el.getAttribute("aria-label")).toBe("isolation-cartservice — draining");
+  });
+});

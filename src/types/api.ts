@@ -242,7 +242,9 @@ export type ExperimentStatus = z.infer<typeof ExperimentStatusSchema>;
 export const PhaseNameSchema = z.string();
 export type PhaseName = z.infer<typeof PhaseNameSchema>;
 
-/** Mirrors manteion-go internal/model/enums.go PhaseStatusValues. */
+/** Mirrors manteion-go internal/model/enums.go PhaseStatusValues.
+ *  `draining` = the recording phase is finishing while frozen services flush
+ *  their cache-box entries; still in flight from the operator's point of view. */
 export const PhaseStatusSchema = z.enum([
   "pending",
   "running",
@@ -250,13 +252,65 @@ export const PhaseStatusSchema = z.enum([
   "completed",
   "failed",
   "skipped",
+  "draining",
 ]);
 export type PhaseStatus = z.infer<typeof PhaseStatusSchema>;
+
+/** Statuses that are still in flight (poll these). */
+export const ACTIVE_PHASE_STATUSES: ReadonlySet<PhaseStatus> = new Set([
+  "running",
+  "draining",
+  "paused",
+]);
+/** Statuses after which results (if any) are final. */
+export const TERMINAL_PHASE_STATUSES: ReadonlySet<PhaseStatus> = new Set([
+  "completed",
+  "failed",
+  "skipped",
+]);
+
+/** Go serialises a nil slice as `null`; every list field on a phase read-out
+ *  may arrive that way (composePhaseDetail leaves `workflows` nil when a phase
+ *  has no rows). Normalise to `[]` at the boundary. */
+const arrayOrEmpty = <T extends z.ZodTypeAny>(item: T) =>
+  z
+    .array(item)
+    .nullish()
+    .transform((v) => v ?? []);
+
+export const CacheBoxModeSchema = z.enum(["passthrough", "replay", "replay_with_delay"]);
+export type CacheBoxMode = z.infer<typeof CacheBoxModeSchema>;
+
+/** A frozen service — mirrors manteion-go internal/model.CacheBoxConfig as
+ *  stored in the phase's frozen_services JSONB (distinct from a rule's
+ *  cachebox action, CacheBoxConfigSchema above).
+ *  Reads are tolerant — the backend emits "" for defaulted strings; the create
+ *  DTO (experimentsApi.createExperiment) is the strict side. */
+export const FrozenServiceSchema = z.object({
+  service: z.string(),
+  mode: CacheBoxModeSchema,
+  /** meta-trace-id pattern; "" = all traffic. */
+  workflow_scope: z.string().optional(),
+  /** "" on the wire means the server default (canonical_v2). */
+  key_strategy: z.string().optional(),
+  key_headers: z.array(z.string()).optional(),
+  mutation_policy: z.string().optional(),
+  safe_methods: z.array(z.string()).optional(),
+  synthetic_delay: z
+    .object({ p50_us: z.number(), p95_us: z.number(), p99_us: z.number() })
+    .passthrough()
+    .optional(),
+  warmup_duration_ms: z.number().optional(),
+  cache_ttl_ms: z.number().optional(),
+});
+export type FrozenService = z.infer<typeof FrozenServiceSchema>;
 
 /** Per-(phase, workflow) attack config row — mirrors
  *  manteion-go/internal/model.PhaseWorkflow. Workflows attach to experiments
  *  per-phase only (schema epoch 2); the experiment-level workflow list is
- *  derived client-side from these rows. */
+ *  derived client-side from these rows. `zeus_run_id` (k6 workflow run) and
+ *  `zeus_attack_id` (vegeta attack) are stamped by the orchestrator once the
+ *  phase starts; either may be absent. */
 export const PhaseWorkflowSchema = z.object({
   phase_id: z.string().optional(),
   workflow_id: z.string(),
@@ -265,57 +319,36 @@ export const PhaseWorkflowSchema = z.object({
   duration_sec: z.number().int().optional(),
   target_url: z.string().optional(),
   target_method: z.string().optional(),
+  /** Per-workflow dataset (lands with manteion-go B5; tolerated now). */
+  dataset_id: z.string().optional(),
   zeus_attack_id: z.string().optional(),
+  zeus_run_id: z.string().optional(),
 });
 export type PhaseWorkflow = z.infer<typeof PhaseWorkflowSchema>;
 
-/** Denormalised phase summary used by the experiments list hover card
- *  and the experiment detail phases tab. Parses the backend's phaseDetail
- *  shape (GET /api/v1/experiments/{id}/phases/{phaseId}); backend-only
- *  fields (experiment_id, position, persist_cache, rule_ids) pass through
- *  unvalidated. */
+/** One phase as served inside experiment detail and by
+ *  GET /api/v1/experiments/{id}/phases/{phaseId} (manteion-go `phaseDetail`:
+ *  model.ExperimentPhase + `workflows[]` + `rule_ids[]`). There are NO inline
+ *  metrics — results live at …/phases/{phaseId}/results once the phase is
+ *  terminal — and no duration field: derive it from the timestamps
+ *  (see lib/phase-metrics.phaseDurationMs). */
 export const PhaseSummarySchema = z.object({
   id: z.string(),
+  experiment_id: z.string().optional(),
   name: PhaseNameSchema,
+  position: z.number().int().optional(),
   status: PhaseStatusSchema,
-  workflow_id: z.string().optional(),
   /** Per-(phase, workflow) attack configs attached to this phase. */
-  workflows: z.array(PhaseWorkflowSchema).default([]),
-  dataset_id: z.string().optional(),
-  vus: z.number().int().optional(),
-  duration_ms: z.number().int().optional(),
+  workflows: arrayOrEmpty(PhaseWorkflowSchema),
+  /** Services frozen via cache-box during this phase. */
+  frozen_services: arrayOrEmpty(FrozenServiceSchema),
+  persist_cache: z.boolean().optional(),
+  /** Bare rule references (phase_rules join). Resolve names from the rules cache. */
+  rule_ids: arrayOrEmpty(z.string()),
   started_at: Timestamp.optional(),
   completed_at: Timestamp.optional(),
-  /** Services frozen via cache-box (per-experiment). */
-  frozen_services: z
-    .array(
-      z.object({
-        service: z.string(),
-        mode: z.enum(["passthrough", "replay", "replay_with_delay"]),
-      }),
-    )
-    .default([]),
-  /** Rules applied during this phase (copies of manteion rules). */
-  applied_rules: z
-    .array(
-      z.object({
-        rule_id: z.string(),
-        name: z.string(),
-        target_summary: z.string(),
-      }),
-    )
-    .default([]),
-  /** Latency summary — present for running and completed phases. */
-  metrics: z
-    .object({
-      p50_us: z.number().optional(),
-      p95_us: z.number().optional(),
-      p99_us: z.number().optional(),
-      rps: z.number().optional(),
-      error_rate: z.number().optional(),
-      baseline_p99_us: z.number().optional(),
-    })
-    .optional(),
+  /** Why the phase failed — populated once manteion-go B8 ships; tolerated now. */
+  failure_reason: z.string().optional(),
 });
 export type PhaseSummary = z.infer<typeof PhaseSummarySchema>;
 
@@ -333,8 +366,251 @@ export const ExperimentSchema = z.object({
   created_at: Timestamp,
   started_at: Timestamp.optional(),
   completed_at: Timestamp.optional(),
+  /** Why the experiment failed — populated once manteion-go B8 ships; tolerated now. */
+  failure_reason: z.string().optional(),
 });
 export type Experiment = z.infer<typeof ExperimentSchema>;
+
+// ─── Phase results (written once at phase finish by orchestrator/harvest.go) ──
+
+/** Mirrors model.PhaseWorkflowResult. Latencies are microseconds. */
+export const PhaseWorkflowResultSchema = z.object({
+  phase_id: z.string(),
+  workflow_id: z.string(),
+  request_count: z.number(),
+  error_count: z.number(),
+  error_rate: z.number(),
+  throughput_rps: z.number(),
+  latency_p50_us: z.number(),
+  latency_p95_us: z.number(),
+  latency_p99_us: z.number(),
+  latency_p999_us: z.number().optional(),
+  computed_at: Timestamp.optional(),
+});
+export type PhaseWorkflowResult = z.infer<typeof PhaseWorkflowResultSchema>;
+
+/** Mirrors model.PhaseServiceLatency. */
+export const PhaseServiceLatencySchema = z.object({
+  phase_id: z.string(),
+  service: z.string(),
+  workflow_id: z.string().optional(),
+  latency_p50_us: z.number(),
+  latency_p95_us: z.number(),
+  latency_p99_us: z.number(),
+  request_count: z.number(),
+  computed_at: Timestamp.optional(),
+});
+export type PhaseServiceLatency = z.infer<typeof PhaseServiceLatencySchema>;
+
+/** Mirrors model.PhaseServiceCache — cache-box fidelity per frozen service. */
+export const PhaseServiceCacheSchema = z.object({
+  phase_id: z.string(),
+  service: z.string(),
+  cache_hit_rate: z.number(),
+  cache_exact_match: z.number().optional(),
+  cache_staleness: z.number().optional(),
+  /** hits + misses served by the frozen service (disambiguates 0 hit-rate). */
+  request_count: z.number().optional(),
+  recorded_entry_count: z.number().optional(),
+  computed_at: Timestamp.optional(),
+});
+export type PhaseServiceCache = z.infer<typeof PhaseServiceCacheSchema>;
+
+/** Mirrors model.PhaseVerdict (INV-6 fidelity verdict; absent on baselines). */
+export const PhaseVerdictSchema = z.object({
+  verdict: z.string(),
+  reasons: z.array(z.string()).optional(),
+  collision_rate: z.number().optional(),
+  replay_age_max_ms: z.number().optional(),
+  replay_age_mean_ms: z.number().optional(),
+});
+export type PhaseVerdict = z.infer<typeof PhaseVerdictSchema>;
+
+/** Mirrors model.PhaseDrainResult (recording-phase drain outcome). */
+export const PhaseDrainResultSchema = z.object({
+  status: z.enum(["clean", "degraded"]),
+  missing_instances: z.array(z.string()).optional(),
+  shortfall_entries: z.number().optional(),
+});
+export type PhaseDrainResult = z.infer<typeof PhaseDrainResultSchema>;
+
+/** GET /api/v1/experiments/{id}/phases/{phaseId}/results. Harvest skips
+ *  k6-only phase workflows (no zeus_attack_id) — `workflow_results` is then
+ *  empty and the UI falls back to zeus run stats (ZeusRunStatsSchema). */
+export const PhaseResultsSchema = z.object({
+  workflow_results: arrayOrEmpty(PhaseWorkflowResultSchema),
+  service_latency: arrayOrEmpty(PhaseServiceLatencySchema),
+  service_cache: arrayOrEmpty(PhaseServiceCacheSchema),
+  verdict: PhaseVerdictSchema.nullish().transform((v) => v ?? undefined),
+  drain: PhaseDrainResultSchema.nullish().transform((v) => v ?? undefined),
+});
+export type PhaseResults = z.infer<typeof PhaseResultsSchema>;
+
+/** GET /api/v1/experiments/{id}/results — model.ExperimentResults, or the
+ *  `{experiment_id, available:false}` placeholder before any phase has results. */
+export const ExperimentResultsSchema = z.object({
+  experiment_id: z.string(),
+  available: z.boolean().default(true),
+  phase_count: z.number().int().optional(),
+  completed_phase_count: z.number().int().optional(),
+  total_request_count: z.number().optional(),
+  total_error_count: z.number().optional(),
+  overall_error_rate: z.number().optional(),
+  worst_p99_us: z.number().optional(),
+  worst_p99_phase_id: z.string().optional(),
+  best_p99_us: z.number().optional(),
+  best_p99_phase_id: z.string().optional(),
+  computed_at: Timestamp.optional(),
+});
+export type ExperimentResults = z.infer<typeof ExperimentResultsSchema>;
+
+// ─── Phases — the logical unit of operation (flat endpoints) ──────────
+
+/** GET /api/v1/phases/{phaseId} — api.PhaseDetail: the phase row +
+ *  experiment_name + workflows + harvested workflow_results + totals. */
+export const PhaseDetailSchema = z.object({
+  id: z.string(),
+  experiment_id: z.string(),
+  experiment_name: z.string().default(""),
+  name: PhaseNameSchema,
+  position: z.number().int().optional(),
+  status: PhaseStatusSchema,
+  frozen_services: arrayOrEmpty(FrozenServiceSchema),
+  persist_cache: z.boolean().optional(),
+  started_at: Timestamp.optional(),
+  completed_at: Timestamp.optional(),
+  failure_reason: z.string().optional(),
+  workflows: arrayOrEmpty(PhaseWorkflowSchema),
+  workflow_results: arrayOrEmpty(PhaseWorkflowResultSchema),
+  total_request_count: z.number().default(0),
+  total_error_count: z.number().default(0),
+  overall_error_rate: z.number().default(0),
+});
+export type PhaseDetail = z.infer<typeof PhaseDetailSchema>;
+
+/** GET /api/v1/phases — model.PhaseListItem rows (page envelope). */
+export const PhaseListItemSchema = z.object({
+  id: z.string(),
+  experiment_id: z.string(),
+  experiment_name: z.string().default(""),
+  name: PhaseNameSchema,
+  position: z.number().int().optional(),
+  workflow_ids: arrayOrEmpty(z.string()),
+  frozen_service_count: z.number().int().default(0),
+  status: PhaseStatusSchema,
+  started_at: Timestamp.optional(),
+  completed_at: Timestamp.optional(),
+});
+export type PhaseListItem = z.infer<typeof PhaseListItemSchema>;
+
+/** GET /api/v1/phases/{phaseId}/faults — api.PhaseFaults. */
+export const PhaseFaultEventSchema = z.object({
+  id: z.string(),
+  phase_id: z.string().optional(),
+  /** rule | cachebox | fault_config */
+  source: z.string(),
+  service: z.string().optional(),
+  /** e.g. "cachebox:replay", "inline:latency". */
+  kind: z.string(),
+  detail: z.unknown().optional(),
+  started_at: Timestamp.optional(),
+  ended_at: Timestamp.optional(),
+});
+export type PhaseFaultEvent = z.infer<typeof PhaseFaultEventSchema>;
+
+export const PhaseFaultsSchema = z.object({
+  frozen_services: arrayOrEmpty(FrozenServiceSchema),
+  phase_rules: arrayOrEmpty(
+    z.object({
+      phase_id: z.string().optional(),
+      rule_id: z.string(),
+      position: z.number().optional(),
+    }),
+  ),
+  fault_events: arrayOrEmpty(PhaseFaultEventSchema),
+});
+export type PhaseFaults = z.infer<typeof PhaseFaultsSchema>;
+
+// ─── Zeus runs (proxied: /api/v1/zeus/runs/…) ────────────────────────
+
+/** zeus-go internal/run.Run. zeus keeps runs in memory — after a zeus
+ *  restart a run id known to manteion may 404 here. `status` is one of
+ *  pending | running | completed | stopped | failed | rejected. */
+export const ZeusRunSchema = z.object({
+  id: z.string(),
+  workflow_id: z.string().optional(),
+  workflow_name: z.string().optional(),
+  experiment_id: z.string().optional(),
+  dataset_id: z.string().optional(),
+  status: z.string(),
+  meta_trace_id: z.string().optional(),
+  workflow_label: z.string().optional(),
+  k6_job_name: z.string().optional(),
+  started_at: Timestamp.optional(),
+  ended_at: Timestamp.optional(),
+  /** Set when zeus rejected or failed the run (e.g. k6 exit code). */
+  reason: z.string().optional(),
+});
+export type ZeusRun = z.infer<typeof ZeusRunSchema>;
+
+/** zeus answers GET /runs/{id}/stats with 200 + this `status` while the run
+ *  is still in flight (or finished without a snapshot). */
+export const ZEUS_STATS_PENDING = "no stats available yet";
+
+const NS_PER_US = 1_000;
+const NS_PER_MS = 1_000_000;
+
+export interface ZeusRunStats {
+  run_id: string;
+  workflow_id?: string;
+  status?: string;
+  duration_ms: number;
+  iterations: number;
+  requests_sent: number;
+  requests_ok: number;
+  requests_dropped: number;
+  latency_p50_us: number;
+  latency_p95_us: number;
+  latency_p99_us: number;
+  finalized_at?: string;
+}
+
+/** zeus-go stats.RunStats — durations/latencies are Go `time.Duration`
+ *  (nanoseconds) on the wire; converted to ms/µs here so nothing downstream
+ *  ever sees nanoseconds. Parses to `undefined` for the in-flight placeholder. */
+export const ZeusRunStatsSchema = z
+  .object({
+    run_id: z.string(),
+    workflow_id: z.string().optional(),
+    status: z.string().optional(),
+    duration: z.number().default(0),
+    iterations: z.number().default(0),
+    requests_sent: z.number().default(0),
+    requests_ok: z.number().default(0),
+    requests_dropped: z.number().default(0),
+    latency_p50: z.number().default(0),
+    latency_p95: z.number().default(0),
+    latency_p99: z.number().default(0),
+    finalized_at: Timestamp.optional(),
+  })
+  .transform((s): ZeusRunStats | undefined =>
+    s.status === ZEUS_STATS_PENDING
+      ? undefined
+      : {
+          run_id: s.run_id,
+          workflow_id: s.workflow_id,
+          status: s.status,
+          duration_ms: s.duration / NS_PER_MS,
+          iterations: s.iterations,
+          requests_sent: s.requests_sent,
+          requests_ok: s.requests_ok,
+          requests_dropped: s.requests_dropped,
+          latency_p50_us: s.latency_p50 / NS_PER_US,
+          latency_p95_us: s.latency_p95 / NS_PER_US,
+          latency_p99_us: s.latency_p99 / NS_PER_US,
+          finalized_at: s.finalized_at,
+        },
+  );
 
 // ─── Workflow (DSL v2 definition; manteion-owned) ──────────────────────
 

@@ -1,8 +1,14 @@
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { experimentsApi } from "@/lib/api";
+import { type PhaseMetrics, pctDelta, phaseDurationMs } from "@/lib/phase-metrics";
 import { formatDurationMs, formatLatencyUs } from "@/lib/utils";
-import type { PhaseName, PhaseStatus, PhaseSummary } from "@/types/api";
+import {
+  ACTIVE_PHASE_STATUSES,
+  type PhaseName,
+  type PhaseStatus,
+  type PhaseSummary,
+} from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { type ReactNode, useState } from "react";
@@ -16,6 +22,10 @@ interface PhaseHoverCardProps {
   statusHint: PhaseStatus;
   /** Optional inline summary so the card renders immediately without waiting for fetch. */
   fallbackSummary?: PhaseSummary;
+  /** Derived results for a terminal phase (harvested or zeus fallback). */
+  metrics?: PhaseMetrics;
+  /** The experiment's baseline p99 for the delta line. */
+  baselineP99Us?: number;
   /** Open the card immediately (tests / debugging). */
   defaultOpen?: boolean;
   children: ReactNode;
@@ -28,6 +38,7 @@ const statusBadgeVariant: Record<
   pending: "secondary",
   running: "default",
   paused: "status-degraded",
+  draining: "status-degraded",
   completed: "status-healthy",
   failed: "status-down",
   skipped: "outline",
@@ -44,11 +55,13 @@ export function PhaseHoverCard({
   phase,
   statusHint,
   fallbackSummary,
+  metrics,
+  baselineP99Us,
   defaultOpen = false,
   children,
 }: PhaseHoverCardProps) {
   const [open, setOpen] = useState(defaultOpen);
-  const isLive = statusHint === "running";
+  const isLive = ACTIVE_PHASE_STATUSES.has(statusHint);
 
   const query = useQuery({
     queryKey: ["phase", experimentId, phaseId],
@@ -56,7 +69,6 @@ export function PhaseHoverCard({
     enabled: open,
     staleTime: isLive ? 2_000 : 30_000,
     refetchInterval: open && isLive ? 2_000 : false,
-    // If the backend endpoint doesn't exist yet, fall back gracefully.
     retry: false,
     initialData: fallbackSummary,
   });
@@ -72,24 +84,36 @@ export function PhaseHoverCard({
           phase={phase}
           status={summary?.status ?? statusHint}
           summary={summary}
+          metrics={metrics}
+          baselineP99Us={baselineP99Us}
         />
       </HoverCardContent>
     </HoverCard>
   );
 }
 
-/** Presentational body of the hover card — pure render of a PhaseSummary. */
+const SECTION_LABEL = "text-[10px] font-semibold uppercase tracking-wider text-muted-foreground";
+
+/** Presentational body of the hover card — pure render of a PhaseSummary
+ *  plus optional derived metrics (the backend keeps results off the phase). */
 export function PhaseSummaryContent({
   experimentId,
   phase,
   status,
   summary,
+  metrics,
+  baselineP99Us,
 }: {
   experimentId: string;
   phase: PhaseName;
   status: PhaseStatus;
   summary?: PhaseSummary;
+  metrics?: PhaseMetrics;
+  baselineP99Us?: number;
 }) {
+  const durationMs = summary ? phaseDurationMs(summary) : null;
+  const inFlight = ACTIVE_PHASE_STATUSES.has(status);
+
   return (
     <>
       <div className="flex items-start justify-between gap-2">
@@ -99,11 +123,9 @@ export function PhaseSummaryContent({
         </Badge>
       </div>
 
-      {summary?.frozen_services?.length ? (
+      {summary?.frozen_services.length ? (
         <div className="mt-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Services frozen (cache-box)
-          </div>
+          <div className={SECTION_LABEL}>Services frozen (cache-box)</div>
           <ul className="mt-1 space-y-0.5">
             {summary.frozen_services.map((fs) => (
               <li key={fs.service} className="font-mono text-xs">
@@ -114,50 +136,54 @@ export function PhaseSummaryContent({
         </div>
       ) : null}
 
-      {summary?.applied_rules?.length ? (
+      {summary?.rule_ids.length ? (
         <div className="mt-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Rules applied
-          </div>
-          <ul className="mt-1 space-y-0.5">
-            {summary.applied_rules.map((r) => (
-              <li key={r.rule_id} className="text-xs">
-                <span className="font-mono">{r.name}</span>{" "}
-                <span className="text-muted-foreground">· {r.target_summary}</span>
+          <div className={SECTION_LABEL}>Rules attached</div>
+          <ul className="mt-1 flex flex-wrap gap-1">
+            {summary.rule_ids.map((id) => (
+              <li key={id} className="rounded-sm border border-border px-1.5 font-mono text-xs">
+                {id}
               </li>
             ))}
           </ul>
         </div>
       ) : null}
 
-      {summary?.metrics ? (
-        <div className="mt-3 grid grid-cols-3 gap-2 rounded-md border border-border bg-muted/30 p-2 text-xs">
-          <Metric
-            label="p99"
-            value={formatLatencyUs(summary.metrics.p99_us)}
-            delta={
-              summary.metrics.p99_us && summary.metrics.baseline_p99_us
-                ? pctDelta(summary.metrics.baseline_p99_us, summary.metrics.p99_us)
-                : undefined
-            }
-          />
-          <Metric label="RPS" value={summary.metrics.rps ? summary.metrics.rps.toFixed(1) : "—"} />
-          <Metric
-            label="errors"
-            value={
-              summary.metrics.error_rate != null
-                ? `${(summary.metrics.error_rate * 100).toFixed(2)}%`
-                : "—"
-            }
-          />
+      {metrics ? (
+        <div className="mt-3 rounded-md border border-border bg-muted/30 p-2 text-xs">
+          <div className="grid grid-cols-3 gap-2">
+            <Metric
+              label="p99"
+              value={formatLatencyUs(metrics.p99_us)}
+              delta={
+                metrics.p99_us != null && baselineP99Us
+                  ? pctDelta(baselineP99Us, metrics.p99_us)
+                  : undefined
+              }
+            />
+            <Metric label="RPS" value={metrics.rps != null ? metrics.rps.toFixed(1) : "—"} />
+            <Metric
+              label="errors"
+              value={metrics.error_rate != null ? `${(metrics.error_rate * 100).toFixed(2)}%` : "—"}
+            />
+          </div>
+          {metrics.source === "zeus" ? (
+            <div className="mt-1.5 text-[10px] text-muted-foreground">
+              via zeus run stats — k6 runs aren't harvested into manteion yet
+            </div>
+          ) : null}
         </div>
       ) : status === "pending" ? (
         <p className="mt-3 text-xs italic text-muted-foreground">Not run yet.</p>
       ) : null}
 
-      {summary?.duration_ms ? (
+      {status === "failed" && summary?.failure_reason ? (
+        <p className="mt-3 text-xs text-status-down">{summary.failure_reason}</p>
+      ) : null}
+
+      {durationMs != null ? (
         <div className="mt-2 text-[11px] text-muted-foreground">
-          duration · {formatDurationMs(summary.duration_ms)}
+          {inFlight ? "elapsed" : "duration"} · {formatDurationMs(durationMs)}
         </div>
       ) : null}
 
@@ -191,11 +217,4 @@ function Metric({ label, value, delta }: { label: string; value: string; delta?:
       ) : null}
     </div>
   );
-}
-
-function pctDelta(baseline: number, current: number): string {
-  if (!baseline) return "";
-  const pct = ((current - baseline) / baseline) * 100;
-  const sign = pct >= 0 ? "+" : "";
-  return `${sign}${pct.toFixed(0)}% vs baseline`;
 }

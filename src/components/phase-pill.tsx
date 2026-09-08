@@ -20,6 +20,8 @@ const statusClasses: Record<PhaseStatus, string> = {
   completed: "bg-phase-baseline",
   failed: "bg-phase-failed",
   skipped: "bg-phase-pending/50",
+  // Recording finished, frozen services still flushing — halted-looking but live.
+  draining: "bg-status-degraded animate-pulse",
 };
 
 /** Phase names are free-form; the baseline/isolation/combined typology is a
