@@ -172,6 +172,17 @@ function mockDelay() {
 
 const RulesList = z.array(RuleSchema);
 
+/** Mock-only: the services targeted by the given rule ids (unknown ids are
+ *  ignored). The mock experiment store derives service footprints from it. */
+export function mockServicesForRules(ids: readonly string[]): string[] {
+  const out = new Set<string>();
+  for (const id of ids) {
+    const rule = _mockRules.find((r) => r.id === id);
+    if (rule) out.add(rule.service);
+  }
+  return [...out];
+}
+
 export async function listRules(): Promise<Rule[]> {
   if (USE_MOCK) {
     await mockDelay();

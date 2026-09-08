@@ -371,6 +371,58 @@ export const ExperimentSchema = z.object({
 });
 export type Experiment = z.infer<typeof ExperimentSchema>;
 
+// ─── Create DTOs — POST /api/v1/experiments, POST …/{id}/phases (§0.2) ──
+// Plain interfaces (not zod): these are what the UI SENDS; the backend
+// validates. `mutation_policy` is required — an empty string fails
+// model.CacheBoxConfig.Validate(); `key_strategy` "" means the server default
+// (canonical_v2) and must agree per service across every phase (INV-2).
+
+export interface FrozenServiceInput {
+  service: string;
+  mode: CacheBoxMode;
+  mutation_policy: "deny" | "allow";
+  key_strategy?: string;
+  key_headers?: string[];
+  safe_methods?: string[];
+  workflow_scope?: string;
+  warmup_duration_ms?: number;
+  cache_ttl_ms?: number;
+  synthetic_delay?: { p50_us: number; p95_us: number; p99_us: number };
+}
+
+export interface PhaseWorkflowInput {
+  workflow_id: string;
+  /** > 0 (validated server-side). */
+  vus: number;
+  /** > 0 (validated server-side). */
+  duration_sec: number;
+  rate_rps?: number;
+  /** Non-empty ⇒ an additional vegeta attack leg against this URL. */
+  target_url?: string;
+  target_method?: string;
+  /** Per-workflow dataset (manteion-go B5). */
+  dataset_id?: string;
+}
+
+export interface CreatePhaseInput {
+  /** Free-form; UNIQUE per experiment. */
+  name: string;
+  /** Honoured verbatim on nested create; omitted on POST …/phases ⇒ append. */
+  position?: number;
+  persist_cache?: boolean;
+  frozen_services: FrozenServiceInput[];
+  workflows: PhaseWorkflowInput[];
+  rule_ids: string[];
+}
+
+export interface CreateExperimentInput {
+  name: string;
+  description?: string;
+  hypothesis?: string;
+  created_by?: string;
+  phases: CreatePhaseInput[];
+}
+
 // ─── Phase results (written once at phase finish by orchestrator/harvest.go) ──
 
 /** Mirrors model.PhaseWorkflowResult. Latencies are microseconds. */

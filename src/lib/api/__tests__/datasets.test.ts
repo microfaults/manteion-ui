@@ -105,3 +105,16 @@ describe("datasetsApi", () => {
     );
   });
 });
+
+describe("datasetsApi.datasetExpiresAt", () => {
+  it("adds ttl_s to created_at; null when the dataset has no TTL", () => {
+    expect(
+      datasetsApi
+        .datasetExpiresAt({ created_at: "2026-06-01T00:00:00Z", ttl_s: 3600 })
+        ?.toISOString(),
+    ).toBe("2026-06-01T01:00:00.000Z");
+    expect(
+      datasetsApi.datasetExpiresAt({ created_at: "2026-06-01T00:00:00Z", ttl_s: 0 }),
+    ).toBeNull();
+  });
+});

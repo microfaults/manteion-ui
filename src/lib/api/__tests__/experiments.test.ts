@@ -23,6 +23,7 @@ vi.mock("@/lib/api/client", async (importOriginal) => {
     apiClient: {
       get: vi.fn(),
       post: vi.fn(),
+      put: vi.fn(),
       del: vi.fn(),
       baseUrl: "",
       environment: "test",
@@ -316,5 +317,201 @@ describe("results, flat-phase and zeus schemas ↔ manteion-go / zeus wire shape
     expect(
       ZeusRunStatsSchema.parse({ run_id: "run-1", status: ZEUS_STATS_PENDING }),
     ).toBeUndefined();
+  });
+});
+
+const EXPERIMENT_ROW = {
+  id: "exp-1",
+  name: "checkout-p99",
+  status: "planned",
+  created_at: "2026-06-01T00:00:00Z",
+};
+
+describe("experimentsApi.listExperiments hydrates phases from the flat phases endpoint", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+  });
+
+  it("GET /api/v1/experiments returns bare rows; phases come from GET /api/v1/phases grouped by experiment_id", async () => {
+    vi.mocked(apiClient.get).mockImplementation(async (path: string) => {
+      if (path.startsWith("/api/v1/experiments"))
+        return { data: [EXPERIMENT_ROW], page: { offset: 0, limit: 50, total: 1 } };
+      if (path.startsWith("/api/v1/phases"))
+        return {
+          data: [
+            {
+              id: "ph-2",
+              experiment_id: "exp-1",
+              experiment_name: "checkout-p99",
+              name: "isolation",
+              position: 1,
+              workflow_ids: ["wf-1"],
+              frozen_service_count: 1,
+              status: "pending",
+            },
+            {
+              id: "ph-1",
+              experiment_id: "exp-1",
+              experiment_name: "checkout-p99",
+              name: "baseline",
+              position: 0,
+              workflow_ids: ["wf-1"],
+              frozen_service_count: 0,
+              status: "pending",
+            },
+            {
+              id: "ph-9",
+              experiment_id: "exp-other",
+              experiment_name: "other",
+              name: "baseline",
+              position: 0,
+              workflow_ids: [],
+              frozen_service_count: 0,
+              status: "completed",
+            },
+          ],
+          page: { offset: 0, limit: 200, total: 3 },
+        };
+      throw new Error(`unexpected GET ${path}`);
+    });
+    const [exp] = await experimentsApi.listExperiments();
+    expect(exp?.phases.map((p) => p.id)).toEqual(["ph-1", "ph-2"]); // sorted by position
+    expect(exp?.phases[0]?.workflows).toEqual([{ workflow_id: "wf-1" }]);
+    expect(exp && experimentsApi.workflowIdsForExperiment(exp)).toEqual(["wf-1"]);
+  });
+});
+
+describe("experimentsApi lifecycle mutations ↔ routes", () => {
+  beforeEach(() => {
+    vi.mocked(apiClient.get).mockReset();
+    vi.mocked(apiClient.post).mockReset();
+    vi.mocked(apiClient.del).mockReset();
+    vi.mocked(apiClient.post).mockResolvedValue({ ...EXPERIMENT_ROW, phases: [] });
+    vi.mocked(apiClient.del).mockResolvedValue(undefined);
+  });
+
+  it("createExperiment POSTs the §0.2 body verbatim and returns the parsed detail", async () => {
+    const input: experimentsApi.CreateExperimentInput = {
+      name: "checkout-p99",
+      hypothesis: "productcatalog dominates",
+      phases: [
+        {
+          name: "baseline",
+          position: 0,
+          persist_cache: true,
+          frozen_services: [],
+          workflows: [{ workflow_id: "wf-1", vus: 25, duration_sec: 300 }],
+          rule_ids: [],
+        },
+        {
+          name: "isolation-cartservice",
+          position: 1,
+          frozen_services: [{ service: "cartservice", mode: "replay", mutation_policy: "deny" }],
+          workflows: [{ workflow_id: "wf-1", vus: 25, duration_sec: 300 }],
+          rule_ids: ["rule-1"],
+        },
+      ],
+    };
+    const exp = await experimentsApi.createExperiment(input);
+    expect(apiClient.post).toHaveBeenCalledWith("/api/v1/experiments", input, expect.anything());
+    expect(exp.id).toBe("exp-1");
+  });
+
+  it("start/pause/resume/cancel POST to their verbs; stop/deleteExperiment use the right method", async () => {
+    await experimentsApi.startExperiment("exp 1");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp%201/start",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.pauseExperiment("exp-1");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/pause",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.resumeExperiment("exp-1");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/resume",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.cancelExperiment("exp-1");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/cancel",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.stopExperiment("exp-1");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/stop",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.stopExperiment("exp-1", "failed");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/stop?status=failed",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.deleteExperiment("exp-1");
+    expect(apiClient.del).toHaveBeenLastCalledWith("/api/v1/experiments/exp-1");
+  });
+
+  it("phase mutations are nested under the experiment; stopPhase carries the final status", async () => {
+    vi.mocked(apiClient.post).mockResolvedValue({
+      id: "ph-3",
+      name: "combined",
+      status: "pending",
+      workflows: [],
+      rule_ids: [],
+    });
+    const phase = await experimentsApi.createPhase("exp-1", {
+      name: "combined",
+      frozen_services: [],
+      workflows: [{ workflow_id: "wf-1", vus: 5, duration_sec: 60 }],
+      rule_ids: [],
+    });
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/phases",
+      expect.objectContaining({ name: "combined" }),
+      expect.anything(),
+    );
+    expect(phase.id).toBe("ph-3");
+    await experimentsApi.startPhase("exp-1", "ph-3");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/phases/ph-3/start",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.stopPhase("exp-1", "ph-3", "skipped");
+    expect(apiClient.post).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/phases/ph-3/stop?status=skipped",
+      undefined,
+      expect.anything(),
+    );
+    await experimentsApi.deletePhase("exp-1", "ph-3");
+    expect(apiClient.del).toHaveBeenLastCalledWith("/api/v1/experiments/exp-1/phases/ph-3");
+  });
+
+  it("getPhaseResults / getExperimentResults read the results routes", async () => {
+    vi.mocked(apiClient.get).mockResolvedValueOnce({
+      workflow_results: [],
+      service_latency: [],
+      service_cache: [],
+    });
+    const r = await experimentsApi.getPhaseResults("exp-1", "ph-1");
+    expect(apiClient.get).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/phases/ph-1/results",
+      expect.anything(),
+    );
+    expect(r.workflow_results).toEqual([]);
+    vi.mocked(apiClient.get).mockResolvedValueOnce({ experiment_id: "exp-1", available: false });
+    const er = await experimentsApi.getExperimentResults("exp-1");
+    expect(apiClient.get).toHaveBeenLastCalledWith(
+      "/api/v1/experiments/exp-1/results",
+      expect.anything(),
+    );
+    expect(er.available).toBe(false);
   });
 });

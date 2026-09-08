@@ -210,3 +210,11 @@ export async function uploadPool(id: string, ndjson: string): Promise<UploadResu
   }
   return UploadResultSchema.parse(await res.json());
 }
+
+/** When zeus will drop the dataset: `created_at + ttl_s`. `null` when no TTL
+ *  is recorded (ttl_s 0). Used by the experiment preflight so a plan never
+ *  outlives the data its k6 runs read. */
+export function datasetExpiresAt(ds: { created_at: string; ttl_s: number }): Date | null {
+  if (!ds.ttl_s) return null;
+  return new Date(Date.parse(ds.created_at) + ds.ttl_s * 1000);
+}

@@ -2,6 +2,8 @@ export * from "./client";
 export * as rulesApi from "./rules";
 export * as servicesApi from "./services";
 export * as experimentsApi from "./experiments";
+export * as phasesApi from "./phases";
+export * as zeusRunsApi from "./zeus-runs";
 export * as workflowsApi from "./workflows";
 export * as catalogApi from "./catalog";
 export * as faultsApi from "./faults";
