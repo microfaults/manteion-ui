@@ -17,26 +17,13 @@ import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { faultsApi, rulesApi, servicesApi } from "@/lib/api";
 import type { RuleInput } from "@/lib/api/rules";
+import { FALLBACK_SERVICES } from "@/lib/known-services";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
 import { type FaultSpecCatalog, validateRuleDraft } from "@/lib/rule-validation";
 import { MatchNodeSchema, type Rule, type RuleAction } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-
-// Used until servicesApi.listSDKInstances returns a non-empty list. Matches
-// the online-boutique demo target; real environments should rely on the fetch.
-const FALLBACK_SERVICES = [
-  "productcatalog",
-  "cartservice",
-  "checkoutservice",
-  "paymentservice",
-  "shippingservice",
-  "currencyservice",
-  "emailservice",
-  "adservice",
-  "frontend",
-];
 
 type MatchCriteria = { injection_point?: string; labels?: Record<string, string> };
 
@@ -140,7 +127,7 @@ function RuleEditorForm({
   });
   const knownServices = useMemo(() => {
     const fromApi = Array.from(new Set(sdkInstances.data?.map((i) => i.service) ?? []));
-    return fromApi.length > 0 ? fromApi.sort() : FALLBACK_SERVICES;
+    return fromApi.length > 0 ? fromApi.sort() : [...FALLBACK_SERVICES];
   }, [sdkInstances.data]);
 
   // Shared cache with FaultSpecPicker (same key) — the form needs the catalog

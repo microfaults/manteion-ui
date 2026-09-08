@@ -26,13 +26,13 @@ describe("NewExperimentButton — experiments require a workflow", () => {
     expect(button().disabled).toBe(true);
   });
 
-  it("stays disabled with a backend-not-wired reason when workflows exist", async () => {
+  it("enables once a workflow exists (POST /api/v1/experiments is wired)", async () => {
     vi.mocked(workflowsApi.listWorkflows).mockResolvedValue([
       { id: "wf-1", name: "checkout", targets: [], estRpsPerVu: 1, requestNodeCount: 2 },
     ] as never);
     render(wrap(<NewExperimentButton />));
-    await waitFor(() => expect(screen.getByText(/isn't wired/i)).toBeTruthy());
-    expect(button().disabled).toBe(true);
+    await waitFor(() => expect(button().disabled).toBe(false));
+    expect(screen.queryByText(/isn't wired/i)).toBeNull();
   });
 
   it("blocks (fail-safe) with an explanation when the workflow list cannot be fetched", async () => {
