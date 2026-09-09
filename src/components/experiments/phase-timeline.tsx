@@ -10,11 +10,12 @@ import { PhasePill } from "@/components/phase-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
-import { phasesApi, zeusRunsApi } from "@/lib/api";
+import { phasesApi } from "@/lib/api";
 import type { PhaseFinalStatus } from "@/lib/api/phases";
 import type { RuleRef } from "@/lib/experiment-draft";
 import { baselinePhase, phaseProgress } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
+import { useZeusRun } from "@/lib/use-zeus-run";
 import { cn, formatDurationMs, formatRelative } from "@/lib/utils";
 import {
   ACTIVE_PHASE_STATUSES,
@@ -319,17 +320,6 @@ function Timing({ phase, now }: { phase: PhaseSummary; now?: number }) {
       {phase.completed_at ? ` → ${formatRelative(phase.completed_at)}` : ""}
     </p>
   );
-}
-
-function useZeusRun(runId: string | undefined, live: boolean) {
-  return useQuery({
-    queryKey: ["zeus-run", runId ?? ""],
-    queryFn: () => zeusRunsApi.getRun(runId ?? ""),
-    enabled: !!runId,
-    refetchInterval: live ? 5_000 : false,
-    staleTime: live ? 4_000 : 60_000,
-    retry: false,
-  });
 }
 
 function ZeusRunStatus({ runId, live }: { runId: string; live: boolean }) {

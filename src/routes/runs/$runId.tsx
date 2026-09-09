@@ -1,26 +1,10 @@
-import { Topbar } from "@/components/layout/topbar";
-import { NotWiredYet } from "@/components/not-wired-yet";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// /runs/{id} → /phases/{id}: a "run" was always a phase. Kept for one
+// release so bookmarks survive; delete with the next release.
 export const Route = createFileRoute("/runs/$runId")({
-  component: RunDetailPage,
+  beforeLoad({ params }) {
+    throw redirect({ to: "/phases/$phaseId", params: { phaseId: params.runId } });
+  },
+  component: () => null,
 });
-
-function RunDetailPage() {
-  const { runId } = Route.useParams();
-  return (
-    <>
-      <Topbar breadcrumbs={["Runs", runId]} />
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <NotWiredYet
-          endpoints={[
-            "GET    /api/v1/runs/{id}",
-            "GET    /api/v1/runs/{id}/steps",
-            "GET    /api/v1/runs/{id}/events   (Server-Sent Events)",
-          ]}
-          note="Run detail needs an SSE endpoint for the live event tail (step.ok / step.drop / iteration.done). manteion-go currently exposes no streaming."
-        />
-      </div>
-    </>
-  );
-}

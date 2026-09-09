@@ -6,11 +6,10 @@ import {
   BoxesIcon,
   Database,
   FlaskConical,
+  Layers,
   Network,
-  Play,
   Settings2,
   ShieldAlert,
-  Waypoints,
   Workflow,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
@@ -47,8 +46,7 @@ const sections: NavSection[] = [
     title: "Run",
     items: [
       { to: "/experiments", label: "Experiments", icon: FlaskConical },
-      { to: "/runs", label: "Runs", icon: Play },
-      { to: "/attacks", label: "Attacks", icon: Waypoints },
+      { to: "/phases", label: "Phases", icon: Layers },
     ],
   },
   {

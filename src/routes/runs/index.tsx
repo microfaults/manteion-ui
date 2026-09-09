@@ -1,18 +1,10 @@
-import { Topbar } from "@/components/layout/topbar";
-import { NotWiredYet } from "@/components/not-wired-yet";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 
+// "Runs" became "Phases" (the logical unit of operation). Kept for one
+// release so bookmarks survive; delete with the next release.
 export const Route = createFileRoute("/runs/")({
-  component: RunsPage,
+  beforeLoad() {
+    throw redirect({ to: "/phases" });
+  },
+  component: () => null,
 });
-
-function RunsPage() {
-  return (
-    <>
-      <Topbar breadcrumbs={["Runs"]} />
-      <div className="flex-1 overflow-y-auto px-6 py-6">
-        <NotWiredYet endpoints={["GET /api/v1/runs"]} />
-      </div>
-    </>
-  );
-}
