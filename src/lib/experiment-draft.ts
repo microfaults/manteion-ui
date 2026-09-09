@@ -6,16 +6,18 @@
  * and the preflight (admission-control overlap, disabled rules, no SDK
  * instances) is computable from the query caches without a DOM.
  */
-import type { CacheBoxMode, CreateExperimentInput, CreatePhaseInput } from "@/types/api";
+import {
+  CACHEBOX_KEY_STRATEGIES,
+  type CacheBoxMode,
+  type CreateExperimentInput,
+  type CreatePhaseInput,
+  DEFAULT_CACHEBOX_KEY_STRATEGY,
+} from "@/types/api";
 
-export const DEFAULT_KEY_STRATEGY = "canonical_v2";
-export const CACHEBOX_KEY_STRATEGIES = [
-  "canonical_v2",
-  "exact",
-  "exact_with_host",
-  "exact_with_body",
-  "exact_with_host_norm",
-] as const;
+// The cache-box key strategies are one contract with the backend; types/api.ts
+// owns the list so the rule schema and this wizard cannot drift apart.
+export { CACHEBOX_KEY_STRATEGIES };
+export const DEFAULT_KEY_STRATEGY = DEFAULT_CACHEBOX_KEY_STRATEGY;
 export const CACHEBOX_MODES: readonly CacheBoxMode[] = [
   "replay",
   "replay_with_delay",

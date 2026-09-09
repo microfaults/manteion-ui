@@ -231,7 +231,7 @@ describe("RuleEditorPanel — rules require faults", () => {
       expect.objectContaining({
         action: {
           type: "cachebox",
-          cachebox: { mode: "passthrough", key_strategy: "exact" },
+          cachebox: { mode: "passthrough", key_strategy: "canonical_v2" },
         },
       }),
     );
@@ -343,6 +343,54 @@ describe("RuleEditorPanel — existing rule", () => {
     expect(rulesApi.updateRule).toHaveBeenCalledWith(
       "rule-001",
       expect.objectContaining({ mode: "background" }),
+    );
+  });
+});
+
+describe("RuleEditorPanel — cache-box key strategy", () => {
+  /** manteion-go `internal/model/enums.go` CacheBoxKeyStrategyValues. */
+  const BACKEND_KEY_STRATEGIES = [
+    "exact",
+    "exact_with_host",
+    "exact_with_body",
+    "canonical_v2",
+    "exact_with_host_norm",
+  ];
+
+  const openCacheboxAction = async () => {
+    const user = userEvent.setup();
+    renderPanel({ isNew: true, ruleId: null });
+    await user.selectOptions(screen.getByLabelText("Action type"), "cachebox");
+    return screen.getByLabelText("Key strategy") as HTMLSelectElement;
+  };
+
+  it("offers every key strategy the backend accepts", async () => {
+    const select = await openCacheboxAction();
+    const values = Array.from(select.options).map((o) => o.value);
+    expect(values.sort()).toEqual([...BACKEND_KEY_STRATEGIES].sort());
+  });
+
+  it("defaults a new rule to the platform default key strategy", async () => {
+    const select = await openCacheboxAction();
+    expect(select.value).toBe("canonical_v2");
+  });
+
+  it("hydrates an existing rule saved with exact_with_host_norm", async () => {
+    const hostNormRule: Rule = {
+      ...EXISTING_RULE,
+      id: "rule-host-norm",
+      name: "cachebox-host-norm",
+      action: {
+        type: "cachebox",
+        cachebox: { mode: "replay", key_strategy: "exact_with_host_norm" },
+      },
+    };
+    vi.mocked(rulesApi.getRule).mockResolvedValue(hostNormRule);
+    renderPanel({ isNew: false, ruleId: "rule-host-norm" });
+
+    await screen.findByDisplayValue("cachebox-host-norm");
+    expect((screen.getByLabelText("Key strategy") as HTMLSelectElement).value).toBe(
+      "exact_with_host_norm",
     );
   });
 });

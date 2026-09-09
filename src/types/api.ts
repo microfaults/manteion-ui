@@ -75,9 +75,28 @@ export const MatchNodeSchema: z.ZodType<MatchNode> = z.lazy(() =>
 
 // ─── Rule action (discriminated union per backend internal/model/rule.go) ───
 
+/**
+ * Every cache-box key strategy the platform accepts — mirrors manteion-go
+ * `internal/model/enums.go` (`CacheBoxKeyStrategyValues`). `canonical_v2` leads
+ * because it is the server-side default (`internal/model/cachebox.go`
+ * `DefaultKeyStrategy`), so rules stored without an explicit strategy read back
+ * carrying it. Anything narrower here makes `RuleSchema` reject live rules.
+ */
+export const CACHEBOX_KEY_STRATEGIES = [
+  "canonical_v2",
+  "exact",
+  "exact_with_host",
+  "exact_with_body",
+  "exact_with_host_norm",
+] as const;
+export type CacheBoxKeyStrategy = (typeof CACHEBOX_KEY_STRATEGIES)[number];
+
+/** What the server stores when a cache box is created without a strategy. */
+export const DEFAULT_CACHEBOX_KEY_STRATEGY = "canonical_v2" satisfies CacheBoxKeyStrategy;
+
 export const CacheBoxConfigSchema = z.object({
   mode: z.enum(["passthrough", "replay", "replay_with_delay"]),
-  key_strategy: z.enum(["exact", "exact_with_host", "exact_with_body"]),
+  key_strategy: z.enum(CACHEBOX_KEY_STRATEGIES),
 });
 export type CacheBoxConfig = z.infer<typeof CacheBoxConfigSchema>;
 

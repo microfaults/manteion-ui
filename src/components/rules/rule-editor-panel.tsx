@@ -21,9 +21,30 @@ import { FALLBACK_SERVICES } from "@/lib/known-services";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
 import { compile } from "@/lib/rego/compile";
 import { type FaultSpecCatalog, validateRuleDraft } from "@/lib/rule-validation";
-import { MatchNodeSchema, type Rule, type RuleAction } from "@/types/api";
+import {
+  CACHEBOX_KEY_STRATEGIES,
+  type CacheBoxKeyStrategy,
+  DEFAULT_CACHEBOX_KEY_STRATEGY,
+  MatchNodeSchema,
+  type Rule,
+  type RuleAction,
+} from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+
+/** Short labels for the raw backend enum values; order follows CACHEBOX_KEY_STRATEGIES. */
+const KEY_STRATEGY_LABELS: Record<CacheBoxKeyStrategy, string> = {
+  canonical_v2: "canonical v2 (default)",
+  exact: "exact",
+  exact_with_host: "exact + host",
+  exact_with_body: "exact + body",
+  exact_with_host_norm: "exact + host (normalized)",
+};
+
+const KEY_STRATEGY_OPTIONS = CACHEBOX_KEY_STRATEGIES.map((value) => ({
+  value,
+  label: KEY_STRATEGY_LABELS[value],
+}));
 
 type MatchCriteria = { injection_point?: string; labels?: Record<string, string> };
 
@@ -165,9 +186,11 @@ function RuleEditorForm({
   const [cacheboxMode, setCacheboxMode] = useState<"passthrough" | "replay" | "replay_with_delay">(
     existing?.action?.type === "cachebox" ? existing.action.cachebox.mode : "passthrough",
   );
-  const [cacheboxKeyStrategy, setCacheboxKeyStrategy] = useState<
-    "exact" | "exact_with_host" | "exact_with_body"
-  >(existing?.action?.type === "cachebox" ? existing.action.cachebox.key_strategy : "exact");
+  const [cacheboxKeyStrategy, setCacheboxKeyStrategy] = useState<CacheBoxKeyStrategy>(
+    existing?.action?.type === "cachebox"
+      ? existing.action.cachebox.key_strategy
+      : DEFAULT_CACHEBOX_KEY_STRATEGY,
+  );
   // Match-builder state unchanged. The compiled rego is display-only since
   // schema epoch 2 dropped match_expr from the rule model — the builder AST
   // (match_ast) plus the derived match criteria are what get persisted.
@@ -298,7 +321,7 @@ function RuleEditorForm({
                 onChange={(e) =>
                   setCacheboxKeyStrategy(e.target.value as typeof cacheboxKeyStrategy)
                 }
-                options={["exact", "exact_with_host", "exact_with_body"]}
+                options={KEY_STRATEGY_OPTIONS}
                 className="font-mono text-sm"
               />
             </Field>
