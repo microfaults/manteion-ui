@@ -66,3 +66,11 @@ export function formatRelative(iso: string | null | undefined): string {
   const d = Math.floor(h / 24);
   return `${d}d ago`;
 }
+
+/** Compact count for stat cards: 950 → "950", 43_400 → "43.4k", 2_100_000 → "2.1M". */
+export function formatCount(n: number | null | undefined): string {
+  if (n == null) return "—";
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
+  return String(n);
+}

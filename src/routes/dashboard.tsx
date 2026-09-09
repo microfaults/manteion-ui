@@ -16,6 +16,7 @@ import {
 import { experimentsApi, rulesApi, servicesApi } from "@/lib/api";
 import { ApiError } from "@/lib/api/client";
 import { bucketFaultRules } from "@/lib/fault-categorize";
+import { grafanaDashboardUrl } from "@/lib/grafana";
 import {
   type TimeSeriesPoint,
   fetchDashboardPrometheusBundle,
@@ -194,7 +195,7 @@ function DashboardPage() {
               value={formatPlatformRps(dashboardMetrics.data?.requestRate)}
               trend={dashboardMetrics.data?.requestRateRange}
               color="blue"
-              grafanaUrl={makeGrafanaUrl(grafanaBase, "requests-sec")}
+              grafanaUrl={grafanaDashboardUrl(grafanaBase, "requests-sec")}
             />
             <ObservabilityCard
               title="p99 latency"
@@ -202,7 +203,7 @@ function DashboardPage() {
               value={`${Math.round(dashboardMetrics.data?.p99Latency ?? 0)} ms`}
               trend={dashboardMetrics.data?.p99LatencyRange}
               color="red"
-              grafanaUrl={makeGrafanaUrl(grafanaBase, "p99-latency")}
+              grafanaUrl={grafanaDashboardUrl(grafanaBase, "p99-latency")}
             />
             <ObservabilityCard
               title="Error rate"
@@ -211,7 +212,7 @@ function DashboardPage() {
               valueHint={trendQualifier(dashboardMetrics.data?.errorRateRange, "stable", "spiky")}
               trend={dashboardMetrics.data?.errorRateRange}
               trendClassName="bg-muted-foreground"
-              grafanaUrl={makeGrafanaUrl(grafanaBase, "error-rate")}
+              grafanaUrl={grafanaDashboardUrl(grafanaBase, "error-rate")}
             />
             <ObservabilityCard
               title="Cache-box hit rate"
@@ -224,7 +225,7 @@ function DashboardPage() {
               )}
               trend={dashboardMetrics.data?.cacheHitRateRange}
               color="blue"
-              grafanaUrl={makeGrafanaUrl(grafanaBase, "cache-hit-rate")}
+              grafanaUrl={grafanaDashboardUrl(grafanaBase, "cache-hit-rate")}
             />
           </div>
         </section>
@@ -395,27 +396,6 @@ const RANGE_MIN_BY_TOKEN: Record<string, 5 | 15 | 30 | 60> = {
   "30m": 30,
   "1h": 60,
 };
-
-/** Bundled dashboard in `microservices-demo-go/kubernetes-manifests/grafana-dashboards.yaml`. */
-const GRAFANA_OVERVIEW_UID = "atropos-overview";
-
-/** Panel IDs on that dashboard (not slugs — `viewPanel` must be numeric). */
-const GRAFANA_PANEL_BY_METRIC: Record<string, number | undefined> = {
-  "requests-sec": 3,
-  "p99-latency": 5,
-  "error-rate": 6,
-  /* No cache panel in the overview dashboard — open the board without deep-link. */
-  "cache-hit-rate": undefined,
-};
-
-function makeGrafanaUrl(base: string | undefined, metric: string): string | undefined {
-  if (!base) return undefined;
-  const trimmed = base.replace(/\/+$/, "");
-  const panel = GRAFANA_PANEL_BY_METRIC[metric];
-  const q = new URLSearchParams({ orgId: "1" });
-  if (typeof panel === "number" && panel > 0) q.set("viewPanel", String(panel));
-  return `${trimmed}/d/${GRAFANA_OVERVIEW_UID}?${q.toString()}`;
-}
 
 function sdkInstancesFooter(
   loading: boolean,

@@ -13,6 +13,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { experimentsApi } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
+import { baselinePhase } from "@/lib/phase-metrics";
 import { formatDurationMs, formatRelative } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
@@ -22,10 +24,11 @@ export const Route = createFileRoute("/experiments/")({
 });
 
 function ExperimentsPage() {
-  const { data, isLoading, isError } = useQuery({
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["experiments"],
-    queryFn: experimentsApi.listExperimentsLenient,
+    queryFn: experimentsApi.listExperiments,
     retry: false,
+    refetchInterval: (q) => (q.state.data?.some((e) => e.status === "running") ? 5_000 : false),
   });
 
   return (
@@ -56,10 +59,8 @@ function ExperimentsPage() {
                 ) : null}
                 {isError ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="text-muted-foreground">
-                      <code className="font-mono">/api/v1/experiments</code> is not yet exposed by
-                      manteion-go — see <code className="font-mono">docs/api/api-needed.md</code>.
-                      Showing an empty list for now.
+                    <TableCell colSpan={7} className="text-status-down">
+                      {describeApiError(error)}
                     </TableCell>
                   </TableRow>
                 ) : null}
@@ -107,6 +108,7 @@ function ExperimentsPage() {
                               phase={p.name}
                               statusHint={p.status}
                               fallbackSummary={p}
+                              baselinePhase={baselinePhase(e.phases)}
                             >
                               <span>
                                 <PhasePill name={p.name} status={p.status} widthPx={28} />

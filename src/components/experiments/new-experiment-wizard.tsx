@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { ApiError, experimentsApi, rulesApi, servicesApi, workflowsApi } from "@/lib/api";
+import { experimentsApi, rulesApi, servicesApi, workflowsApi } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
 import {
   type ExperimentDraft,
   type PreflightItem,
@@ -128,7 +129,7 @@ export function NewExperimentWizard({ onCreated, onCancel }: NewExperimentWizard
       queryClient.invalidateQueries({ queryKey: ["experiments"] });
       onCreated(exp, start);
     },
-    onError: (e: unknown) => setSubmitError(describeError(e)),
+    onError: (e: unknown) => setSubmitError(describeApiError(e)),
   });
 
   const goToPlan = () => {
@@ -342,13 +343,4 @@ function PreflightIcon({ level }: { level: PreflightItem["level"] }) {
     return <AlertTriangle className="size-4 shrink-0 text-status-degraded" aria-label="warning" />;
   }
   return <XCircle className="size-4 shrink-0 text-status-down" aria-label="blocking" />;
-}
-
-function describeError(e: unknown): string {
-  if (e instanceof ApiError) {
-    const body = e.body as { error?: string; code?: string } | undefined;
-    const detail = body?.error ?? e.message;
-    return `manteion answered ${e.status}${body?.code ? ` (${body.code})` : ""}: ${detail}`;
-  }
-  return e instanceof Error ? e.message : String(e);
 }

@@ -1,6 +1,6 @@
+import { ExperimentDetail } from "@/components/experiments/experiment-detail";
 import { Topbar } from "@/components/layout/topbar";
-import { NotWiredYet } from "@/components/not-wired-yet";
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/experiments/$experimentId")({
   component: ExperimentDetailPage,
@@ -8,18 +8,14 @@ export const Route = createFileRoute("/experiments/$experimentId")({
 
 function ExperimentDetailPage() {
   const { experimentId } = Route.useParams();
+  const navigate = useNavigate();
   return (
     <>
-      <Topbar breadcrumbs={["Experiments", experimentId]} />
+      <Topbar breadcrumbs={[{ label: "Experiments", to: "/experiments" }, experimentId]} />
       <div className="flex-1 overflow-y-auto px-6 py-6">
-        <NotWiredYet
-          endpoints={[
-            "GET    /api/v1/experiments/{id}",
-            "POST   /api/v1/experiments/{id}/runs",
-            "GET    /api/v1/experiments/{id}/phase/{phase_name}/status",
-            "GET    /api/v1/runs/{id}/events    (SSE)",
-          ]}
-          note="Experiment detail (Overview, Phases timeline, Observability, Logs) hinges on endpoints that the ExperimentRepo supports but no HTTP routes expose."
+        <ExperimentDetail
+          experimentId={experimentId}
+          onDeleted={() => navigate({ to: "/experiments" })}
         />
       </div>
     </>

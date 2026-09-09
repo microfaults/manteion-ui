@@ -101,3 +101,40 @@ export function baselinePhase<T extends { name: string; position?: number }>(
     [...phases].sort((a, b) => (a.position ?? 0) - (b.position ?? 0))[0]
   );
 }
+
+/** Planned wall-clock for a phase: its longest workflow leg. null when no
+ *  workflow carries a duration. */
+export function plannedPhaseMs(phase: { workflows: readonly { duration_sec?: number }[] }):
+  | number
+  | null {
+  let max = 0;
+  for (const w of phase.workflows) if (w.duration_sec && w.duration_sec > max) max = w.duration_sec;
+  return max > 0 ? max * 1000 : null;
+}
+
+export interface PhaseProgress {
+  elapsedMs: number;
+  plannedMs: number | null;
+  /** 0..1 against the plan, capped — the poller finishes on its own schedule. */
+  fraction: number | null;
+}
+
+/** Time-based progress for an in-flight phase (zeus reports no mid-run
+ *  numbers, so wall-clock against the planned duration is the only signal). */
+export function phaseProgress(
+  phase: {
+    started_at?: string | null;
+    completed_at?: string | null;
+    workflows: readonly { duration_sec?: number }[];
+  },
+  now: number = Date.now(),
+): PhaseProgress | null {
+  const elapsedMs = phaseDurationMs(phase, now);
+  if (elapsedMs == null) return null;
+  const plannedMs = plannedPhaseMs(phase);
+  return {
+    elapsedMs,
+    plannedMs,
+    fraction: plannedMs ? Math.min(1, elapsedMs / plannedMs) : null,
+  };
+}

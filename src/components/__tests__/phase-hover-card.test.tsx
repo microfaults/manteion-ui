@@ -7,7 +7,8 @@ import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({
-  experimentsApi: { getPhaseStatus: vi.fn() },
+  experimentsApi: { getPhaseStatus: vi.fn(), getPhaseResults: vi.fn() },
+  zeusRunsApi: { getRunStats: vi.fn() },
 }));
 import { experimentsApi } from "@/lib/api";
 
@@ -117,6 +118,12 @@ describe("PhaseHoverCard fetch behavior", () => {
   beforeEach(() => {
     vi.mocked(experimentsApi.getPhaseStatus).mockReset();
     vi.mocked(experimentsApi.getPhaseStatus).mockResolvedValue(SUMMARY);
+    vi.mocked(experimentsApi.getPhaseResults).mockReset();
+    vi.mocked(experimentsApi.getPhaseResults).mockResolvedValue({
+      workflow_results: [],
+      service_latency: [],
+      service_cache: [],
+    });
   });
 
   it("does NOT fetch while the card is closed (no per-pill polling on mount)", async () => {
@@ -147,6 +154,29 @@ describe("PhaseHoverCard fetch behavior", () => {
     );
     await waitFor(() =>
       expect(experimentsApi.getPhaseStatus).toHaveBeenCalledWith("exp-1", "ph-1"),
+    );
+  });
+
+  it("fetches results for a terminal phase once open, even when a fallback summary is supplied", async () => {
+    render(
+      wrap(
+        <PhaseHoverCard
+          experimentId="exp-1"
+          phaseId="ph-1"
+          phase="isolation-productcatalog"
+          statusHint="completed"
+          fallbackSummary={SUMMARY}
+          defaultOpen
+        >
+          <span>pill</span>
+        </PhaseHoverCard>,
+      ),
+    );
+    await waitFor(() =>
+      expect(experimentsApi.getPhaseStatus).toHaveBeenCalledWith("exp-1", "ph-1"),
+    );
+    await waitFor(() =>
+      expect(experimentsApi.getPhaseResults).toHaveBeenCalledWith("exp-1", "ph-1"),
     );
   });
 });

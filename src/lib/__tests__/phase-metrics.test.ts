@@ -4,6 +4,8 @@ import {
   metricsFromZeusStats,
   pctDelta,
   phaseDurationMs,
+  phaseProgress,
+  plannedPhaseMs,
 } from "@/lib/phase-metrics";
 import type { PhaseResults, PhaseWorkflowResult, ZeusRunStats } from "@/types/api";
 import { describe, expect, it } from "vitest";
@@ -138,5 +140,24 @@ describe("baselinePhase", () => {
     expect(baselinePhase(phases)?.id).toBe("a");
     expect(baselinePhase(phases.filter((p) => p.name !== "baseline"))?.id).toBe("b");
     expect(baselinePhase([])).toBeUndefined();
+  });
+});
+
+describe("phaseProgress", () => {
+  const workflows = [{ duration_sec: 300 }, { duration_sec: 120 }];
+  it("plans by the longest workflow leg and reports capped time-based progress", () => {
+    expect(plannedPhaseMs({ workflows })).toBe(300_000);
+    expect(plannedPhaseMs({ workflows: [] })).toBeNull();
+    const p = phaseProgress(
+      { started_at: "2026-06-01T00:00:00Z", workflows },
+      Date.parse("2026-06-01T00:03:24Z"),
+    );
+    expect(p).toEqual({ elapsedMs: 204_000, plannedMs: 300_000, fraction: 0.68 });
+    const over = phaseProgress(
+      { started_at: "2026-06-01T00:00:00Z", workflows },
+      Date.parse("2026-06-01T00:10:00Z"),
+    );
+    expect(over?.fraction).toBe(1);
+    expect(phaseProgress({ workflows })).toBeNull();
   });
 });

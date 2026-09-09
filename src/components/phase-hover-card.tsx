@@ -1,8 +1,10 @@
+import { MetricsGrid } from "@/components/experiments/phase-row-results";
 import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { experimentsApi } from "@/lib/api";
-import { type PhaseMetrics, pctDelta, phaseDurationMs } from "@/lib/phase-metrics";
-import { formatDurationMs, formatLatencyUs } from "@/lib/utils";
+import { type PhaseMetrics, phaseProgress } from "@/lib/phase-metrics";
+import { usePhaseMetrics } from "@/lib/use-phase-metrics";
+import { formatDurationMs } from "@/lib/utils";
 import {
   ACTIVE_PHASE_STATUSES,
   type PhaseName,
@@ -22,10 +24,8 @@ interface PhaseHoverCardProps {
   statusHint: PhaseStatus;
   /** Optional inline summary so the card renders immediately without waiting for fetch. */
   fallbackSummary?: PhaseSummary;
-  /** Derived results for a terminal phase (harvested or zeus fallback). */
-  metrics?: PhaseMetrics;
-  /** The experiment's baseline p99 for the delta line. */
-  baselineP99Us?: number;
+  /** The experiment's baseline phase — its p99 anchors the delta line. */
+  baselinePhase?: PhaseSummary;
   /** Open the card immediately (tests / debugging). */
   defaultOpen?: boolean;
   children: ReactNode;
@@ -55,8 +55,7 @@ export function PhaseHoverCard({
   phase,
   statusHint,
   fallbackSummary,
-  metrics,
-  baselineP99Us,
+  baselinePhase,
   defaultOpen = false,
   children,
 }: PhaseHoverCardProps) {
@@ -70,10 +69,16 @@ export function PhaseHoverCard({
     staleTime: isLive ? 2_000 : 30_000,
     refetchInterval: open && isLive ? 2_000 : false,
     retry: false,
-    initialData: fallbackSummary,
+    // Shown while the real phase loads; never persisted as if it were fetched.
+    placeholderData: fallbackSummary,
   });
 
   const summary = query.data ?? fallbackSummary;
+  // Terminal phases fetch their results (zeus fallback) only while the card is open.
+  const own = usePhaseMetrics(experimentId, summary, open);
+  const base = usePhaseMetrics(experimentId, baselinePhase, open && baselinePhase?.id !== phaseId);
+  const metrics = own.metrics;
+  const baselineP99Us = baselinePhase?.id === phaseId ? undefined : base.metrics?.p99_us;
 
   return (
     <HoverCard open={open} onOpenChange={setOpen} openDelay={80} closeDelay={120}>
@@ -111,7 +116,7 @@ export function PhaseSummaryContent({
   metrics?: PhaseMetrics;
   baselineP99Us?: number;
 }) {
-  const durationMs = summary ? phaseDurationMs(summary) : null;
+  const progress = summary ? phaseProgress(summary) : null;
   const inFlight = ACTIVE_PHASE_STATUSES.has(status);
 
   return (
@@ -150,28 +155,8 @@ export function PhaseSummaryContent({
       ) : null}
 
       {metrics ? (
-        <div className="mt-3 rounded-md border border-border bg-muted/30 p-2 text-xs">
-          <div className="grid grid-cols-3 gap-2">
-            <Metric
-              label="p99"
-              value={formatLatencyUs(metrics.p99_us)}
-              delta={
-                metrics.p99_us != null && baselineP99Us
-                  ? pctDelta(baselineP99Us, metrics.p99_us)
-                  : undefined
-              }
-            />
-            <Metric label="RPS" value={metrics.rps != null ? metrics.rps.toFixed(1) : "—"} />
-            <Metric
-              label="errors"
-              value={metrics.error_rate != null ? `${(metrics.error_rate * 100).toFixed(2)}%` : "—"}
-            />
-          </div>
-          {metrics.source === "zeus" ? (
-            <div className="mt-1.5 text-[10px] text-muted-foreground">
-              via zeus run stats — k6 runs aren't harvested into manteion yet
-            </div>
-          ) : null}
+        <div className="mt-3">
+          <MetricsGrid metrics={metrics} baselineP99Us={baselineP99Us} />
         </div>
       ) : status === "pending" ? (
         <p className="mt-3 text-xs italic text-muted-foreground">Not run yet.</p>
@@ -181,9 +166,12 @@ export function PhaseSummaryContent({
         <p className="mt-3 text-xs text-status-down">{summary.failure_reason}</p>
       ) : null}
 
-      {durationMs != null ? (
+      {progress ? (
         <div className="mt-2 text-[11px] text-muted-foreground">
-          {inFlight ? "elapsed" : "duration"} · {formatDurationMs(durationMs)}
+          {inFlight ? "elapsed" : "duration"} · {formatDurationMs(progress.elapsedMs)}
+          {inFlight && progress.plannedMs != null
+            ? ` / ${formatDurationMs(progress.plannedMs)}`
+            : ""}
         </div>
       ) : null}
 
@@ -196,25 +184,5 @@ export function PhaseSummaryContent({
         </a>
       </div>
     </>
-  );
-}
-
-function Metric({ label, value, delta }: { label: string; value: string; delta?: string }) {
-  return (
-    <div>
-      <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="font-mono font-medium">{value}</div>
-      {delta ? (
-        <div
-          className={
-            delta.startsWith("-")
-              ? "text-[10px] text-status-healthy"
-              : "text-[10px] text-status-down"
-          }
-        >
-          {delta}
-        </div>
-      ) : null}
-    </div>
   );
 }
