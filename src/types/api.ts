@@ -128,7 +128,9 @@ export const SDKInstanceSchema = z.object({
 export type SDKInstance = z.infer<typeof SDKInstanceSchema>;
 
 /** Detail payload — superset of SDKInstance returned by
- *  GET /api/v1/sdk/instances/{id}. See docs/api/api-needed.md §B.2. */
+ *  GET /api/v1/sdk/instances/{id} (manteion-go MR !29). `recent_run_ids`
+ *  carries phase ids; last_error / last_rule_version_acked are not emitted
+ *  yet (no columns) and render only when present. */
 export const SDKInstanceDetailSchema = SDKInstanceSchema.extend({
   last_error: z.string().optional(),
   last_rule_version_acked: z.number().int().optional(),
@@ -143,13 +145,6 @@ export const KillSwitchResultSchema = z.object({
   at: Timestamp,
 });
 export type KillSwitchResult = z.infer<typeof KillSwitchResultSchema>;
-
-/** POST /api/v1/sdk/instances/{id}/cachebox response envelope. */
-export const CacheBoxModeResultSchema = z.object({
-  rule_id: z.string(),
-  at: Timestamp,
-});
-export type CacheBoxModeResult = z.infer<typeof CacheBoxModeResultSchema>;
 
 // ─── Fault ────────────────────────────────────────────────────────────
 

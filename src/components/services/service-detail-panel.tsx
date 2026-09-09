@@ -1,10 +1,13 @@
 import { CacheBoxBadge, RuleTypeBadge, StatusBadge } from "@/components/services/service-badges";
 import { Button } from "@/components/ui/button";
 import { rulesApi, servicesApi } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
+import { ApiError } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 import type { Rule } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Box, X, Zap } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import { X, Zap } from "lucide-react";
 
 interface Props {
   instanceId: string;
@@ -20,7 +23,11 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
     queryFn: () => servicesApi.getSDKInstance(instanceId),
     refetchInterval: 10_000,
     refetchIntervalInBackground: false,
+    retry: false,
   });
+  // GET /api/v1/sdk/instances/{id} lands with manteion-go MR !29; older builds 404.
+  const notExposed =
+    detail.isError && detail.error instanceof ApiError && detail.error.status === 404;
 
   const rulesQuery = useQuery({
     queryKey: ["rules"],
@@ -31,12 +38,13 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
   const activeRules = (rulesQuery.data ?? []).filter((r) => activeRuleIds.has(r.id));
   const isInCacheBoxMode = activeRules.some((r) => r.action.type === "cachebox");
 
-  const toggleEnabled = useMutation({
+  // Active rules are enabled by definition; the only per-rule action is to disable one.
+  const disableRule = useMutation({
     mutationFn: (rule: Rule) =>
       rulesApi.updateRule(rule.id, {
         name: rule.name,
         service: rule.service,
-        enabled: !rule.enabled,
+        enabled: false,
         priority: rule.priority,
         mode: rule.mode,
         start_policy: rule.start_policy,
@@ -57,15 +65,6 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
     },
   });
 
-  const cacheBox = useMutation({
-    mutationFn: () =>
-      servicesApi.cacheBoxMode(instanceId, { mode: "replay", key_strategy: "exact" }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["rules"] });
-      qc.invalidateQueries({ queryKey: ["sdk-instance", instanceId] });
-    },
-  });
-
   function onKillSwitch() {
     const count = activeRules.length;
     const msg =
@@ -73,13 +72,6 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
         ? `Disable all ${count} active rule${count === 1 ? "" : "s"} on this instance?`
         : "Run the kill switch on this instance? (No active rules are currently reported.)";
     if (window.confirm(msg)) killSwitch.mutate();
-  }
-
-  function onCacheBox() {
-    const msg =
-      "Switch this instance to cache-box mode (replay, exact key)? " +
-      "A per-instance cache-box rule will be created server-side.";
-    if (window.confirm(msg)) cacheBox.mutate();
   }
 
   const service = detail.data?.service ?? fallbackService ?? "—";
@@ -109,7 +101,15 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
         {/* Instance metadata */}
         <Section title="Instance">
           {detail.isLoading && <Muted>Loading…</Muted>}
-          {detail.isError && <Muted>Could not load instance detail.</Muted>}
+          {detail.isError &&
+            (notExposed ? (
+              <Muted>
+                Instance detail is not exposed by this manteion-go build (needs
+                <code className="font-mono"> GET /api/v1/sdk/instances/{"{id}"}</code>).
+              </Muted>
+            ) : (
+              <Muted>{describeApiError(detail.error)}</Muted>
+            ))}
           {detail.data && (
             <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1.5">
               <Field label="Version" value={detail.data.version ?? "—"} mono />
@@ -152,16 +152,13 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
                     <button
                       type="button"
                       className={cn(
-                        "h-[22px] cursor-pointer rounded border px-2 text-[11px] font-medium transition-colors",
-                        r.enabled
-                          ? "border-status-healthy/30 bg-status-healthy/15 text-status-healthy hover:bg-status-healthy/25"
-                          : "border-status-down/30 bg-status-down/15 text-status-down hover:bg-status-down/25",
+                        "h-[22px] cursor-pointer rounded border border-status-down/30 bg-status-down/15 px-2 text-[11px] font-medium text-status-down transition-colors hover:bg-status-down/25",
                         "disabled:cursor-not-allowed disabled:opacity-50",
                       )}
-                      disabled={toggleEnabled.isPending}
-                      onClick={() => toggleEnabled.mutate(r)}
+                      disabled={disableRule.isPending}
+                      onClick={() => disableRule.mutate(r)}
                     >
-                      {r.enabled ? "Enabled" : "Disabled"}
+                      Disable
                     </button>
                   </div>
                 </div>
@@ -170,16 +167,22 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
           )}
         </Section>
 
-        {/* Recent runs */}
-        <Section title="Recent runs">
-          {detail.data && detail.data.recent_run_ids.length === 0 && <Muted>No recent runs.</Muted>}
+        {/* Recent phases — the backend reports phase ids that touched this service */}
+        <Section title="Recent phases">
+          {detail.data && detail.data.recent_run_ids.length === 0 && (
+            <Muted>No recent phases.</Muted>
+          )}
           {detail.data && detail.data.recent_run_ids.length > 0 && (
             <ul className="flex flex-col divide-y">
               {detail.data.recent_run_ids.map((id) => (
                 <li key={id} className="py-1.5">
-                  <span className="cursor-pointer font-mono text-[11px] text-primary hover:underline">
+                  <Link
+                    to="/phases/$phaseId"
+                    params={{ phaseId: id }}
+                    className="font-mono text-[11px] text-primary hover:underline"
+                  >
                     {id}
-                  </span>
+                  </Link>
                 </li>
               ))}
             </ul>
@@ -189,33 +192,34 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
 
       {/* Footer actions */}
       <div className="border-t px-5 py-4">
-        <Button
-          variant="destructive"
-          className="w-full"
-          onClick={onKillSwitch}
-          disabled={killSwitch.isPending}
-        >
-          <Zap className="size-4" />
-          {killSwitch.isPending ? "Disabling…" : "Kill switch"}
-        </Button>
-        <Button
-          className={cn(
-            "mt-2 w-full bg-secondary text-secondary-foreground shadow hover:bg-secondary/90",
-          )}
-          onClick={onCacheBox}
-          disabled={cacheBox.isPending || isInCacheBoxMode}
-        >
-          <Box className="size-4" />
-          {isInCacheBoxMode
-            ? "In cache-box mode"
-            : cacheBox.isPending
-              ? "Enabling…"
-              : "Cache-box mode"}
-        </Button>
-        <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Kill switch disables all active rules immediately. Cache-box mode replays recorded
-          responses instead.
-        </p>
+        {notExposed ? (
+          <p className="text-center text-[11px] text-muted-foreground">
+            Kill switch needs <code className="font-mono">POST …/kill-switch</code> — not exposed by
+            this manteion-go build. Disable rules from the Rules page meanwhile.
+          </p>
+        ) : (
+          <>
+            <Button
+              variant="destructive"
+              className="w-full"
+              onClick={onKillSwitch}
+              disabled={killSwitch.isPending || detail.isLoading}
+            >
+              <Zap className="size-4" />
+              {killSwitch.isPending ? "Disabling…" : "Kill switch"}
+            </Button>
+            {killSwitch.isError ? (
+              <p className="mt-2 text-center text-[11px] text-status-down">
+                {describeApiError(killSwitch.error)}
+              </p>
+            ) : null}
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              Disables every rule for this service and bumps the rule version so SDKs drop them on
+              their next poll. Cache-box freezes are phase-driven — release them by stopping the
+              phase.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );

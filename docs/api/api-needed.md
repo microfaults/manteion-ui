@@ -1,298 +1,238 @@
-# API-NEEDED — the contract `manteion-ui` expects from `manteion-go`
+# API contract — what `manteion-ui` consumes from `manteion-go`
 
-This doc is authored from the UI's point of view. It enumerates every HTTP
-endpoint a faithful implementation of the screens in `../design/ui-design.md`
-(and the redesigned Rules / Experiments pages — see
-`../design/figma-changes.md`) needs the backend to expose.
+Authored from the UI's point of view, against manteion-go `develop` at
+schema **epoch 2** (`internal/api/server.go`). It lists every route the UI
+calls, per screen, and the drift that still separates the two repos.
 
-It also calls out **drift** between the current Figma/UI assumptions and
-`manteion-go`'s reality — places where the backend has to pick a resolution
-before the UI can honour the design.
+Rules of the road: a backend PR that adds or changes a route edits the same
+row here; a UI PR that starts consuming a route flips its status. Nothing in
+this file is a plan — if it is listed as ✔ the route is served today.
 
-Audience: the manteion-go team. This doc is the single source of truth for
-the missing backend work. Update it in the same PR as any schema change.
+Status legend: ✔ served by `develop` · ⧗ in an open merge request · ◻ not
+started · ✖ retired (never coming back in that shape).
 
 ---
 
 ## 0. TL;DR
 
-- 23 endpoints referenced by the UI.
-- Currently exposed by manteion-go: **9** (rules CRUD, SDK endpoints, zeus
-  proxies, health).
-- Missing: **14** (Experiments, Faults, Runs/SSE, Workflows/Flows, Datasets,
-  rule compile/validate, SDK kill-switch).
-- Backend has repo code for most of what's missing — the gap is HTTP routes,
-  not business logic.
-- Three semantic mismatches between Figma and the `Rule` data model require a
-  product decision (§B.3 #1, #2, #4).
+- The experiment loop is **fully served**: create → start → phases progress
+  (rules pushed, services frozen, k6 runs / vegeta attacks through zeus) →
+  harvest → results. `tools/expctl/expctl.py` drives it over plain HTTP; the
+  UI now does the same (`src/lib/api/experiments.ts`, `phases.ts`,
+  `zeus-runs.ts`).
+- Retired and replaced: `/api/v1/runs/*` ("a run is a phase" — use
+  `/api/v1/phases/*`), `/api/v1/attacks/*` (vegeta legs are visible per phase
+  workflow; zeus attacks are deliberately not proxied), `/api/v1/flows` and
+  `/api/v1/personas` (workflows are manteion-owned at `/api/v1/workflows`).
+- Open drift (section C): five small backend items, three of them already in
+  merge requests.
 
 ---
 
-## A. What exists today (`manteion-go/internal/api/server.go:68-99`)
+## A. Served today (`internal/api/server.go`)
 
 ```
-GET    /healthz                                -- infra
-GET    /readyz                                 -- infra
-GET    /api/v1/status                          -- {rules:int, instances:int, zeus_reachable:bool}
+GET    /healthz | /readyz | /api/v1/healthz | /api/v1/readyz
+GET    /api/v1/status                                     {rules, instances, zeus_reachable}
 
-POST   /api/v1/rules                           -- create Rule
-GET    /api/v1/rules                           -- list Rule[]   (no pagination)
-GET    /api/v1/rules/{id}                      -- get Rule
-PUT    /api/v1/rules/{id}                      -- update Rule
-DELETE /api/v1/rules/{id}                      -- delete Rule
+POST   /api/v1/rules            GET /api/v1/rules          GET|PUT|DELETE /api/v1/rules/{id}
 
-POST   /api/v1/sdk/register                    -- upsert SDKInstance
-DELETE /api/v1/sdk/register/{id}
-GET    /api/v1/sdk/instances                   -- list SDKInstance[]
-GET    /api/v1/sdk/rules                       -- version-checked poll for atropos SDKs
-GET    /api/v1/sdk/init
+POST   /api/v1/faults/specs     GET /api/v1/faults/specs   GET|PUT|DELETE /api/v1/faults/specs/{id}
+POST   /api/v1/faults/compositions   GET /api/v1/faults/compositions   GET|DELETE …/compositions/{id}
+GET    /api/v1/faults/catalog
+POST   /api/v1/faults/configs   GET /api/v1/faults/configs   DELETE …/configs/{id}
+POST   /api/v1/faults/configs/{id}/fire | /cancel
 
-POST   /api/v1/zeus/workloads     GET ... DEL ...    -- blind passthrough to Archer
-POST   /api/v1/zeus/attacks       GET ... DEL ...    -- blind passthrough
-POST   /api/v1/zeus/policies      GET ... DEL ...    -- blind passthrough
+POST   /api/v1/workflows        GET /api/v1/workflows      GET|PUT|DELETE /api/v1/workflows/{id}
+POST   /api/v1/workflows/{id}/validate   POST /api/v1/workflows/{id}/runs
+GET    /api/v1/catalog/endpoints
+
+POST   /api/v1/experiments                                create (nested full plan, §B.7)
+GET    /api/v1/experiments?status=&limit=&offset=         page envelope {data, page} — bare rows, no phases
+GET    /api/v1/experiments/{id}                           detail incl. phases[] (each + workflows[] + rule_ids[])
+DELETE /api/v1/experiments/{id}
+POST   /api/v1/experiments/{id}/start|pause|resume|cancel|stop[?status=completed|failed|cancelled]
+GET    /api/v1/experiments/{id}/results                   rollup, or {experiment_id, available:false}
+POST   /api/v1/experiments/{id}/phases                    add phase (omit position ⇒ append; see C)
+GET|DELETE /api/v1/experiments/{id}/phases/{phaseId}
+POST   /api/v1/experiments/{id}/phases/{phaseId}/start|stop[?status=completed|failed|skipped]
+GET    /api/v1/experiments/{id}/phases/{phaseId}/results  workflow_results[], service_latency[], service_cache[], verdict?, drain?
+
+GET    /api/v1/phases?limit=&offset=                      flat PhaseListItem page (no filters — UI filters client-side)
+GET    /api/v1/phases/{phaseId}                           PhaseDetail (+ experiment_name, workflow_results[], totals)
+GET    /api/v1/phases/{phaseId}/faults                    frozen_services[], phase_rules[], fault_events[]
+POST   /api/v1/phases/{phaseId}/pause|resume|stop[?status=]
+
+POST   /api/v1/policies         GET /api/v1/policies       GET|DELETE …/policies/{id}   PATCH …/{id}/enable|disable
+
+POST   /api/v1/sdk/register     DELETE /api/v1/sdk/register/{id}
+GET    /api/v1/sdk/instances    GET /api/v1/sdk/rules      GET /api/v1/sdk/init   GET /api/v1/sdk/events (SSE)
+POST   /api/v1/cache/ingest     GET /api/v1/cache/entries  POST /api/v1/sdk/cachebox/drain
+
+/api/v1/zeus/workflows[/{id}[/validate|/runs]]            proxied to zeus (query string forwarded since 7c626b3)
+/api/v1/zeus/runs[/{run_id}[/events|/stats]]              proxied — run state is in-memory on zeus
+/api/v1/zeus/datasets[/{id}[/upload|/sample]]             proxied
 ```
 
-That's the entire API surface today. Everything else in this doc is **new**.
+Wire facts the UI depends on (all verified against the Go structs):
+
+- `PhaseStatus` = `pending | running | paused | completed | failed | skipped | draining`.
+  `draining` is the cache-box flush at the end of a recording phase; still in
+  flight from the operator's point of view.
+- Phase read-outs carry **no metrics** and **no applied-rule details** — only
+  `rule_ids[]`. Metrics live at `…/phases/{phaseId}/results`, written once at
+  phase end by `internal/orchestrator/harvest.go`; there are no mid-run
+  numbers (zeus reports a final summary). Progress is time-based.
+- Go serialises nil slices as `null` (`workflows`, `frozen_services`,
+  `fault_events`…); every list field is normalised to `[]` in
+  `src/types/api.ts`.
+- `GET /api/v1/experiments` returns bare `model.Experiment` rows. The list
+  page hydrates phase pills from `GET /api/v1/phases` in one extra request.
+- Zeus `RunStats` (`GET /zeus/runs/{id}/stats`) carries `duration` and
+  `latency_p50/p95/p99` as **nanoseconds**; the UI converts at the boundary.
+  While a run is in flight zeus answers 200 `{run_id, status:"no stats
+  available yet"}`. After a zeus restart a run id 404s (state is in-memory).
+- Admission control: one running experiment per service footprint
+  (`frozen_services` ∪ services of attached rules) —
+  `internal/orchestrator/admission.go`.
+- Rules referenced by a plan should be created **disabled** and enabled only
+  after `POST /experiments` returns (the push/poll path skips disabled rules;
+  enabling early causes ghost activation). The wizard never enables rules.
 
 ---
 
-## B. Endpoints the UI needs (by screen)
+## B. Consumption by screen
 
-Each row: method · path · request shape · response shape · UI consumer ·
-priority · status (✔ exists / ◻ missing).
+Each row: method · path · UI consumer · status.
 
 ### B.1 Dashboard (`/dashboard`)
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/status` | — | `{rules:int, instances:int, zeus_reachable:bool}` | StatCards | P1 | ✔ |
-| GET | `/api/v1/rules` | — | `Rule[]` (active-only filter would help) | "Enabled rules" StatCard | P1 | ✔ |
-| GET | `/api/v1/sdk/instances` | — | `SDKInstance[]` | Services panel | P1 | ✔ |
-| GET | `/api/v1/dashboard/summary` *(optional)* | — | `{failing_services:int, active_experiments:int, queued_experiments:int, active_faults_by_type:{inline,network,resource,cache_box}}` | StatCard fan-out collapsed into one call | P2 | ◻ |
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET | `/api/v1/status` | StatCards | ✔ |
+| GET | `/api/v1/rules` | enabled-rules card | ✔ |
+| GET | `/api/v1/sdk/instances` | services panel | ✔ |
+| GET | `/api/v1/experiments` + `/api/v1/phases` | recent experiments (phase progress column) | ✔ |
+| GET | Prometheus (via `VITE_PROMETHEUS_URL`) | observability cards | external |
 
-### B.2 Services (`/services`, `/services/:id`)
+### B.2 Services (`/services`)
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/sdk/instances` | — | `SDKInstance[]` | list | P1 | ✔ |
-| GET | `/api/v1/sdk/instances/{id}` | — | `SDKInstance & {last_error?: string, last_rule_version_acked?: uint64, active_rule_ids: string[], recent_run_ids: string[]}` | detail panel | P1 | ◻ |
-| POST | `/api/v1/sdk/instances/{id}/kill-switch` | — | `{disabled_rule_ids: string[], at: timestamp}` | primary "Kill switch" action | P1 | ◻ |
-| POST | `/api/v1/sdk/instances/{id}/cachebox` | `{mode: "passthrough"\|"replay"\|"replay_with_delay", key_strategy?: "exact"\|"exact_with_host"\|"exact_with_body"}` | `{rule_id: string, at: timestamp}` | "Cache-box mode" action in detail panel — toggles a per-instance cache-box rule | P2 | ◻ |
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET | `/api/v1/sdk/instances` | list | ✔ |
+| GET | `/api/v1/sdk/instances/{id}` → instance + `active_rule_ids[]`, `recent_run_ids[]` (phase ids) | detail panel | ⧗ MR !29 (`feat/sdk-instance-actions`) |
+| POST | `/api/v1/sdk/instances/{id}/kill-switch` → `{disabled_rule_ids[], at}` | "Kill switch" | ⧗ MR !29 |
+| PUT | `/api/v1/rules/{id}` (enabled:false) | per-rule "Disable" in the panel | ✔ |
 
-### B.3 Rules (`/rules`, `/rules/:id`)  — redesigned, see `../design/figma-changes.md`
+Until !29 is deployed the panel says "not exposed by this manteion-go build"
+for the detail and hides the kill switch. The per-instance **cache-box
+action is gone**: cache-box is phase-driven in epoch 2
+(`ActiveCacheBoxPhaseForService`); a manual per-instance rule would fight the
+orchestrator's synthesised one. `last_error` / `last_rule_version_acked` are
+not emitted by !29 (no columns) — the panel renders them only when present.
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/rules` | — | `Rule[]` | list | P1 | ✔ |
-| GET | `/api/v1/rules/{id}` | — | `Rule` | editor | P1 | ✔ |
-| POST | `/api/v1/rules` | see below | `Rule` | create | P1 | ✔ (input shape has gaps) |
-| PUT | `/api/v1/rules/{id}` | see below | `Rule` | update | P1 | ✔ (input shape has gaps) |
-| DELETE | `/api/v1/rules/{id}` | — | 204 | delete | P1 | ✔ |
-| POST | `/api/v1/rules/{id}/test-push?sdk_instance={id}` | — | `{matched: bool, trace: string[], rule_version: uint64, sdk_instance_id: string}` | "Test push" dry-run | P1 | ◻ |
-| POST | `/api/v1/rules/compile-match` | `{ast: MatchNode}` | `{rego: string}` | authoritative AST→rego compile (UI compiles too for preview) | P1 | ◻ |
-| POST | `/api/v1/rules/validate-rego` | `{rego: string}` | `{ok: bool, diagnostics: string[], ast?: MatchNode}` | "paste rego" tab validation | P1 | ◻ |
+### B.3 Rules (`/rules`)
 
-**Updated Rule input shape (PUT/POST):**
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET / POST | `/api/v1/rules` | list / create | ✔ |
+| GET / PUT / DELETE | `/api/v1/rules/{id}` | editor | ✔ |
+| GET | `/api/v1/faults/specs`, `/api/v1/faults/compositions` | fault picker | ✔ |
+| POST | `/api/v1/rules/{id}/test-push`, `/api/v1/rules/compile-match`, `/api/v1/rules/validate-rego` | dry-run / rego tabs | ◻ (UI compiles the match AST locally; see `src/lib/rego`) |
 
-```jsonc
-{
-  "name": "freeze-productcatalog",
-  "service": "productcatalog",
-  "enabled": true,
-  "priority": 100,
-  "mode": "inline",                       // inline | background
-  "fault_spec_id": "fault-123",           // XOR with composition
-  // NEW — replaces / augments the flat match.labels
-  "match_ast": { /* MatchNode, see src/lib/rego/ast.ts */ },
-  "match_expr": "package faults.match\n\ndefault allow := false\n\nallow if { input.service == \"productcatalog\" }\n",
-  // LEGACY — kept as a projection for backward-compat with atropos SDK poll
-  "match": { "injection_point": "ingress", "labels": {"atropos.workflow": "browse"} }
-}
-```
+### B.4 Faults (`/faults`)
 
-### B.4 Faults (`/faults`, `/faults/:id`)
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET / POST | `/api/v1/faults/specs` | library / create | ✔ |
+| GET / PUT / DELETE | `/api/v1/faults/specs/{id}` | detail / edit | ✔ |
+| GET / POST / DELETE | `/api/v1/faults/compositions[/{id}]` | compositions | ✔ |
+| GET | `/api/v1/faults/catalog` | type catalog | ✔ |
+| POST | `/api/v1/faults/configs[/{id}/fire|cancel]` | ad-hoc firing | ✔ (not surfaced in the UI yet) |
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/faults/specs` | `?category=inline|network|resource&cursor=&limit=` | `{data: FaultSpec[], cursor?: string}` | library table | P1 | ◻ |
-| POST | `/api/v1/faults/specs` | `FaultSpec` (no id/created_at) | `FaultSpec` | create | P1 | ◻ |
-| GET | `/api/v1/faults/specs/{id}` | — | `FaultSpec` | detail | P1 | ◻ |
-| PUT | `/api/v1/faults/specs/{id}` | `FaultSpec` | `FaultSpec` | update | P1 | ◻ |
-| DELETE | `/api/v1/faults/specs/{id}` | — | 204 | delete | P1 | ◻ |
-| GET | `/api/v1/faults/compositions` | — | `FaultComposition[]` | library | P2 | ◻ |
-| POST | `/api/v1/faults/compositions` | `FaultComposition` | `FaultComposition` | — | P2 | ◻ |
-| GET | `/api/v1/faults/incompatibilities` | — | `{pairs: [{a: fault_type, b: fault_type, severity: "soft"|"hard", reason: string}]}` | editor validation | P2 | ◻ |
+### B.5 Workflows (`/workflows`)
 
-All handlers already exist as repo methods — just not wired to mux.
-
-### B.5 Workflows / Flows / Personas (`/workflows`)
-
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/flows` | — | `FlowListItem[]` | workflow grid | P2 | ✔ |
-| POST | `/api/v1/flows` | `createFlowRequest` | `Flow` | new workflow dialog | P2 | ✔ |
-| GET | `/api/v1/flows/{id}` | — | `Flow` | detail / tree editor | P2 | ✔ |
-| POST | `/api/v1/flows/{id}/validate?dataset={id}` | — | `{ok: bool, errors: [...]}` | "Validate against dataset" | P2 | ◻ |
-| GET | `/api/v1/personas` | — | `Persona[]` | persona picker | P2 | ✔ |
-| * | `/api/v1/zeus/workloads/*` | opaque | opaque | existing proxy — document the passthrough shape | P2 | ✔ (opaque) |
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET / POST | `/api/v1/workflows` | grid / create | ✔ |
+| GET / PUT / DELETE | `/api/v1/workflows/{id}` | tree editor | ✔ |
+| POST | `/api/v1/workflows/{id}/validate` | validate | ✔ |
+| GET | `/api/v1/catalog/endpoints` | request-node picker | ✔ |
 
 ### B.6 Datasets (`/datasets`)
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/datasets` | — | `Dataset[]` | list | P2 | ◻ |
-| POST | `/api/v1/datasets` | `{name, ttl?}` | `Dataset` | create | P2 | ◻ |
-| POST | `/api/v1/datasets/{id}/pools` | NDJSON body (content-type `application/x-ndjson`) | `{pool: string, rows: int, bytes: int}` | pool upload | P2 | ◻ |
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET / POST / DELETE | `/api/v1/zeus/datasets[/{id}]` | list / create / delete | ✔ (proxy) |
+| POST | `/api/v1/zeus/datasets/{id}/upload` (NDJSON) | upload | ✔ (proxy) |
+| GET | `/api/v1/zeus/datasets/{id}/sample?pool=` | preview | ✔ (proxy) |
 
-### B.7 Experiments (`/experiments`, `/experiments/:id`)
+### B.7 Experiments (`/experiments`, `/experiments/new`, `/experiments/:id`)
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/experiments` | `?status=&cursor=&limit=` | `{data: Experiment[], cursor?: string}` | list | P1 | ◻ |
-| POST | `/api/v1/experiments` | `ExperimentInput` | `Experiment` | create | P1 | ◻ |
-| GET | `/api/v1/experiments/{id}` | — | `Experiment` (with `phases: PhaseSummary[]`) | detail | P1 | ◻ |
-| PUT | `/api/v1/experiments/{id}` | partial | `Experiment` | edit | P1 | ◻ |
-| DELETE | `/api/v1/experiments/{id}` | — | 204 | delete | P1 | ◻ |
-| POST | `/api/v1/experiments/{id}/runs` | `{phase: PhaseName, workflow_id, dataset_id?, vus, duration_ms}` | `Run` | "Run" primary action per phase | P1 | ◻ |
-| GET | `/api/v1/experiments/{id}/runs` | — | `Run[]` | observability tab | P1 | ◻ |
-| GET | `/api/v1/experiments/{id}/phase/{phase_name}/status` | — | `PhaseSummary` (rules applied, frozen services, live metrics) | **hover card on phase pills** (Task C.2) — polled at 2s while hovered on running phases | P1 | ◻ |
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET | `/api/v1/experiments` (+ `/api/v1/phases` for pills) | list | ✔ |
+| POST | `/api/v1/experiments` — nested plan: `{name, description?, hypothesis?, created_by?, phases[{name, position, persist_cache?, frozen_services[{service, mode, key_strategy?, mutation_policy, …}], workflows[{workflow_id, vus, duration_sec, rate_rps?, target_url?, dataset_id?}], rule_ids[]}]}` | wizard | ✔ |
+| GET | `/api/v1/experiments/{id}` | detail (5 s poll while running) | ✔ |
+| PUT | `/api/v1/experiments/{id}`, `/api/v1/experiments/{id}/phases/{phaseId}` | edit a planned experiment | ⧗ MR !31 (`feat/experiment-edit`) — UI edit screen not built yet |
+| POST | `…/start` (202 + detail; 409 on footprint overlap) | Start | ✔ |
+| POST | `…/pause` `…/resume` `…/cancel` `…/stop?status=` | actions | ✔ |
+| DELETE | `/api/v1/experiments/{id}` | Delete | ✔ |
+| GET | `/api/v1/experiments/{id}/results` | stat cards, Overview | ✔ |
+| GET | `…/phases/{phaseId}/results` | timeline rows, hover card | ✔ |
+| GET | `/api/v1/zeus/runs/{id}` · `…/stats` | live run status; fallback metrics for run-only phases | ✔ (proxy) |
+| POST | `…/phases/{phaseId}/start` | "Start now" on a pending phase | ✔ |
+| GET | Grafana `d-solo` (`VITE_GRAFANA_URL`) | Observability tab | external |
 
-### B.8 Runs (`/runs/:id`)
+### B.8 Phases (`/phases`, `/phases/:id`) — replaces "Runs"
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/runs/{id}` | — | `Run & {sent:uint, dropped:uint, iterations:uint, p50_us, p95_us, p99_us}` | header / StatCards | P1 | ◻ |
-| GET | `/api/v1/runs/{id}/steps` | — | `StepStat[]` | per-step table | P1 | ◻ |
-| GET | `/api/v1/runs/{id}/events` | SSE (`text/event-stream`), `Last-Event-ID` resumable | events: `step.ok`, `step.drop`, `iteration.done`, `phase.transition` | live event tail | P1 | ◻ |
+| Method | Path | Consumer | Status |
+|---|---|---|---|
+| GET | `/api/v1/phases` | list (client-side filters; 10 s poll while in flight) | ✔ |
+| GET | `/api/v1/phases/{phaseId}` | detail (5 s poll while in flight) | ✔ |
+| GET | `/api/v1/phases/{phaseId}/faults` | faults in effect + fault events | ✔ |
+| POST | `/api/v1/phases/{phaseId}/pause|resume|stop?status=` | actions | ✔ |
+| GET | `/api/v1/zeus/runs/{id}` · `…/stats` | per-workflow status, run.state timeline, fallback results | ✔ (proxy) |
 
-### B.9 Attacks (`/attacks`)
+`/runs` and `/runs/:id` redirect to `/phases` for one release.
 
-| Method | Path | Request | Response | Consumer | Prio | Status |
-|---|---|---|---|---|---|---|
-| GET | `/api/v1/attacks` | — | `Attack[]` | list | P2 | ◻ (currently blind-proxied) |
-| POST | `/api/v1/attacks` | `AttackInput` | `Attack` | launcher | P2 | ◻ |
-| GET | `/api/v1/attacks/{id}/results` | — | `AttackResult` | detail | P2 | ◻ |
+### B.9 Attacks — removed
 
-### B.10 Settings / Environments
+No screen. `/api/v1/zeus/attacks*` is intentionally not proxied; vegeta legs
+appear as `zeus_attack_id` on phase workflows and their results are harvested
+into `…/results`.
 
-Product decision required before we define routes. See §D.
+### B.10 Settings
 
----
-
-## C. Drift, inconsistencies, ambiguities
-
-### C.1 Cache-box on Rules — the Target is not real **[blocker for Rules page]**
-
-- **Figma (old):** right-panel editor shows a Target radio `Apply a fault | Use cache-box`, and a Cache-box mode sub-radio `passthrough | replay | replay-with-delay`.
-- **Backend:** `internal/model/rule.go:11-23` — Rule has `fault_spec_id XOR fault_composition_id`. **No cache-box field.** `CacheBoxConfig` lives on `ExperimentRun.frozen_services` (`internal/model/experiment.go` + `internal/model/trace.go:50-60`).
-
-**Resolutions:**
-
-- **(a)** Extend `Rule` with `cache_box: CacheBoxConfig?` as a third oneof alongside the fault fields. Pro: matches current Figma. Con: changes the SDK polling contract, duplicates data that already lives on experiments.
-- **(b) [RECOMMENDED]** Keep cache-box scoped to experiments. Remove "Use cache-box" as a Rules-page Target. Operators who want cache-box freeze-and-replay express it in the Experiment phase editor (where `frozen_services` is already the authoritative field). **This is what `../design/figma-changes.md` assumes for the Rules-v1.1 redesign.**
-
-### C.2 Match criteria is AND-only, string-equality **[blocker for Rules v1.1]**
-
-- **Figma (new):** AND/OR/NOT nested tree of conditions (`service = …`, `method in […]`, `header.x-trace-id matches /…/`). See `src/components/rule-builder/`.
-- **Backend:** `internal/model/rule.go` — `match.labels map[string]string` AND-combined, exact-match only. No OR, no regex, no numeric comparison.
-
-**Resolution (recommended):**
-
-- Add `match_expr: string` (rego) on `Rule`. Evaluation happens SDK-side via
-  embedded OPA (atropos has a Go OPA binding option) **or** manteion-side as a
-  lookup service keyed on request metadata. Backend team chooses the execution
-  strategy; the UI is agnostic.
-- Keep `match.labels` as a convenience projection (server-side derivable from
-  top-level AND leaves with `op==eq`). The atropos SDK poll can continue to
-  receive the projection until it gains OPA; the two paths coexist.
-- Add `match_ast: json` to preserve the round-tripping UI state.
-
-### C.3 Zeus proxy is opaque
-
-- `/api/v1/zeus/*` strips the prefix and blindly forwards (`handleZeusProxy`).
-- UI has no schema, no error mapping, no rate limit visibility.
-
-**Resolution:** either ship a generated TS client from Zeus's OpenAPI (if
-Archer has one) or wrap each zeus passthrough with a manteion-side DTO and a
-validation layer.
-
-### C.4 Naming collision: "policies"
-
-- Zeus `/policies` (via proxy) = metric-triggered actions (vegeta attacks when
-  p99 > threshold).
-- Manteion `model.PolicyRule` (not exposed yet) = also metric-triggered
-  actions.
-- Both are unrelated to "rules" (`Rule`) which match requests to faults.
-
-**Resolution:** rename one. The UI uses **AutoRules** for the manteion
-`PolicyRule` concept to keep /rules = request-matching only.
-
-### C.5 No consistent error envelope
-
-- Success: bare object (e.g. `Rule`, `SDKInstance[]`).
-- Error: `{error: string}`.
-- No status codes beyond 200/204/4xx — UI has to parse `error` heuristically.
-
-**Resolution:** adopt `problem+json` (RFC 9457) or a consistent
-`{code, message, details?}` envelope. Success can stay bare.
-
-### C.6 No pagination
-
-- `GET /api/v1/rules`, `GET /api/v1/sdk/instances` return full arrays.
-- Fine for a single-operator admin today, scales poorly.
-
-**Resolution:** `?cursor=&limit=` on every list endpoint. UI is already
-written to send the params (no-op until server honours them).
-
-### C.7 No real-time
-
-- Run detail, experiment logs, phase hover card need live updates.
-- `manteion-go` has zero SSE/WebSocket.
-
-**Resolution:** at minimum, `GET /api/v1/runs/{id}/events` as SSE with
-`Last-Event-ID` resume. The hover card polls HTTP at 2s — acceptable for now.
-
-### C.8 SDK instance status is computed, opaque
-
-- `status ∈ {alive, stale, dead}` derived from `last_poll_at`.
-- No `last_error`, no `last_rule_version_acked`.
-
-**Resolution:** surface both. UI already has the field names wired in
-`types/api.ts`.
-
-### C.9 Unexposed repos
-
-- `ExperimentRepo`, `FaultRepo`, `WorkloadRepo`, `PolicyRepo`, `TraceRepo` are
-  in `server.go:17-59` but no routes use them.
-
-**Resolution:** this doc is the route list. Start with §B.3–B.7 / P1.
-
-### C.10 No auth
-
-- Every endpoint accepts every request.
-- Fine for local dev; not fine anywhere else.
-
-**Resolution:** not blocking Phase 1 UI, but needed before multi-user.
+`/settings/environments` still shows a placeholder: environment scoping is an
+open product decision (one manteion per env vs. a tenant column).
 
 ---
 
-## D. Unresolved product decisions
+## C. Drift between the repos (tracked in `manteion-go`)
 
-1. **Environment scoping.** Dropdown exists in the sidebar. Do we run one
-   manteion-go per env (simpler, matches kustomize overlay boundary) or one
-   manteion with a tenant column on every table (harder)?
-2. **Kill-switch granularity.** Per-service (recommended by
-   `../design/ui-design.md §8`) vs per-rule vs both. UI assumes per-service
-   for Phase 1.
-3. **Do non-operator roles view this UI?** If yes: add RBAC + read-only mode.
-   Phase 1 says no.
+| # | Item | Effect on the UI | Status |
+|---|---|---|---|
+| G1 | zeus proxy dropped query strings | `GET /zeus/runs?experiment_id=` returned every run | ✔ fixed on develop (`7c626b3`) — the UI still addresses runs by `zeus_run_id` only |
+| G2 | no experiment/phase update; `position: 0` treated as "append" on `POST …/phases` | edit = delete + recreate; wizard sends explicit positions | ⧗ MR !31 |
+| G3 | k6 run stats never harvested (`harvest.go` skipped rows without `zeus_attack_id`) | run-only phases have empty `workflow_results`; the UI falls back to `GET /zeus/runs/{id}/stats` with the caption "via zeus run stats" | ⧗ MR !30 (`feat/harvest-k6-runs`) — note: zeus `requests_dropped` counts unscheduled k6 iterations, not HTTP failures |
+| G4 | dataset is a process-wide env var (`MANTEION_ZEUS_DATASET_ID`) | no dataset picker; the wizard hides the column | ◻ in progress (`feat/phase-workflow-datasets`: `phase_workflows.dataset_id`, derived `dataset_ids[]`, 422 `dataset_missing` / `dataset_expiring`) |
+| G5 | SSE cannot traverse the proxy (30 s client timeout, unflushed `io.Copy`) | none — polling is the contract (5 s, as expctl) | deferred |
+| G6 | every refusal is a 400 `{error}` | the UI shows the text verbatim and cannot tell overlap from bad payload | ◻ in progress (`feat/api-error-envelope`, stacked on !31: `{error, code, …}` with `service_overlap`, `invalid_state`, `validation`, `not_found`, `conflict`) |
+| G7 | no SDK instance detail / kill-switch routes | Services panel actions 404 | ⧗ MR !29 |
+| G8 | attacks invisible between start and harvest | statuses come from the phase; acceptable | note only |
+| B8 | phase / experiment `failure_reason` is only logged | failed phases show `failed` with no why; the UI already renders `failure_reason` when present and falls back to the zeus run `reason` | ◻ |
 
----
+### Semantics worth knowing
 
-## E. How to use this doc
-
-1. **Backend PRs** that add/change an endpoint edit the same row(s) here.
-2. The UI's `NotWiredYet` placeholder on each route renders the endpoint list
-   verbatim — if you remove a row, delete the corresponding placeholder.
-3. When enough rows flip from ◻ to ✔, we bump the manteion-ui MVP and drop
-   the `NotWiredYet` component on that route.
+- **Cache-box on rules.** A rule's `cachebox` action is per-request replay
+  config; the *freeze* of a service during a phase is `frozen_services` on the
+  phase (`model.CacheBoxConfig`: `service, mode, key_strategy, key_headers,
+  mutation_policy, …`). INV-2: every phase freezing a service must agree on
+  its key strategy (server 400; the wizard validates first).
+- **Error envelope.** Today `{error: string}`; codes arrive with G6. The UI
+  reads `error` and, when present, `code`.
+- **Pagination.** `experiments`, `workflows`, `phases` use `{data, page:{offset,
+  limit, total}}` with a server cap of 200; `rules` and `sdk/instances` are
+  bare arrays.
+- **Auth.** None. Local/VM-only deployment.

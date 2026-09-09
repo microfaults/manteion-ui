@@ -136,3 +136,30 @@ real CSS var (`var(--status-healthy)`), so Dev Mode round-trips to the repo.
 - Cover + Foundations doc pages (color swatches / type specimen).
 - Code Connect mappings (Figma component → `src/components/**`).
 - Tokens Studio JSON round-trip (`tokens.json` is ready to import as the same `dark`/`light`/`size`/`font` sets).
+
+---
+
+## 6. Epoch-3 schema notes (experiment loop bridge, 2026-09)
+
+Consumers of the phase primitives should know the wire shapes moved to what
+manteion-go actually serves (`src/types/api.ts`):
+
+- `PhaseStatus` gained `draining`; `phase-pill` renders it `bg-status-degraded`
+  + pulse, `Badge` uses `status-degraded`. Treat it as in flight.
+- `PhaseSummary` = backend `phaseDetail`: `rule_ids[]` replaces the invented
+  `applied_rules[]`; the inline `metrics` / `duration_ms` fields are gone.
+  Duration derives from `started_at` / `completed_at` (`lib/phase-metrics`),
+  metrics come from `…/phases/{id}/results` or zeus run stats via
+  `usePhaseMetrics` and render through `MetricsGrid`
+  (`components/experiments/phase-row-results`).
+- New schemas: `PhaseResults`, `ExperimentResults`, `PhaseDetail`,
+  `PhaseListItem`, `PhaseFaults`, `ZeusRun`, `ZeusRunStats` (ns → µs/ms at
+  the boundary), plus the create DTOs (`CreateExperimentInput`,
+  `FrozenServiceInput`, …).
+- `PhaseHoverCard` takes `baselinePhase` (delta line) and fetches on open
+  (`placeholderData`, not `initialData`).
+- Navigation: **Runs → Phases** (`/phases`, `/phases/:id`; `/runs*` redirects
+  for one release), the Attacks entry is removed, `/experiments/new` hosts the
+  wizard. `not-wired-yet` remains only for `/settings/environments`.
+- Services panel: the per-instance cache-box action is gone (cache-box is
+  phase-driven); kill switch and instance detail depend on manteion-go MR !29.

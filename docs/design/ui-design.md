@@ -32,9 +32,8 @@ The UI's navigation and screens are shaped directly by manteion's and zeus's dom
 | **Rule** | manteion | `/api/v1/rules/*` | Rule editor — pick Fault from library **or** cache-box mode, plus match criteria |
 | **Workflow** | zeus (via proxy) | `/api/v1/zeus/workflows/*` | Workflow list, DSL v2 tree editor |
 | **Dataset** | zeus | `/api/v1/zeus/datasets/*` | Dataset list, pool preview, upload |
-| **Experiment** | manteion (planned) | `/api/v1/experiments/*` | Experiment list, phase plan, live Grafana pane |
-| **Run** | zeus | `/api/v1/runs/*` | Run detail, live SSE tail, stats, Grafana pane |
-| **Attack** | zeus | `/api/v1/attacks/*` | Precision attack launcher, stats |
+| **Experiment** | manteion | `/api/v1/experiments/*` | Experiment list, new-experiment wizard (phase plan), detail with phase timeline, Grafana pane |
+| **Phase** | manteion | `/api/v1/phases/*` (+ `/api/v1/zeus/runs/*` for live run state) | Phases list + detail — the logical unit of operation; one zeus run/attack per phase workflow |
 | **Grafana panel** | external | Grafana `d-solo` iframe | Embedded live perf view (p99 / RPS / error rate) |
 
 **Not in the UI (yet):** latency decomposition math, Δ-tables, interaction matrices. The decomposition formula (`Δ_service = baseline − frozen`; superadditivity checks) rests on assumptions that are still being validated; rendering numbers off that math implies confidence the platform does not yet have. Once the research is settled, the Decomposition tab returns to Experiment detail — until then, do not expose the math.
@@ -82,9 +81,8 @@ Routes (React Router):
 /faults                   /faults/:id
 /workflows                /workflows/:id
 /datasets                 /datasets/:id
-/experiments              /experiments/:id
-/runs/:run_id
-/attacks/:attack_id
+/experiments              /experiments/new          /experiments/:id
+/phases                   /phases/:phase_id          (/runs* redirects here for one release)
 /settings/environments
 ```
 
@@ -325,9 +323,9 @@ Live perf views are Grafana panels embedded as iframes (panel's `/d-solo/...` UR
 Ranked by how much they block the experiment loop.
 
 **Blocking (Phase 1 UI):**
-1. **Experiment phase plan.** The current "Add experiment" is a flat form. Without a phase editor, the operator cannot express baseline → isolation-1a/1b/2a/2b → combined, which is the entire point of the platform.
+1. ~~**Experiment phase plan.**~~ Done — `/experiments/new` has the phase-plan editor (auto-plan baseline → isolation per service → combined, workflows, rules, frozen services, preflight).
 2. ~~**Faults library + Rules picker.**~~ Done — Faults library screen and Rules editor with Fault picker / cache-box toggle are in Figma.
-3. **Run detail with live SSE tail.** The API has it (`GET /runs/{id}/events`), the UI has nothing. Operators need this to know a run is actually making progress.
+3. ~~**Run detail with live SSE tail.**~~ Superseded — `/api/v1/runs` was retired ("a run is a phase"); the Phase detail polls zeus run state every 5 s and shows time-based progress. SSE stays deferred (zeus only emits `run.state`).
 4. **Services / SDK instances detail.** Today's dashboard row has `last tested`; the UI has no way to inspect a specific SDK instance's rule-version lag or kill-switch it.
 5. ~~**Cache-box mode in the rule editor.**~~ Done — Rule editor has "Apply a fault" / "Use cache-box" target selector.
 6. ~~**Grafana panel embeds.**~~ Done — GrafanaPanel component built; embedded on Dashboard and Experiment detail Observability tab.

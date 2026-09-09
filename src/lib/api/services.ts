@@ -1,7 +1,4 @@
 import {
-  type CacheBoxConfig,
-  type CacheBoxModeResult,
-  CacheBoxModeResultSchema,
   type KillSwitchResult,
   KillSwitchResultSchema,
   type SDKInstance,
@@ -109,8 +106,8 @@ export async function listSDKInstances(): Promise<SDKInstance[]> {
   return apiClient.get("/api/v1/sdk/instances", List);
 }
 
-/** NEW endpoint — instance detail with active rules, recent runs, ack lag.
- *  See docs/api/api-needed.md §B.2. */
+/** GET /api/v1/sdk/instances/{id} — instance + active_rule_ids + recent phase
+ *  ids (manteion-go MR !29; older builds 404 → the panel says so). */
 export async function getSDKInstance(id: string): Promise<SDKInstanceDetail> {
   if (USE_MOCK) {
     await mockDelay();
@@ -122,7 +119,8 @@ export async function getSDKInstance(id: string): Promise<SDKInstanceDetail> {
   return apiClient.get(`/api/v1/sdk/instances/${encodeURIComponent(id)}`, SDKInstanceDetailSchema);
 }
 
-/** NEW endpoint — disable all active rules attached to this instance. */
+/** POST /api/v1/sdk/instances/{id}/kill-switch — disables every rule for the
+ *  instance's service and bumps the rule version (manteion-go MR !29). */
 export async function killSwitch(id: string): Promise<KillSwitchResult> {
   if (USE_MOCK) {
     await mockDelay();
@@ -133,22 +131,5 @@ export async function killSwitch(id: string): Promise<KillSwitchResult> {
     `/api/v1/sdk/instances/${encodeURIComponent(id)}/kill-switch`,
     {},
     KillSwitchResultSchema,
-  );
-}
-
-/** NEW endpoint — flip the instance into cache-box mode (creates a
- *  per-instance cache-box rule server-side). See docs/api/api-needed.md §B.2. */
-export async function cacheBoxMode(
-  id: string,
-  config: CacheBoxConfig,
-): Promise<CacheBoxModeResult> {
-  if (USE_MOCK) {
-    await mockDelay();
-    return { rule_id: `cachebox-${id}`, at: new Date().toISOString() };
-  }
-  return apiClient.post(
-    `/api/v1/sdk/instances/${encodeURIComponent(id)}/cachebox`,
-    config,
-    CacheBoxModeResultSchema,
   );
 }
