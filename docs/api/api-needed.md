@@ -1,7 +1,8 @@
 # API contract — what `manteion-ui` consumes from `manteion-go`
 
 Authored from the UI's point of view, against manteion-go `develop` at
-schema **epoch 2** (`internal/api/server.go`). It lists every route the UI
+schema **epoch 2** (`internal/api/server.go`; `a85ee9e` deployed to VM1 on
+2026-09-12 with migrations 10 and 11). It lists every route the UI
 calls, per screen, and the drift that still separates the two repos.
 
 Rules of the road: a backend PR that adds or changes a route edits the same
@@ -24,8 +25,8 @@ started · ✖ retired (never coming back in that shape).
   `/api/v1/phases/*`), `/api/v1/attacks/*` (vegeta legs are visible per phase
   workflow; zeus attacks are deliberately not proxied), `/api/v1/flows` and
   `/api/v1/personas` (workflows are manteion-owned at `/api/v1/workflows`).
-- Open drift (section C): five small backend items, three of them already in
-  merge requests.
+- Drift (section C): everything the bridge needed has landed on develop and
+  is deployed; what remains is deferred by decision (SSE) or a note (attacks).
 
 ---
 
@@ -120,16 +121,16 @@ Each row: method · path · UI consumer · status.
 | Method | Path | Consumer | Status |
 |---|---|---|---|
 | GET | `/api/v1/sdk/instances` | list | ✔ |
-| GET | `/api/v1/sdk/instances/{id}` → instance + `active_rule_ids[]`, `recent_run_ids[]` (phase ids) | detail panel | ⧗ MR !29 (`feat/sdk-instance-actions`) |
-| POST | `/api/v1/sdk/instances/{id}/kill-switch` → `{disabled_rule_ids[], at}` | "Kill switch" | ⧗ MR !29 |
+| GET | `/api/v1/sdk/instances/{id}` → instance + `active_rule_ids[]`, `recent_run_ids[]` (phase ids) | detail panel | ✔ |
+| POST | `/api/v1/sdk/instances/{id}/kill-switch` → `{disabled_rule_ids[], at}` | "Kill switch" | ✔ |
 | PUT | `/api/v1/rules/{id}` (enabled:false) | per-rule "Disable" in the panel | ✔ |
 
-Until !29 is deployed the panel says "not exposed by this manteion-go build"
+Against an older build the panel says "not exposed by this manteion-go build"
 for the detail and hides the kill switch. The per-instance **cache-box
 action is gone**: cache-box is phase-driven in epoch 2
 (`ActiveCacheBoxPhaseForService`); a manual per-instance rule would fight the
 orchestrator's synthesised one. `last_error` / `last_rule_version_acked` are
-not emitted by !29 (no columns) — the panel renders them only when present.
+not emitted (no columns) — the panel renders them only when present.
 
 ### B.3 Rules (`/rules`)
 
@@ -174,7 +175,7 @@ not emitted by !29 (no columns) — the panel renders them only when present.
 | GET | `/api/v1/experiments` (+ `/api/v1/phases` for pills) | list | ✔ |
 | POST | `/api/v1/experiments` — nested plan: `{name, description?, hypothesis?, created_by?, phases[{name, position, persist_cache?, frozen_services[{service, mode, key_strategy?, mutation_policy, …}], workflows[{workflow_id, vus, duration_sec, rate_rps?, target_url?, dataset_id?}], rule_ids[]}]}` | wizard | ✔ |
 | GET | `/api/v1/experiments/{id}` | detail (5 s poll while running) | ✔ |
-| PUT | `/api/v1/experiments/{id}`, `/api/v1/experiments/{id}/phases/{phaseId}` | edit a planned experiment | ⧗ MR !31 (`feat/experiment-edit`) — UI edit screen not built yet |
+| PUT | `/api/v1/experiments/{id}`, `/api/v1/experiments/{id}/phases/{phaseId}` | edit a planned experiment | ✔ served — no UI edit screen yet (delete + recreate from the wizard) |
 | POST | `…/start` (202 + detail; 409 on footprint overlap) | Start | ✔ |
 | POST | `…/pause` `…/resume` `…/cancel` `…/stop?status=` | actions | ✔ |
 | DELETE | `/api/v1/experiments/{id}` | Delete | ✔ |
@@ -214,24 +215,30 @@ open product decision (one manteion per env vs. a tenant column).
 | # | Item | Effect on the UI | Status |
 |---|---|---|---|
 | G1 | zeus proxy dropped query strings | `GET /zeus/runs?experiment_id=` returned every run | ✔ fixed on develop (`7c626b3`) — the UI still addresses runs by `zeus_run_id` only |
-| G2 | no experiment/phase update; `position: 0` treated as "append" on `POST …/phases` | edit = delete + recreate; wizard sends explicit positions | ⧗ MR !31 |
-| G3 | k6 run stats never harvested (`harvest.go` skipped rows without `zeus_attack_id`) | run-only phases have empty `workflow_results`; the UI falls back to `GET /zeus/runs/{id}/stats` with the caption "via zeus run stats" | ⧗ MR !30 (`feat/harvest-k6-runs`) — note: zeus `requests_dropped` counts unscheduled k6 iterations, not HTTP failures |
-| G4 | dataset is a process-wide env var (`MANTEION_ZEUS_DATASET_ID`) | no dataset picker; the wizard hides the column | ◻ in progress (`feat/phase-workflow-datasets`: `phase_workflows.dataset_id`, derived `dataset_ids[]`, 422 `dataset_missing` / `dataset_expiring`) |
+| G2 | no experiment/phase update; `position: 0` treated as "append" on `POST …/phases` | wizard sends explicit positions; no edit screen yet | ✔ develop (`PUT …/experiments/{id}`, `PUT …/phases/{phaseId}`, `*int` position) |
+| G3 | k6 run stats never harvested (`harvest.go` skipped rows without `zeus_attack_id`) | run-only phases now harvest (`error_count` = zeus `requests_dropped`, i.e. unscheduled k6 iterations, not HTTP failures); the UI keeps the zeus fallback for rows harvested before this landed | ✔ develop |
+| G4 | dataset is a process-wide env var (`MANTEION_ZEUS_DATASET_ID`) | wizard picks a dataset per workflow row, shows the per-phase union and preflights presence/TTL; blank = env-var fallback | ✔ develop (migration 10 `phase_workflows.dataset_id`, derived `dataset_ids[]`, 422 `dataset_missing` / `dataset_expiring`, 502 `zeus_unreachable`) |
 | G5 | SSE cannot traverse the proxy (30 s client timeout, unflushed `io.Copy`) | none — polling is the contract (5 s, as expctl) | deferred |
-| G6 | every refusal is a 400 `{error}` | the UI shows the text verbatim and cannot tell overlap from bad payload | ◻ in progress (`feat/api-error-envelope`, stacked on !31: `{error, code, …}` with `service_overlap`, `invalid_state`, `validation`, `not_found`, `conflict`) |
-| G7 | no SDK instance detail / kill-switch routes | Services panel actions 404 | ⧗ MR !29 |
+| G6 | every refusal was a 400 `{error}` | `{error, code, …}`: 409 `service_overlap` (+`running_experiment_id`, `services[]`), 409 `invalid_state`, 409 `conflict`, 422 `validation`, 404 `not_found`, 400 `bad_json`, 502 `zeus_unreachable`; the UI shows `error` and `code` | ✔ develop |
+| G7 | no SDK instance detail / kill-switch routes | Services panel detail + kill switch | ✔ develop |
 | G8 | attacks invisible between start and harvest | statuses come from the phase; acceptable | note only |
-| B8 | phase / experiment `failure_reason` is only logged | failed phases show `failed` with no why; the UI already renders `failure_reason` when present and falls back to the zeus run `reason` | ◻ |
+| B8 | phase / experiment `failure_reason` was only logged | every fail path writes a reason (preload gate, materialise, zeus rejections, run/attack failures, safety-net deadline, recovery, operator stop); shown on the experiment header, timeline rows and phase detail | ✔ develop (migration 11) |
 
 ### Semantics worth knowing
 
+- **Freezing replays egress.** The cache box records the calls a service
+  *makes* during a `persist_cache` phase and replays them when a later phase
+  freezes that service; a leaf service records nothing and the phase fails at
+  the preload gate. Freeze callers (frontend, checkoutservice,
+  recommendationservice), never leaves.
 - **Cache-box on rules.** A rule's `cachebox` action is per-request replay
   config; the *freeze* of a service during a phase is `frozen_services` on the
   phase (`model.CacheBoxConfig`: `service, mode, key_strategy, key_headers,
   mutation_policy, …`). INV-2: every phase freezing a service must agree on
   its key strategy (server 400; the wizard validates first).
-- **Error envelope.** Today `{error: string}`; codes arrive with G6. The UI
-  reads `error` and, when present, `code`.
+- **Error envelope.** `{error: string, code: string, …}` on the experiment and
+  phase handlers (see G6); other handlers still answer a bare `{error}`. The
+  UI reads `error` and, when present, `code`.
 - **Pagination.** `experiments`, `workflows`, `phases` use `{data, page:{offset,
   limit, total}}` with a server cap of 200; `rules` and `sdk/instances` are
   bare arrays.
