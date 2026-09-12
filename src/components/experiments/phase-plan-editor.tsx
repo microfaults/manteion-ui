@@ -359,6 +359,11 @@ function PhaseCard({
 
       <div className="mt-3">
         <div className={SECTION}>Frozen services</div>
+        <p className="mt-0.5 text-[11px] text-muted-foreground">
+          Freezing replays the calls a service <em>makes</em> (its egress) from the recording phase
+          — freeze callers such as frontend or checkoutservice; a leaf service records nothing to
+          replay.
+        </p>
         {phase.frozen_services.length === 0 ? (
           <div className="mt-1 text-xs text-muted-foreground">none</div>
         ) : (

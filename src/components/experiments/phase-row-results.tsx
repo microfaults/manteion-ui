@@ -90,10 +90,12 @@ export function PhaseRowResults({
     const caption = phase.workflows.length === 1 ? phase.workflows[0]?.workflow_id : undefined;
     return <MetricsGrid metrics={state.metrics} baselineP99Us={baselineP99Us} caption={caption} />;
   }
+  const drove = phase.workflows.some((w) => w.zeus_run_id || w.zeus_attack_id);
   return (
     <p className="text-xs italic text-muted-foreground">
-      No results — nothing was harvested and zeus has no stats for this run (zeus may have
-      restarted).
+      {drove
+        ? "No results — nothing was harvested and zeus has no stats for this run (zeus may have restarted)."
+        : "No load ran — the phase ended before zeus started any run or attack."}
     </p>
   );
 }

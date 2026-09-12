@@ -217,7 +217,17 @@ describe("PhaseTimeline", () => {
           { workflow_id: "wf-checkout", vus: 25, duration_sec: 300, zeus_run_id: "run-f" },
         ],
       }),
-      phase({ id: "ph-c", name: "combined", position: 2, status: "pending" }),
+      phase({
+        id: "ph-gate",
+        name: "isolation-gated",
+        position: 2,
+        status: "failed",
+        started_at: "2026-06-01T00:06:00Z",
+        completed_at: "2026-06-01T00:06:00Z",
+        failure_reason:
+          'preload gate: baseline recorded zero entries for frozen service "cartservice"',
+      }),
+      phase({ id: "ph-c", name: "combined", position: 3, status: "pending" }),
     ]);
     render(
       wrap(
@@ -232,6 +242,9 @@ describe("PhaseTimeline", () => {
 
     const failed = row("isolation-adservice");
     expect(await within(failed).findByText("k6 exited 99")).toBeTruthy();
+    const gated = row("isolation-gated");
+    expect(within(gated).getByText(/preload gate: baseline recorded zero entries/)).toBeTruthy();
+    expect(await within(gated).findByText(/no load ran/i)).toBeTruthy();
 
     const details = within(baseline)
       .getByText("Fault events")
