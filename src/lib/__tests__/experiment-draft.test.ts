@@ -394,3 +394,59 @@ describe("datasets per workflow (decision 3)", () => {
     expect(unknown.find((i) => i.code === "datasets")?.level).toBe("warning");
   });
 });
+
+describe("recording gate (cache-box preload needs a persist_cache baseline earlier in the plan)", () => {
+  const frozen = (key: string, name: string): PhaseDraft =>
+    phase({
+      key,
+      name,
+      frozen_services: [
+        {
+          key: `${key}-f`,
+          service: "cartservice",
+          mode: "replay",
+          key_strategy: "canonical_v2",
+          mutation_policy: "deny",
+        },
+      ],
+    });
+
+  it("auto-plan records on the baseline whenever an isolation phase will replay", () => {
+    const phases = autoPlanPhases({ services: ["cartservice"], workflowId: "wf-1" });
+    expect(phases[0]).toMatchObject({ name: "baseline", persist_cache: true });
+    expect(autoPlanPhases({ services: [], workflowId: "wf-1" })[0]?.persist_cache).toBe(false);
+  });
+
+  it("preflight blocks a replay phase with no recording phase before it, and passes once one precedes it", () => {
+    const bad = preflight({
+      draft: draft({ phases: [phase(), frozen("p2", "isolation")] }),
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+    });
+    expect(bad.find((i) => i.code === "recording")).toMatchObject({ level: "error" });
+    expect(bad.find((i) => i.code === "recording")?.message).toMatch(/isolation/);
+    const good = preflight({
+      draft: draft({ phases: [phase({ persist_cache: true }), frozen("p2", "isolation")] }),
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+    });
+    expect(good.find((i) => i.code === "recording")).toMatchObject({ level: "ok" });
+    const none = preflight({ draft: draft(), rules: [], experiments: [], sdkInstanceCount: 1 });
+    expect(none.find((i) => i.code === "recording")).toBeUndefined();
+    // a recording phase AFTER the replay phase does not help
+    const late = preflight({
+      draft: draft({
+        phases: [
+          frozen("p1", "isolation"),
+          phase({ key: "p2", name: "baseline", persist_cache: true }),
+        ],
+      }),
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+    });
+    expect(late.find((i) => i.code === "recording")).toMatchObject({ level: "error" });
+  });
+});

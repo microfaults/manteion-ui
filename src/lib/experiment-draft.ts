@@ -258,8 +258,12 @@ export function autoPlanPhases(opts: {
     rule_ids: ruleIds,
     frozen_services: frozen.map((service) => newFrozenService(service)),
   });
+  const baseline = phase("baseline", [], []);
+  // The orchestrator's preload gate needs a completed recording (persist_cache)
+  // phase before any phase can replay a frozen service.
+  baseline.persist_cache = services.length > 0;
   return [
-    phase("baseline", [], []),
+    baseline,
     ...services.map((svc) =>
       phase(
         `isolation-${svc}`,
@@ -332,7 +336,13 @@ export interface ExperimentRef {
 }
 
 export interface PreflightItem {
-  code: "service-overlap" | "key-strategy" | "datasets" | "disabled-rules" | "no-sdk-instances";
+  code:
+    | "service-overlap"
+    | "key-strategy"
+    | "recording"
+    | "datasets"
+    | "disabled-rules"
+    | "no-sdk-instances";
   level: "ok" | "warning" | "error";
   message: string;
 }
@@ -401,6 +411,9 @@ export function preflight(input: {
             : "No cache-box freezes — key strategy not applicable.",
         },
   );
+
+  const recording = recordingCheck(draft);
+  if (recording) items.push(recording);
 
   items.push(datasetCheck(draft, input.datasets, input.now ?? Date.now()));
 
@@ -482,5 +495,28 @@ function datasetCheck(
     code: "datasets",
     level: "ok",
     message: `Datasets present in zeus: ${needed.join(", ")} · TTL outlives the plan (~${formatDurationMs(budget)} incl. 5 min slack).`,
+  };
+}
+
+/** `runner.go` preloadCacheEntries: a phase that replays frozen services needs
+ *  a completed persist_cache (recording) phase earlier in the same experiment,
+ *  else the phase fails at start with "no completed baseline recording". */
+function recordingCheck(draft: ExperimentDraft): PreflightItem | undefined {
+  let recorded = false;
+  for (const p of draft.phases) {
+    if (p.frozen_services.length > 0 && !recorded) {
+      return {
+        code: "recording",
+        level: "error",
+        message: `"${p.name || "unnamed phase"}" replays frozen services but no earlier phase records (persist_cache) — the orchestrator's preload gate would fail it at start.`,
+      };
+    }
+    if (p.persist_cache) recorded = true;
+  }
+  if (!draft.phases.some((p) => p.frozen_services.length > 0)) return undefined;
+  return {
+    code: "recording",
+    level: "ok",
+    message: "A recording phase (persist_cache) precedes every replay phase.",
   };
 }
