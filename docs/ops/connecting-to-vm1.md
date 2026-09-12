@@ -8,18 +8,29 @@ SSH local-forward.
 ## The one-liner
 
 ```sh
-ssh -L 9090:localhost:9090 pmundra@2262-cse115b-01.be.ucsc.edu \
-    'kubectl port-forward svc/manteion 9090:8080'
+ssh -L 9090:localhost:19090 pmundra@2262-cse115b-01.be.ucsc.edu \
+    'kubectl port-forward --address 127.0.0.1 svc/manteion 19090:8080'
 ```
 
 Run it in a dedicated terminal. Ctrl-C tears down both the SSH tunnel and the
-kubectl port-forward.
+kubectl port-forward. Two details that cost an afternoon:
+
+- `--address 127.0.0.1` matters: without it kubectl on VM1 binds only `[::1]`
+  and the SSH forward (which dials `localhost` = 127.0.0.1 on the VM) gets
+  `connection refused` while `ssh -L` itself looks healthy.
+- Port 9090 on VM1 is often held by a stale port-forward; the remote side of
+  the tunnel uses 19090 so it never collides. The laptop side stays 9090
+  because the Vite proxy targets `http://localhost:9090`.
 
 In another terminal:
 
 ```sh
-pnpm dev   # http://localhost:5173 — UI now reaches manteion via the tunnel
+pnpm dev --mode vm1   # http://localhost:5174 — real manteion via the tunnel, no fixtures
 ```
+
+`--mode vm1` loads `.env.vm1` (`VITE_USE_MOCK=false`), which outranks the
+`VITE_USE_MOCK=true` most of us keep in `.env.local` for the demo fixtures, so
+both servers can run side by side: `:5173` = fixtures, `:5174` = VM1.
 
 ## What's happening
 
