@@ -6,6 +6,8 @@
  * and the preflight (admission-control overlap, disabled rules, no SDK
  * instances) is computable from the query caches without a DOM.
  */
+import { datasetExpiresAt } from "@/lib/api/datasets";
+import { formatDurationMs } from "@/lib/utils";
 import {
   CACHEBOX_KEY_STRATEGIES,
   type CacheBoxMode,
@@ -288,6 +290,36 @@ export function footprintOfDraft(draft: ExperimentDraft, rules: readonly RuleRef
   return out;
 }
 
+/** A phase needs the union of its workflows' datasets (decision 3), first-seen order. */
+export function datasetIdsForPhase(phase: Pick<PhaseDraft, "workflows">): string[] {
+  const out: string[] = [];
+  for (const w of phase.workflows)
+    if (w.dataset_id && !out.includes(w.dataset_id)) out.push(w.dataset_id);
+  return out;
+}
+
+/** Wall-clock the plan needs: each phase runs as long as its longest leg. */
+export function planLengthMs(draft: Pick<ExperimentDraft, "phases">): number {
+  let total = 0;
+  for (const p of draft.phases) {
+    let max = 0;
+    for (const w of p.workflows) if (w.duration_sec > max) max = w.duration_sec;
+    total += max * 1000;
+  }
+  return total;
+}
+
+/** Slack manteion-go adds to the plan length when checking dataset TTLs. */
+export const PLAN_SLACK_MS = 5 * 60 * 1000;
+
+/** What the preflight needs to know about a zeus dataset. */
+export interface DatasetRef {
+  id: string;
+  name?: string;
+  ttl_s: number;
+  created_at: string;
+}
+
 /** Minimal experiment view the preflight needs (works on the list payload). */
 export interface ExperimentRef {
   id: string;
@@ -300,7 +332,7 @@ export interface ExperimentRef {
 }
 
 export interface PreflightItem {
-  code: "service-overlap" | "key-strategy" | "disabled-rules" | "no-sdk-instances";
+  code: "service-overlap" | "key-strategy" | "datasets" | "disabled-rules" | "no-sdk-instances";
   level: "ok" | "warning" | "error";
   message: string;
 }
@@ -314,6 +346,9 @@ export function preflight(input: {
   rules: readonly RuleRef[];
   experiments: readonly ExperimentRef[];
   sdkInstanceCount: number | undefined;
+  /** zeus datasets; `undefined` = list not loaded (warn, don't block). */
+  datasets?: readonly DatasetRef[];
+  now?: number;
 }): PreflightItem[] {
   const { draft, rules } = input;
   const items: PreflightItem[] = [];
@@ -367,6 +402,8 @@ export function preflight(input: {
         },
   );
 
+  items.push(datasetCheck(draft, input.datasets, input.now ?? Date.now()));
+
   const disabled: string[] = [];
   for (const p of draft.phases) {
     for (const id of p.rule_ids) {
@@ -391,4 +428,59 @@ export function preflight(input: {
     });
   }
   return items;
+}
+
+/** Mirrors manteion-go's dataset preflight (B5): every referenced dataset must
+ *  exist in zeus and its TTL must outlive plan length + 5 min, else the server
+ *  answers 422 `dataset_missing` / `dataset_expiring`. */
+function datasetCheck(
+  draft: ExperimentDraft,
+  datasets: readonly DatasetRef[] | undefined,
+  now: number,
+): PreflightItem {
+  const needed: string[] = [];
+  for (const p of draft.phases)
+    for (const id of datasetIdsForPhase(p)) if (!needed.includes(id)) needed.push(id);
+  if (needed.length === 0) {
+    return {
+      code: "datasets",
+      level: "ok",
+      message:
+        "No datasets referenced — zeus's default dataset (MANTEION_ZEUS_DATASET_ID) applies.",
+    };
+  }
+  if (!datasets) {
+    return {
+      code: "datasets",
+      level: "warning",
+      message: "Couldn't load the zeus dataset list — presence and TTL not checked.",
+    };
+  }
+  const byId = new Map(datasets.map((d) => [d.id, d]));
+  const missing = needed.filter((id) => !byId.has(id));
+  if (missing.length) {
+    return {
+      code: "datasets",
+      level: "error",
+      message: `Datasets missing from zeus: ${missing.join(", ")} — the backend would refuse (422 dataset_missing).`,
+    };
+  }
+  const budget = planLengthMs(draft) + PLAN_SLACK_MS;
+  const deadline = now + budget;
+  for (const id of needed) {
+    const ds = byId.get(id);
+    const expires = ds ? datasetExpiresAt(ds) : null;
+    if (expires && expires.getTime() <= deadline) {
+      return {
+        code: "datasets",
+        level: "error",
+        message: `Dataset ${id} expires in ${formatDurationMs(Math.max(0, expires.getTime() - now))} — before the plan would finish (~${formatDurationMs(budget)} incl. 5 min slack). The backend would refuse (422 dataset_expiring).`,
+      };
+    }
+  }
+  return {
+    code: "datasets",
+    level: "ok",
+    message: `Datasets present in zeus: ${needed.join(", ")} · TTL outlives the plan (~${formatDurationMs(budget)} incl. 5 min slack).`,
+  };
 }

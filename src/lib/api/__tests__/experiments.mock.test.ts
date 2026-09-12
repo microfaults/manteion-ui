@@ -131,3 +131,68 @@ describe("experimentsApi in mock mode", () => {
     await rejected;
   });
 });
+
+describe("experimentsApi in mock mode — dataset preflight (B5 parity)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.useRealTimers();
+  });
+
+  it("refuses a plan referencing a dataset zeus does not have with 422 dataset_missing", async () => {
+    const api = await loadMockApi();
+    const rejected = expect(
+      api.createExperiment({
+        name: "needs-data",
+        phases: [
+          {
+            name: "baseline",
+            frozen_services: [],
+            workflows: [
+              { workflow_id: "wf-checkout-burst", vus: 5, duration_sec: 60, dataset_id: "ds-nope" },
+            ],
+            rule_ids: [],
+          },
+        ],
+      }),
+    ).rejects.toMatchObject({
+      status: 422,
+      body: expect.objectContaining({ code: "dataset_missing", dataset_ids: ["ds-nope"] }),
+    });
+    await vi.runAllTimersAsync();
+    await rejected;
+  });
+
+  it("accepts a plan whose datasets exist and surfaces the union on the phase read-out", async () => {
+    const api = await loadMockApi();
+    const created = api.createExperiment({
+      name: "with-data",
+      phases: [
+        {
+          name: "baseline",
+          frozen_services: [],
+          workflows: [
+            {
+              workflow_id: "wf-checkout-burst",
+              vus: 5,
+              duration_sec: 60,
+              dataset_id: "ds-checkout-seed",
+            },
+            {
+              workflow_id: "wf-browse-catalog",
+              vus: 5,
+              duration_sec: 60,
+              dataset_id: "ds-browse-capture",
+            },
+          ],
+          rule_ids: [],
+        },
+      ],
+    });
+    await vi.runAllTimersAsync();
+    const exp = await created;
+    expect(exp.phases[0]?.dataset_ids).toEqual(["ds-checkout-seed", "ds-browse-capture"]);
+  });
+});

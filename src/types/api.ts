@@ -359,9 +359,15 @@ export const PhaseSummarySchema = z.object({
   persist_cache: z.boolean().optional(),
   /** Bare rule references (phase_rules join). Resolve names from the rules cache. */
   rule_ids: arrayOrEmpty(z.string()),
+  /** Derived union of the workflows' dataset_ids (manteion-go B5); older
+   *  builds omit it — use lib/phase-metrics.phaseDatasetIds. */
+  dataset_ids: z
+    .array(z.string())
+    .nullish()
+    .transform((v) => v ?? undefined),
   started_at: Timestamp.optional(),
   completed_at: Timestamp.optional(),
-  /** Why the phase failed — populated once manteion-go B8 ships; tolerated now. */
+  /** Why the phase failed (manteion-go B8). */
   failure_reason: z.string().optional(),
 });
 export type PhaseSummary = z.infer<typeof PhaseSummarySchema>;
@@ -547,6 +553,10 @@ export const PhaseDetailSchema = z.object({
   completed_at: Timestamp.optional(),
   failure_reason: z.string().optional(),
   workflows: arrayOrEmpty(PhaseWorkflowSchema),
+  dataset_ids: z
+    .array(z.string())
+    .nullish()
+    .transform((v) => v ?? undefined),
   workflow_results: arrayOrEmpty(PhaseWorkflowResultSchema),
   total_request_count: z.number().default(0),
   total_error_count: z.number().default(0),

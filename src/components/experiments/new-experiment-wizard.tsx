@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { experimentsApi, rulesApi, servicesApi, workflowsApi } from "@/lib/api";
+import { datasetsApi, experimentsApi, rulesApi, servicesApi, workflowsApi } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import {
   type ExperimentDraft,
@@ -83,6 +83,12 @@ export function NewExperimentWizard({ onCreated, onCancel }: NewExperimentWizard
     staleTime: 30_000,
     retry: false,
   });
+  const datasets = useQuery({
+    queryKey: ["datasets"],
+    queryFn: datasetsApi.listDatasets,
+    staleTime: 30_000,
+    retry: false,
+  });
 
   const rules: RuleRef[] = useMemo(
     () =>
@@ -113,8 +119,17 @@ export function NewExperimentWizard({ onCreated, onCancel }: NewExperimentWizard
         rules,
         experiments: experiments.data ?? [],
         sdkInstanceCount: instances.isSuccess ? instances.data.length : undefined,
+        datasets: datasets.isSuccess ? datasets.data : undefined,
       }),
-    [draft, rules, experiments.data, instances.isSuccess, instances.data],
+    [
+      draft,
+      rules,
+      experiments.data,
+      instances.isSuccess,
+      instances.data,
+      datasets.isSuccess,
+      datasets.data,
+    ],
   );
   const blocked = issues.length > 0 || checks.some((c) => c.level === "error");
 
@@ -234,6 +249,7 @@ export function NewExperimentWizard({ onCreated, onCancel }: NewExperimentWizard
                 workflows={workflows.data ?? []}
                 rules={rules}
                 services={services}
+                datasets={datasets.data ?? []}
                 issues={issues}
               />
             )}

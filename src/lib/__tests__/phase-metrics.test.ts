@@ -3,6 +3,7 @@ import {
   metricsFromResults,
   metricsFromZeusStats,
   pctDelta,
+  phaseDatasetIds,
   phaseDurationMs,
   phaseProgress,
   plannedPhaseMs,
@@ -159,5 +160,18 @@ describe("phaseProgress", () => {
     );
     expect(over?.fraction).toBe(1);
     expect(phaseProgress({ workflows })).toBeNull();
+  });
+});
+
+describe("phaseDatasetIds", () => {
+  it("prefers the backend's derived union and falls back to the workflows' dataset ids", () => {
+    expect(phaseDatasetIds({ dataset_ids: ["ds-b"], workflows: [{ dataset_id: "ds-a" }] })).toEqual(
+      ["ds-b"],
+    );
+    expect(
+      phaseDatasetIds({
+        workflows: [{ dataset_id: "ds-a" }, { dataset_id: "" }, { dataset_id: "ds-a" }, {}],
+      }),
+    ).toEqual(["ds-a"]);
   });
 });

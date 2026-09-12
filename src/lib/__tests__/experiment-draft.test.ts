@@ -1,11 +1,14 @@
 import {
   type ExperimentDraft,
+  PLAN_SLACK_MS,
   type PhaseDraft,
   type WorkflowRowDraft,
   autoPlanPhases,
+  datasetIdsForPhase,
   draftToCreateInput,
   emptyDraft,
   footprintOfDraft,
+  planLengthMs,
   preflight,
   validateDraft,
 } from "@/lib/experiment-draft";
@@ -282,5 +285,112 @@ describe("footprintOfDraft / preflight", () => {
         (i) => i.code === "no-sdk-instances",
       ),
     ).toBe(false);
+  });
+});
+
+describe("datasets per workflow (decision 3)", () => {
+  const twoPhase = draft({
+    phases: [
+      phase({
+        workflows: [
+          wf({ dataset_id: "ds-users" }),
+          wf({ key: "w2", workflow_id: "wf-browse", dataset_id: "ds-products", duration_sec: 120 }),
+        ],
+      }),
+      phase({
+        key: "p2",
+        name: "isolation",
+        workflows: [wf({ key: "w3", dataset_id: "ds-users", duration_sec: 600 })],
+      }),
+    ],
+  });
+
+  it("a phase needs the union of its workflows' datasets, first-seen order, blanks dropped", () => {
+    expect(datasetIdsForPhase(twoPhase.phases[0] as PhaseDraft)).toEqual([
+      "ds-users",
+      "ds-products",
+    ]);
+    expect(
+      datasetIdsForPhase(phase({ workflows: [wf({ dataset_id: "" }), wf({ key: "w2" })] })),
+    ).toEqual([]);
+  });
+
+  it("plan length sums each phase's longest leg", () => {
+    expect(planLengthMs(twoPhase)).toBe((300 + 600) * 1000);
+    expect(PLAN_SLACK_MS).toBe(5 * 60 * 1000);
+  });
+
+  const NOW = Date.parse("2026-09-12T00:00:00Z");
+  const ds = (id: string, ttl_s: number, created_at = "2026-09-11T23:00:00Z") => ({
+    id,
+    name: id,
+    ttl_s,
+    created_at,
+  });
+
+  it("preflight: ok when the referenced datasets exist and outlive the plan (or never expire)", () => {
+    const items = preflight({
+      draft: twoPhase,
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+      datasets: [ds("ds-users", 0), ds("ds-products", 24 * 3600)],
+      now: NOW,
+    });
+    const item = items.find((i) => i.code === "datasets");
+    expect(item?.level).toBe("ok");
+    expect(item?.message).toMatch(/ds-users, ds-products/);
+    expect(item?.message).toMatch(/TTL outlives the plan/);
+  });
+
+  it("preflight: blocks on datasets missing from zeus (the server would 422 dataset_missing)", () => {
+    const item = preflight({
+      draft: twoPhase,
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+      datasets: [ds("ds-users", 0)],
+      now: NOW,
+    }).find((i) => i.code === "datasets");
+    expect(item?.level).toBe("error");
+    expect(item?.message).toMatch(/ds-products/);
+    expect(item?.message).toMatch(/missing/i);
+  });
+
+  it("preflight: blocks when a TTL ends before plan length + 5 min slack (the server would 422 dataset_expiring)", () => {
+    // created 1h ago with a 1h15m TTL → 15 min left; plan is 15 min + 5 min slack
+    const item = preflight({
+      draft: twoPhase,
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+      datasets: [ds("ds-users", 75 * 60), ds("ds-products", 0)],
+      now: NOW,
+    }).find((i) => i.code === "datasets");
+    expect(item?.level).toBe("error");
+    expect(item?.message).toMatch(/ds-users/);
+    expect(item?.message).toMatch(/expire/i);
+  });
+
+  it("preflight: says so when nothing is referenced, and warns when the dataset list could not be loaded", () => {
+    const none = preflight({
+      draft: draft(),
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+      datasets: [],
+      now: NOW,
+    });
+    expect(none.find((i) => i.code === "datasets")).toMatchObject({ level: "ok" });
+    expect(none.find((i) => i.code === "datasets")?.message).toMatch(/default dataset/i);
+    const unknown = preflight({
+      draft: twoPhase,
+      rules: [],
+      experiments: [],
+      sdkInstanceCount: 1,
+      datasets: undefined,
+      now: NOW,
+    });
+    expect(unknown.find((i) => i.code === "datasets")?.level).toBe("warning");
   });
 });

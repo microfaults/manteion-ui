@@ -62,8 +62,9 @@ let _mockDatasets: Dataset[] = [
       products: { row_count: 32, size_bytes: 1184, fields: ["id"] },
     },
     size_bytes: 1184,
-    ttl_s: 86400,
-    created_at: "2026-05-20T18:00:00Z",
+    ttl_s: 7 * 86_400,
+    // Minted relative to load time so the demo TTL always outlives a plan.
+    created_at: new Date(Date.now() - 2 * 3_600_000).toISOString(),
   },
   {
     id: "ds-checkout-seed",
@@ -126,6 +127,12 @@ function toListItem(d: Dataset): DatasetListItem {
 }
 
 // ─── API ─────────────────────────────────────────────────────────────────
+
+/** Mock-only: the current mock dataset list (the mock experiment store
+ *  preflights plans against it the way manteion-go asks zeus). */
+export function mockDatasetList(): DatasetListItem[] {
+  return _mockDatasets.map(toListItem);
+}
 
 export async function listDatasets(): Promise<DatasetListItem[]> {
   if (USE_MOCK) {

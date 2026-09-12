@@ -17,9 +17,10 @@ vi.mock("@/lib/api", async (importOriginal) => {
       startExperiment: vi.fn(),
     },
     servicesApi: { listSDKInstances: vi.fn() },
+    datasetsApi: { listDatasets: vi.fn() },
   };
 });
-import { experimentsApi, rulesApi, servicesApi, workflowsApi } from "@/lib/api";
+import { datasetsApi, experimentsApi, rulesApi, servicesApi, workflowsApi } from "@/lib/api";
 
 const WORKFLOWS: WorkflowSummary[] = [
   {
@@ -78,6 +79,16 @@ describe("NewExperimentWizard", () => {
     vi.mocked(rulesApi.listRules).mockResolvedValue(RULES as never);
     vi.mocked(experimentsApi.listExperiments).mockResolvedValue([RUNNING as never]);
     vi.mocked(servicesApi.listSDKInstances).mockResolvedValue([]);
+    vi.mocked(datasetsApi.listDatasets).mockResolvedValue([
+      {
+        id: "ds-users",
+        name: "users-10k",
+        source: "upload",
+        size_bytes: 10,
+        ttl_s: 0,
+        created_at: "2026-06-01T00:00:00Z",
+      },
+    ]);
     vi.mocked(experimentsApi.createExperiment).mockImplementation(async (input) => ({
       id: "exp-new",
       name: input.name,
@@ -157,6 +168,13 @@ describe("NewExperimentWizard", () => {
     fireEvent.change(within(phase).getByLabelText("VUs"), { target: { value: "25" } });
     const preflight = screen.getByRole("complementary", { name: /preflight/i });
     expect(await within(preflight).findByText(/no services touched/i)).toBeTruthy();
+    expect(within(preflight).getByText(/no datasets referenced/i)).toBeTruthy();
+    // pick a dataset for the row → the phase's "Datasets needed" chip and the preflight follow
+    fireEvent.change(within(phase).getByLabelText("Dataset"), { target: { value: "ds-users" } });
+    expect(
+      within(screen.getByLabelText(/datasets needed by baseline/i)).getByText("users-10k"),
+    ).toBeTruthy();
+    expect(await within(preflight).findByText(/datasets present in zeus: ds-users/i)).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: /^create$/i }));
     await waitFor(() =>
@@ -170,7 +188,9 @@ describe("NewExperimentWizard", () => {
           position: 0,
           persist_cache: false,
           frozen_services: [],
-          workflows: [{ workflow_id: "wf-checkout", vus: 25, duration_sec: 300 }],
+          workflows: [
+            { workflow_id: "wf-checkout", vus: 25, duration_sec: 300, dataset_id: "ds-users" },
+          ],
           rule_ids: [],
         },
       ],

@@ -13,7 +13,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { phasesApi } from "@/lib/api";
 import type { PhaseFinalStatus } from "@/lib/api/phases";
 import type { RuleRef } from "@/lib/experiment-draft";
-import { baselinePhase, phaseProgress } from "@/lib/phase-metrics";
+import { baselinePhase, phaseDatasetIds, phaseProgress } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
 import { useZeusRun } from "@/lib/use-zeus-run";
 import { cn, formatDurationMs, formatRelative } from "@/lib/utils";
@@ -264,6 +264,21 @@ function PhaseRow({
               ))
             )}
           </div>
+          {phaseDatasetIds(phase).length > 0 ? (
+            <>
+              <div className={cn(SECTION, "mt-2")}>Datasets</div>
+              <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
+                {phaseDatasetIds(phase).map((id) => (
+                  <span
+                    key={id}
+                    className="rounded-md border border-border px-1.5 py-0.5 font-mono"
+                  >
+                    {id}
+                  </span>
+                ))}
+              </div>
+            </>
+          ) : null}
         </div>
       </div>
 

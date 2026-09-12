@@ -138,3 +138,16 @@ export function phaseProgress(
     fraction: plannedMs ? Math.min(1, elapsedMs / plannedMs) : null,
   };
 }
+
+/** Datasets a phase needs: the backend's derived `dataset_ids` when present
+ *  (manteion-go B5), else the union of its workflows' `dataset_id`s. */
+export function phaseDatasetIds(phase: {
+  dataset_ids?: readonly string[];
+  workflows: readonly { dataset_id?: string }[];
+}): string[] {
+  if (phase.dataset_ids) return [...phase.dataset_ids];
+  const out: string[] = [];
+  for (const w of phase.workflows)
+    if (w.dataset_id && !out.includes(w.dataset_id)) out.push(w.dataset_id);
+  return out;
+}

@@ -22,7 +22,7 @@ import {
 import { experimentsApi, phasesApi, rulesApi, workflowsApi } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import type { PhaseFinalStatus } from "@/lib/api/phases";
-import { phaseProgress } from "@/lib/phase-metrics";
+import { phaseDatasetIds, phaseProgress } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
 import { type RunTransition, useRunStateTimeline, useZeusRun } from "@/lib/use-zeus-run";
 import { cn, formatCount, formatDurationMs, formatLatencyUs, formatRelative } from "@/lib/utils";
@@ -284,6 +284,14 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
         <div className="flex items-baseline gap-2 px-4 py-3">
           <h2 className="text-sm font-semibold">Workflows</h2>
           <span className="text-xs text-muted-foreground">each row is one zeus run or attack</span>
+          <span className="ml-auto text-xs text-muted-foreground">
+            Datasets needed:{" "}
+            {phaseDatasetIds(phase).length === 0 ? (
+              "zeus default"
+            ) : (
+              <span className="font-mono text-foreground">{phaseDatasetIds(phase).join(", ")}</span>
+            )}
+          </span>
         </div>
         <Table>
           <TableHeader>
@@ -292,6 +300,7 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
               <TableHead className="text-right">VUs</TableHead>
               <TableHead className="text-right">rate</TableHead>
               <TableHead className="text-right">duration</TableHead>
+              <TableHead>dataset</TableHead>
               <TableHead>zeus run</TableHead>
               <TableHead>status</TableHead>
             </TableRow>
@@ -299,7 +308,7 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
           <TableBody>
             {phase.workflows.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-muted-foreground">
+                <TableCell colSpan={7} className="text-muted-foreground">
                   No workflows attached.
                 </TableCell>
               </TableRow>
@@ -512,6 +521,9 @@ function WorkflowRow({
       </TableCell>
       <TableCell className="text-right font-mono text-xs">
         {workflow.duration_sec ? `${workflow.duration_sec}s` : "—"}
+      </TableCell>
+      <TableCell className="font-mono text-xs">
+        {workflow.dataset_id ?? <span className="text-muted-foreground">default</span>}
       </TableCell>
       <TableCell
         className="font-mono text-xs"

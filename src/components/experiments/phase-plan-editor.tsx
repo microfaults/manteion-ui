@@ -4,7 +4,7 @@
  * rule chips (disabled ones flagged), frozen-service rows (service · mode ·
  * key strategy · mutation policy) and persist_cache. Pure controlled
  * component over an ExperimentDraft; every rule lives in lib/experiment-draft.
- * The per-workflow dataset column arrives with A7 (manteion-go B5).
+ * The per-workflow dataset column needs manteion-go B5 (phase_workflows.dataset_id).
  */
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -20,11 +20,13 @@ import {
   type PhaseDraft,
   type RuleRef,
   autoPlanPhases,
+  datasetIdsForPhase,
   newFrozenService,
   newPhase,
   newWorkflowRow,
 } from "@/lib/experiment-draft";
 import type { WorkflowSummary } from "@/lib/workflow-types";
+import type { DatasetListItem } from "@/types/api";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { useState } from "react";
 
@@ -35,6 +37,8 @@ interface PhasePlanEditorProps {
   rules: readonly RuleRef[];
   /** Every service name known to the environment (frozen-service picker). */
   services: readonly string[];
+  /** zeus datasets for the per-workflow picker (decision 3). */
+  datasets: readonly DatasetListItem[];
   issues: readonly DraftIssue[];
 }
 
@@ -47,6 +51,7 @@ export function PhasePlanEditor({
   workflows,
   rules,
   services,
+  datasets,
   issues,
 }: PhasePlanEditorProps) {
   const [autoPlan, setAutoPlan] = useState(false);
@@ -138,6 +143,7 @@ export function PhasePlanEditor({
           workflows={workflows}
           rules={rules}
           services={services}
+          datasets={datasets}
           issues={issues.filter((i) => i.phaseKey === phase.key)}
           onChange={(patch) => updatePhase(phase.key, patch)}
           onMove={(dir) => movePhase(index, dir)}
@@ -155,6 +161,7 @@ function PhaseCard({
   workflows,
   rules,
   services,
+  datasets,
   issues,
   onChange,
   onMove,
@@ -166,6 +173,7 @@ function PhaseCard({
   workflows: readonly WorkflowSummary[];
   rules: readonly RuleRef[];
   services: readonly string[];
+  datasets: readonly DatasetListItem[];
   issues: readonly DraftIssue[];
   onChange: (patch: Partial<PhaseDraft>) => void;
   onMove: (dir: -1 | 1) => void;
@@ -174,6 +182,8 @@ function PhaseCard({
   const rulesById = new Map(rules.map((r) => [r.id, r]));
   const addableRules = rules.filter((r) => !phase.rule_ids.includes(r.id));
   const label = phase.name || `phase ${index + 1}`;
+  const datasetNames = new Map(datasets.map((d) => [d.id, d.name]));
+  const needed = datasetIdsForPhase(phase);
 
   return (
     <section
@@ -237,18 +247,40 @@ function PhaseCard({
         </p>
       ))}
 
+      <div
+        className="mt-2 flex flex-wrap items-center gap-1.5 text-xs"
+        aria-label={`Datasets needed by ${label}`}
+      >
+        <span className={SECTION}>Datasets needed</span>
+        {needed.length === 0 ? (
+          <span className="text-muted-foreground">zeus default</span>
+        ) : (
+          needed.map((id) => (
+            <span
+              key={id}
+              className="rounded-md border border-border px-1.5 py-0.5 font-mono"
+              title={id}
+            >
+              {datasetNames.get(id) ?? id}
+            </span>
+          ))
+        )}
+      </div>
+
       <div className="mt-4">
-        <div className="grid grid-cols-[1fr_5rem_6rem_6rem_2rem] items-center gap-2 text-xs">
+        <div className="grid grid-cols-[1fr_5rem_6rem_6rem_10rem_2rem] items-center gap-2 text-xs">
           <span className={SECTION}>Workflow</span>
           <span className={SECTION}>VUs</span>
           <span className={SECTION}>rate rps</span>
           <span className={SECTION}>duration s</span>
+          <span className={SECTION}>Dataset</span>
           <span />
           {phase.workflows.map((row) => (
             <WorkflowRow
               key={row.key}
               row={row}
               workflows={workflows}
+              datasets={datasets}
               onChange={(patch) =>
                 onChange({
                   workflows: phase.workflows.map((w) =>
@@ -378,15 +410,24 @@ function PhaseCard({
 function WorkflowRow({
   row,
   workflows,
+  datasets,
   onChange,
   onRemove,
 }: {
   row: PhaseDraft["workflows"][number];
   workflows: readonly WorkflowSummary[];
+  datasets: readonly DatasetListItem[];
   onChange: (patch: Partial<PhaseDraft["workflows"][number]>) => void;
   onRemove: () => void;
 }) {
   const num = (v: string) => (v === "" ? 0 : Number(v));
+  const datasetOptions = [
+    { value: "", label: "zeus default" },
+    ...datasets.map((d) => ({ value: d.id, label: d.name })),
+    ...(row.dataset_id && !datasets.some((d) => d.id === row.dataset_id)
+      ? [{ value: row.dataset_id, label: `${row.dataset_id} (not in zeus)` }]
+      : []),
+  ];
   return (
     <>
       <NativeSelect
@@ -426,6 +467,13 @@ function WorkflowRow({
         className={CELL_INPUT}
         value={row.duration_sec}
         onChange={(e) => onChange({ duration_sec: num(e.target.value) })}
+      />
+      <NativeSelect
+        aria-label="Dataset"
+        className={CELL_INPUT}
+        value={row.dataset_id ?? ""}
+        onChange={(e) => onChange({ dataset_id: e.target.value || undefined })}
+        options={datasetOptions}
       />
       <Button
         type="button"

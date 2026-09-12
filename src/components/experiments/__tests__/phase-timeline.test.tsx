@@ -99,7 +99,13 @@ describe("PhaseTimeline", () => {
         started_at: "2026-06-01T00:00:00Z",
         completed_at: "2026-06-01T00:05:00Z",
         workflows: [
-          { workflow_id: "wf-checkout", vus: 25, duration_sec: 300, zeus_run_id: "run-base" },
+          {
+            workflow_id: "wf-checkout",
+            vus: 25,
+            duration_sec: 300,
+            zeus_run_id: "run-base",
+            dataset_id: "ds-users",
+          },
         ],
       }),
       phase({
@@ -139,6 +145,7 @@ describe("PhaseTimeline", () => {
     expect(within(baseline).getByText("104.6")).toBeTruthy();
     expect(within(baseline).getByText("0.21%")).toBeTruthy();
     expect(within(baseline).getByText("checkout-burst")).toBeTruthy();
+    expect(within(baseline).getByText("ds-users")).toBeTruthy();
     expect(within(baseline).queryByText(/via zeus run stats/)).toBeNull();
 
     const iso = row("isolation-productcatalog");

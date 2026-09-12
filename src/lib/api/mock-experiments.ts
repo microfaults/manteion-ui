@@ -25,6 +25,7 @@ import type {
   ZeusRunStats,
 } from "@/types/api";
 import { ApiError } from "./client";
+import { datasetExpiresAt, mockDatasetList } from "./datasets";
 import { mockExperiments, mockPhaseResults } from "./mock-fixtures";
 import { mockServicesForRules } from "./rules";
 
@@ -54,7 +55,50 @@ function clonePhase(p: PhaseSummary): PhaseSummary {
     workflows: p.workflows.map((w) => ({ ...w })),
     frozen_services: p.frozen_services.map((f) => ({ ...f })),
     rule_ids: [...p.rule_ids],
+    dataset_ids: datasetUnion(p),
   };
+}
+
+/** Derived read-only union the backend puts on every phase read-out (B5). */
+function datasetUnion(p: { workflows: readonly { dataset_id?: string }[] }): string[] {
+  const out: string[] = [];
+  for (const w of p.workflows)
+    if (w.dataset_id && !out.includes(w.dataset_id)) out.push(w.dataset_id);
+  return out;
+}
+
+const PLAN_SLACK_MS = 5 * 60 * 1000;
+
+/** manteion-go B5: every referenced dataset must exist in zeus and its TTL
+ *  must outlive the plan (+5 min), else 422 dataset_missing / dataset_expiring. */
+function preflightDatasets(phases: readonly PhaseSummary[]): void {
+  const needed: string[] = [];
+  let planMs = 0;
+  for (const p of phases) {
+    for (const id of datasetUnion(p)) if (!needed.includes(id)) needed.push(id);
+    planMs += Math.max(0, ...p.workflows.map((w) => (w.duration_sec ?? 0) * 1000));
+  }
+  if (needed.length === 0) return;
+  const byId = new Map(mockDatasetList().map((d) => [d.id, d]));
+  const missing = needed.filter((id) => !byId.has(id));
+  if (missing.length) {
+    throw fail(422, `dataset(s) not found in zeus: ${missing.join(", ")}`, {
+      code: "dataset_missing",
+      dataset_ids: missing,
+    });
+  }
+  const deadline = Date.now() + planMs + PLAN_SLACK_MS;
+  const expiring = needed.filter((id) => {
+    const ds = byId.get(id);
+    const at = ds ? datasetExpiresAt(ds) : null;
+    return at !== null && at.getTime() <= deadline;
+  });
+  if (expiring.length) {
+    throw fail(422, `dataset(s) expire before the plan would finish: ${expiring.join(", ")}`, {
+      code: "dataset_expiring",
+      dataset_ids: expiring,
+    });
+  }
 }
 
 const fail = (status: number, message: string, body: Record<string, unknown> = {}) =>
@@ -109,6 +153,7 @@ export function mockCreate(input: CreateExperimentInput): Experiment {
   const id = nextId("exp");
   const phases = input.phases.map((ph, i) => materializePhase(id, ph, i));
   validatePhaseSet(phases);
+  preflightDatasets(phases);
   const exp: Experiment = {
     id,
     name: input.name,
@@ -185,6 +230,7 @@ export function mockCreatePhase(experimentId: string, input: CreatePhaseInput): 
   const maxPos = e.phases.reduce((m, p) => Math.max(m, p.position ?? 0), -1);
   const phase = materializePhase(e.id, input, maxPos + 1);
   validatePhaseSet([...e.phases, phase]);
+  preflightDatasets([phase]);
   e.phases = [...e.phases, phase].sort(byPosition);
   e.targeted_services = footprint(e);
   return clonePhase(phase);
@@ -215,6 +261,7 @@ export function mockStart(id: string): Experiment {
       );
     }
   }
+  preflightDatasets(e.phases.filter((p) => p.status === "pending"));
   e.status = "running";
   e.started_at = now();
   advance(e);
