@@ -124,6 +124,7 @@ export function ExperimentDetail({ experimentId, onDeleted, now }: ExperimentDet
   const worstPhase = exp.phases.find((p) => p.id === rollup?.worst_p99_phase_id);
   const services = exp.targeted_services.length ? exp.targeted_services : footprint(exp, rules);
   const grafanaBase = import.meta.env.VITE_GRAFANA_URL as string | undefined;
+  const grafanaEmbed = import.meta.env.VITE_GRAFANA_EMBED === "true";
   const window = exp.started_at ? { from: exp.started_at, to: exp.completed_at } : undefined;
   const windowLabel = exp.started_at
     ? `${formatRelative(exp.started_at)} → ${exp.completed_at ? formatRelative(exp.completed_at) : "now"}`
@@ -307,7 +308,9 @@ export function ExperimentDetail({ experimentId, onDeleted, now }: ExperimentDet
               title={title}
               window={windowLabel}
               src={
-                window ? grafanaPanelSrc(grafanaBase, metric as GrafanaMetric, window) : undefined
+                window
+                  ? grafanaPanelSrc(grafanaBase, metric as GrafanaMetric, window, grafanaEmbed)
+                  : undefined
               }
               grafanaUrl={grafanaDashboardUrl(grafanaBase, metric as GrafanaMetric, window)}
               height={220}

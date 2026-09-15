@@ -19,6 +19,7 @@
  * where the snake_case JSON gets mapped to the UI types.
  */
 
+import { ensureNodeIds } from "@/lib/workflow-ids";
 import {
   PageEnvelope,
   type Workflow as WireWorkflow,
@@ -107,7 +108,7 @@ function countRequestNodes(node: unknown): number {
  *  can still render. */
 function parseStepsTree(root: unknown): WorkflowNode {
   if (root && typeof root === "object") {
-    return root as WorkflowNode;
+    return ensureNodeIds(root as WorkflowNode);
   }
   return { type: "sequence", id: "root", children: [] };
 }

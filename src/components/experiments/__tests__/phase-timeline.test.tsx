@@ -192,7 +192,7 @@ describe("PhaseTimeline", () => {
     vi.mocked(zeusRunsApi.getRun).mockImplementation(async (id) =>
       id === "run-f"
         ? { id, status: "failed", reason: "k6 exited 99" }
-        : { id, status: "completed" },
+        : { id, status: "completed", reason: "thresholds breached" },
     );
     const exp = experiment([
       phase({
@@ -239,6 +239,8 @@ describe("PhaseTimeline", () => {
     expect(await within(baseline).findByText(/via zeus run stats/)).toBeTruthy();
     expect(within(baseline).getByText("25ms")).toBeTruthy(); // 24.8 ms rounds
     expect(within(baseline).getByText("1.00%")).toBeTruthy(); // 30 / 3000
+    expect(within(baseline).getByText(/30 iterations dropped/)).toBeTruthy();
+    expect(await within(baseline).findByText(/thresholds breached/)).toBeTruthy();
 
     const failed = row("isolation-adservice");
     expect(await within(failed).findByText("k6 exited 99")).toBeTruthy();

@@ -71,7 +71,7 @@ describe("metricsFromZeusStats", () => {
     duration_ms: 300_000,
     iterations: 10,
     requests_sent: 1000,
-    requests_ok: 990,
+    requests_ok: 985,
     requests_dropped: 10,
     latency_p50_us: 18_400,
     latency_p95_us: 42_100,
@@ -79,12 +79,13 @@ describe("metricsFromZeusStats", () => {
     ...over,
   });
 
-  it("derives throughput and error rate from the run stats", () => {
+  it("counts HTTP failures (sent − ok) as errors and reports dropped iterations apart", () => {
     expect(metricsFromZeusStats(stats({}))).toEqual({
       source: "zeus",
       request_count: 1000,
-      error_count: 10,
-      error_rate: 0.01,
+      error_count: 15,
+      error_rate: 0.015,
+      dropped_iterations: 10,
       rps: 1000 / 300,
       p50_us: 18_400,
       p95_us: 42_100,
@@ -173,5 +174,45 @@ describe("phaseDatasetIds", () => {
         workflows: [{ dataset_id: "ds-a" }, { dataset_id: "" }, { dataset_id: "ds-a" }, {}],
       }),
     ).toEqual(["ds-a"]);
+  });
+});
+
+describe("dropped iterations are a load shortfall, not request errors (VM1, 2026-09-14)", () => {
+  const vm1Run: ZeusRunStats = {
+    run_id: "run-01a09720-65bd-73d0-b872-7a1935ce0cd6",
+    status: "completed",
+    duration_ms: 63_610,
+    iterations: 383,
+    requests_sent: 903,
+    requests_ok: 903,
+    requests_dropped: 218,
+    latency_p50_us: 8_124,
+    latency_p95_us: 17_396,
+    latency_p99_us: 59_133,
+  };
+
+  it("zeus stats: every request succeeded while 218 iterations were dropped", () => {
+    const m = metricsFromZeusStats(vm1Run);
+    expect(m.error_count).toBe(0);
+    expect(m.error_rate).toBe(0);
+    expect(m.dropped_iterations).toBe(218);
+  });
+
+  it("zeus stats: no dropped_iterations key when nothing was dropped", () => {
+    expect("dropped_iterations" in metricsFromZeusStats({ ...vm1Run, requests_dropped: 0 })).toBe(
+      false,
+    );
+  });
+
+  it("harvested rows: sums raw_metrics.requests_dropped, ignoring rows that don't report it", () => {
+    const m = metricsFromResults(
+      results([
+        wr({ raw_metrics: { requests_sent: 1000, requests_ok: 990, requests_dropped: 40 } }),
+        wr({ workflow_id: "wf-2", raw_metrics: { total_requests: 10 } }),
+        wr({ workflow_id: "wf-3" }),
+      ]),
+    );
+    expect(m?.dropped_iterations).toBe(40);
+    expect(m?.error_count).toBe(30);
   });
 });

@@ -595,7 +595,7 @@ export function mockZeusRunStats(runId: string): ZeusRunStats | undefined {
     iterations: Math.round(r.request_count / 4),
     requests_sent: r.request_count,
     requests_ok: r.request_count - r.error_count,
-    requests_dropped: r.error_count,
+    requests_dropped: 0,
     latency_p50_us: r.latency_p50_us,
     latency_p95_us: r.latency_p95_us,
     latency_p99_us: r.latency_p99_us,

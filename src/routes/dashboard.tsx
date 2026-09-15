@@ -13,23 +13,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { experimentsApi, rulesApi, servicesApi } from "@/lib/api";
+import { experimentsApi, faultsApi, rulesApi, servicesApi } from "@/lib/api";
 import { ApiError } from "@/lib/api/client";
-import { bucketFaultRules } from "@/lib/fault-categorize";
+import { bucketFaultRules, faultBucketsLabel } from "@/lib/fault-categorize";
 import { grafanaDashboardUrl } from "@/lib/grafana";
 import {
   type TimeSeriesPoint,
   fetchDashboardPrometheusBundle,
   fetchServiceNamesFromMetrics,
 } from "@/lib/prometheus";
+import { specLookup } from "@/lib/rule-target";
+import { type ServiceHealth, summarizeServiceHealth } from "@/lib/service-health";
 import { buildServicesPanelRows, displayServiceName } from "@/lib/service-panel";
-import { formatDurationMs, formatRelative } from "@/lib/utils";
-import {
-  ACTIVE_PHASE_STATUSES,
-  type ExperimentStatus,
-  type SDKInstance,
-  TERMINAL_PHASE_STATUSES,
-} from "@/types/api";
+import { formatDurationMs, formatFinite, formatRelative } from "@/lib/utils";
+import { ACTIVE_PHASE_STATUSES, type ExperimentStatus, TERMINAL_PHASE_STATUSES } from "@/types/api";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
@@ -50,6 +47,12 @@ function DashboardPage() {
   const instances = useQuery({
     queryKey: ["sdk-instances"],
     queryFn: servicesApi.listSDKInstances,
+    retry: false,
+  });
+  const faultSpecs = useQuery({
+    queryKey: ["fault-specs"],
+    queryFn: faultsApi.listFaultSpecs,
+    staleTime: 60_000,
     retry: false,
   });
   const experiments = useQuery({
@@ -77,16 +80,18 @@ function DashboardPage() {
     retry: false,
   });
 
-  const alive = instances.data?.filter((i) => i.status === "alive").length ?? 0;
-  const stale = instances.data?.filter((i) => i.status === "stale").length ?? 0;
-  const statusMissing = instances.data?.filter((i) => i.status == null).length ?? 0;
-  const failingServices = new Set(
-    instances.data?.filter((i) => i.status === "dead").map((i) => i.service) ?? [],
-  ).size;
+  const serviceHealth = useMemo(
+    () => summarizeServiceHealth(instances.data ?? []),
+    [instances.data],
+  );
+  const specsById = useMemo(() => specLookup(faultSpecs.data), [faultSpecs.data]);
 
   const enabledRulesList = useMemo(() => rules.data?.filter((r) => r.enabled) ?? [], [rules.data]);
   const activeFaults = enabledRulesList.length;
-  const faultBuckets = useMemo(() => bucketFaultRules(enabledRulesList), [enabledRulesList]);
+  const faultBuckets = useMemo(
+    () => bucketFaultRules(enabledRulesList, specsById),
+    [enabledRulesList, specsById],
+  );
 
   const runningExps = experiments.data?.filter((e) => e.status === "running") ?? [];
   const plannedExps = experiments.data?.filter((e) => e.status === "planned") ?? [];
@@ -133,14 +138,12 @@ function DashboardPage() {
         <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <StatCard
             label="Failing services"
-            value={failingServices}
-            footer={sdkInstancesFooter(
+            value={serviceHealth.failing}
+            footer={serviceHealthFooter(
               instances.isLoading,
               instances.isError,
-              instances.data,
-              alive,
-              stale,
-              statusMissing,
+              instances.data?.length ?? 0,
+              serviceHealth,
             )}
           />
           <StatCard
@@ -156,7 +159,7 @@ function DashboardPage() {
           <StatCard
             label="Active faults"
             value={activeFaults}
-            footer={`${faultBuckets.inline} inline · ${faultBuckets.network} network · ${faultBuckets.cacheBox} cache-box`}
+            footer={faultBucketsLabel(faultBuckets)}
           />
         </div>
 
@@ -200,7 +203,7 @@ function DashboardPage() {
             <ObservabilityCard
               title="p99 latency"
               subtitle={`checkout workflow · ${rangeLabel}`}
-              value={`${Math.round(dashboardMetrics.data?.p99Latency ?? 0)} ms`}
+              value={formatFinite(dashboardMetrics.data?.p99Latency, (v) => `${Math.round(v)} ms`)}
               trend={dashboardMetrics.data?.p99LatencyRange}
               color="red"
               grafanaUrl={grafanaDashboardUrl(grafanaBase, "p99-latency")}
@@ -208,7 +211,7 @@ function DashboardPage() {
             <ObservabilityCard
               title="Error rate"
               subtitle={`OTel span errors + HTTP 4xx/5xx · ${rangeLabel}`}
-              value={`${(dashboardMetrics.data?.errorRate ?? 0).toFixed(2)}%`}
+              value={formatFinite(dashboardMetrics.data?.errorRate, (v) => `${v.toFixed(2)}%`)}
               valueHint={trendQualifier(dashboardMetrics.data?.errorRateRange, "stable", "spiky")}
               trend={dashboardMetrics.data?.errorRateRange}
               trendClassName="bg-muted-foreground"
@@ -217,7 +220,7 @@ function DashboardPage() {
             <ObservabilityCard
               title="Cache-box hit rate"
               subtitle={`productcatalog · replay · ${rangeLabel}`}
-              value={`${(dashboardMetrics.data?.cacheHitRate ?? 0).toFixed(1)}%`}
+              value={formatFinite(dashboardMetrics.data?.cacheHitRate, (v) => `${v.toFixed(1)}%`)}
               valueHint={trendQualifier(
                 dashboardMetrics.data?.cacheHitRateRange,
                 "active",
@@ -397,24 +400,18 @@ const RANGE_MIN_BY_TOKEN: Record<string, 5 | 15 | 30 | 60> = {
   "1h": 60,
 };
 
-function sdkInstancesFooter(
+function serviceHealthFooter(
   loading: boolean,
   error: boolean,
-  data: SDKInstance[] | undefined,
-  alive: number,
-  stale: number,
-  statusMissing: number,
+  registrations: number,
+  health: ServiceHealth,
 ): string {
   if (loading) return "Loading SDK instances…";
   if (error) return "Could not load /api/v1/sdk/instances";
-  if (!data?.length) return "No SDK registrations yet";
-  if (statusMissing === data.length) {
-    return `${data.length} instance(s) — health status not reported by manteion yet`;
-  }
-  if (statusMissing > 0) {
-    return `${stale} degraded · ${alive} healthy · ${statusMissing} unknown`;
-  }
-  return `${stale} degraded · ${alive} healthy`;
+  if (!registrations) return "No SDK registrations yet";
+  const parts = [`${health.healthy} healthy`, `${health.degraded} degraded`];
+  if (health.unknown) parts.push(`${health.unknown} unknown`);
+  return `${parts.join(" · ")} of ${health.services} services`;
 }
 
 function experimentStatusPresentation(status: ExperimentStatus): {

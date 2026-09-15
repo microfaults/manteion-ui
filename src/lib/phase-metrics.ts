@@ -17,6 +17,10 @@ export interface PhaseMetrics {
   p50_us?: number;
   p95_us?: number;
   p99_us?: number;
+  /** k6 iterations the arrival-rate executor could not schedule because the
+   *  VU pool ran out: the load ran below plan. Counted in iterations, not
+   *  requests, so never part of error_count; absent when none were dropped. */
+  dropped_iterations?: number;
 }
 
 const max = (a: number | undefined, b: number) => (a == null || b > a ? b : a);
@@ -34,6 +38,7 @@ export function metricsFromResults(results: PhaseResults): PhaseMetrics | undefi
   let p50_us: number | undefined;
   let p95_us: number | undefined;
   let p99_us: number | undefined;
+  let dropped = 0;
   for (const r of rows) {
     request_count += r.request_count;
     error_count += r.error_count;
@@ -41,6 +46,8 @@ export function metricsFromResults(results: PhaseResults): PhaseMetrics | undefi
     p50_us = max(p50_us, r.latency_p50_us);
     p95_us = max(p95_us, r.latency_p95_us);
     p99_us = max(p99_us, r.latency_p99_us);
+    const d = r.raw_metrics?.requests_dropped;
+    if (typeof d === "number" && d > 0) dropped += d;
   }
   return {
     source: "harvested",
@@ -51,24 +58,28 @@ export function metricsFromResults(results: PhaseResults): PhaseMetrics | undefi
     p50_us,
     p95_us,
     p99_us,
+    ...(dropped > 0 ? { dropped_iterations: dropped } : {}),
   };
 }
 
 /** zeus RunStats (already µs/ms after ZeusRunStatsSchema) → PhaseMetrics.
- *  error_rate = dropped / sent; rps = sent / duration. Percentiles are
+ *  error_rate = (sent − ok) / sent; rps = sent / duration. Percentiles are
  *  meaningless for an empty run, so they are left undefined. */
 export function metricsFromZeusStats(stats: ZeusRunStats): PhaseMetrics {
   const sent = stats.requests_sent;
   const hasTraffic = sent > 0;
+  // HTTP failures only: zeus names k6 dropped_iterations "requests_dropped".
+  const errors = Math.max(0, sent - stats.requests_ok);
   return {
     source: "zeus",
     request_count: sent,
-    error_count: stats.requests_dropped,
-    error_rate: hasTraffic ? stats.requests_dropped / sent : undefined,
+    error_count: errors,
+    error_rate: hasTraffic ? errors / sent : undefined,
     rps: hasTraffic && stats.duration_ms > 0 ? sent / (stats.duration_ms / 1000) : undefined,
     p50_us: hasTraffic ? stats.latency_p50_us : undefined,
     p95_us: hasTraffic ? stats.latency_p95_us : undefined,
     p99_us: hasTraffic ? stats.latency_p99_us : undefined,
+    ...(stats.requests_dropped > 0 ? { dropped_iterations: stats.requests_dropped } : {}),
   };
 }
 

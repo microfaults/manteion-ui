@@ -458,6 +458,13 @@ export const PhaseWorkflowResultSchema = z.object({
   latency_p99_us: z.number(),
   latency_p999_us: z.number().optional(),
   computed_at: Timestamp.optional(),
+  /** The harvested source document (zeus RunStats for k6 rows, the attack
+   *  result for vegeta rows). Read for load-health signals such as k6's
+   *  dropped iterations, never for the error counts above. */
+  raw_metrics: z
+    .record(z.unknown())
+    .nullish()
+    .transform((v) => v ?? undefined),
 });
 export type PhaseWorkflowResult = z.infer<typeof PhaseWorkflowResultSchema>;
 

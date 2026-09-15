@@ -34,14 +34,19 @@ export function grafanaDashboardUrl(
 }
 
 /** `d-solo` iframe src for one panel, pinned to a time window. `undefined`
- *  when the dashboard has no panel for the metric (render the empty tile). */
+ *  when the dashboard has no panel for the metric, or when embedding is not
+ *  allowed: Grafana's default `[security] allow_embedding = false` answers
+ *  every d-solo request with `X-Frame-Options: deny`, and a refused iframe is
+ *  worse than a tile with a link. Turn on VITE_GRAFANA_EMBED only for a
+ *  Grafana configured to allow it. */
 export function grafanaPanelSrc(
   base: string | undefined,
   metric: GrafanaMetric,
   window?: GrafanaWindow,
+  embedAllowed = false,
 ): string | undefined {
   const panel = GRAFANA_PANEL_BY_METRIC[metric];
-  if (!base || !panel) return undefined;
+  if (!base || !panel || !embedAllowed) return undefined;
   const q = new URLSearchParams({ orgId: "1", panelId: String(panel), theme: "dark" });
   applyWindow(q, window);
   return `${base.replace(/\/+$/, "")}/d-solo/${GRAFANA_OVERVIEW_UID}?${q.toString()}`;

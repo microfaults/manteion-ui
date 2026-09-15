@@ -3,6 +3,7 @@ import {
   TargetBadge,
   deriveTarget,
   ruleSubtitle,
+  specLookup,
 } from "@/components/rules/target-badge";
 import type { Rule } from "@/types/api";
 import { render, screen } from "@testing-library/react";
@@ -109,5 +110,39 @@ describe("ruleSubtitle", () => {
     const sub = ruleSubtitle(rule);
     expect(sub.startsWith("inline · ")).toBe(true);
     expect(sub.length).toBeLessThanOrEqual("inline · spec-aa7eec0d7ff2bc00".length + 1);
+  });
+});
+
+describe("with the fault library (VM1 ids are opaque)", () => {
+  const specs = specLookup([
+    {
+      id: "spec-019fd79e-01d8-771f-9b45-60555cfd0a97",
+      name: "exp1-cpu-spike",
+      category: "resource",
+    },
+  ]);
+  const rule = (fault_spec_id: string, labels?: Record<string, string>) =>
+    ({
+      ...BASE,
+      id: "r",
+      action: { type: "fault_spec", fault_spec_id },
+      match: labels ? { labels } : {},
+    }) as Rule;
+
+  it("takes category and name from the resolved spec", () => {
+    const r = rule("spec-019fd79e-01d8-771f-9b45-60555cfd0a97");
+    expect(deriveTarget(r, specs)).toBe("resource");
+    expect(ruleSubtitle(r, specs)).toBe("resource · exp1-cpu-spike");
+  });
+
+  it("the spec's category wins over a stale _target label", () => {
+    expect(
+      deriveTarget(rule("spec-019fd79e-01d8-771f-9b45-60555cfd0a97", { _target: "inline" }), specs),
+    ).toBe("resource");
+  });
+
+  it("falls back to the old heuristics when the spec does not resolve", () => {
+    expect(deriveTarget(rule("spec-unknown"), specs)).toBe("inline");
+    expect(ruleSubtitle(rule("spec-unknown"), specs)).toBe("inline · spec-unknown");
   });
 });

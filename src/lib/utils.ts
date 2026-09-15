@@ -74,3 +74,12 @@ export function formatCount(n: number | null | undefined): string {
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}k`;
   return String(n);
 }
+
+/** Formats a finite number; "—" for null, undefined, NaN or an infinity
+ *  (Prometheus answers NaN for a quantile over an empty window). */
+export function formatFinite(
+  value: number | null | undefined,
+  format: (v: number) => string,
+): string {
+  return value != null && Number.isFinite(value) ? format(value) : "—";
+}

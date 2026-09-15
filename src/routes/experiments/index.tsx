@@ -12,12 +12,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { experimentsApi } from "@/lib/api";
+import { experimentsApi, workflowsApi } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import { baselinePhase } from "@/lib/phase-metrics";
 import { formatDurationMs, formatRelative } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { useMemo } from "react";
 
 export const Route = createFileRoute("/experiments/")({
   component: ExperimentsPage,
@@ -30,6 +31,16 @@ function ExperimentsPage() {
     retry: false,
     refetchInterval: (q) => (q.state.data?.some((e) => e.status === "running") ? 5_000 : false),
   });
+  const workflows = useQuery({
+    queryKey: ["workflows"],
+    queryFn: workflowsApi.listWorkflows,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const workflowNames = useMemo(
+    () => new Map((workflows.data ?? []).map((w) => [w.id, w.name])),
+    [workflows.data],
+  );
 
   return (
     <>
@@ -74,7 +85,9 @@ function ExperimentsPage() {
                 {data?.map((e) => {
                   // Workflows attach per-phase (schema epoch 2); derive the
                   // experiment-level list from the phase configs.
-                  const workflowIds = experimentsApi.workflowIdsForExperiment(e);
+                  const workflowLabels = experimentsApi
+                    .workflowIdsForExperiment(e)
+                    .map((id) => workflowNames.get(id) ?? id);
                   const durationMs =
                     e.started_at && e.completed_at
                       ? new Date(e.completed_at).getTime() - new Date(e.started_at).getTime()
@@ -90,7 +103,7 @@ function ExperimentsPage() {
                           {e.name}
                         </Link>
                         <div className="mt-0.5 text-[11px] font-mono text-muted-foreground">
-                          {workflowIds.join(" + ") || "—"}
+                          {workflowLabels.join(" + ") || "—"}
                         </div>
                       </TableCell>
                       <TableCell>
@@ -118,7 +131,7 @@ function ExperimentsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="font-mono text-xs">
-                        {workflowIds.join(", ") || "—"}
+                        {workflowLabels.join(", ") || "—"}
                       </TableCell>
                       <TableCell className="font-mono text-xs text-muted-foreground">
                         {e.started_at ? formatRelative(e.started_at) : "—"}

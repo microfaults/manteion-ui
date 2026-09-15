@@ -344,6 +344,9 @@ function ZeusRunStatus({ runId, live }: { runId: string; live: boolean }) {
     <span className="font-mono text-[11px] text-muted-foreground" title={runId}>
       · {shortId(runId)}
       {status ? ` · ${status}` : ""}
+      {run.data?.reason && run.data.status === "completed" ? (
+        <span className="text-status-degraded"> · {run.data.reason}</span>
+      ) : null}
     </span>
   );
 }

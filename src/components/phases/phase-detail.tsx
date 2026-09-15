@@ -535,7 +535,12 @@ function WorkflowRow({
             ? shortId(workflow.zeus_attack_id)
             : "—"}
       </TableCell>
-      <TableCell className="text-xs">{status}</TableCell>
+      <TableCell className="text-xs">
+        {status}
+        {run.data?.reason && run.data.status === "completed" ? (
+          <span className="ml-1 text-status-degraded">· {run.data.reason}</span>
+        ) : null}
+      </TableCell>
     </TableRow>
   );
 }

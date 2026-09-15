@@ -1,7 +1,12 @@
 import { Topbar } from "@/components/layout/topbar";
 import { RuleEditorPanel } from "@/components/rules/rule-editor-panel";
 import { listHeader, newRuleButton, ruleRow } from "@/components/rules/rules-page.styles";
-import { TargetBadge, deriveTarget, ruleSubtitle } from "@/components/rules/target-badge";
+import {
+  TargetBadge,
+  deriveTarget,
+  ruleSubtitle,
+  specLookup,
+} from "@/components/rules/target-badge";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
@@ -13,12 +18,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { rulesApi } from "@/lib/api";
+import { faultsApi, rulesApi } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import type { Rule } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, Search } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export function RulesPage() {
   const qc = useQueryClient();
@@ -30,6 +35,13 @@ export function RulesPage() {
     queryKey: ["rules"],
     queryFn: rulesApi.listRules,
   });
+  const faultSpecs = useQuery({
+    queryKey: ["fault-specs"],
+    queryFn: faultsApi.listFaultSpecs,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const specsById = useMemo(() => specLookup(faultSpecs.data), [faultSpecs.data]);
 
   const toggleEnabled = useMutation({
     mutationFn: (rule: Rule) =>
@@ -154,12 +166,12 @@ export function RulesPage() {
                     <TableCell className="pl-5">
                       <div className="font-mono text-xs font-medium">{r.name}</div>
                       <div className="mt-0.5 text-[11px] text-muted-foreground">
-                        {ruleSubtitle(r)}
+                        {ruleSubtitle(r, specsById)}
                       </div>
                     </TableCell>
                     <TableCell className="font-mono text-xs">{r.service}</TableCell>
                     <TableCell>
-                      <TargetBadge target={deriveTarget(r)} />
+                      <TargetBadge target={deriveTarget(r, specsById)} />
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs tabular-nums">
                       {r.priority}

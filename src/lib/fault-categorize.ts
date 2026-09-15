@@ -1,44 +1,37 @@
 /**
- * Heuristic categorizer for fault rules.
- *
- * Manteion stores rules with a free-form `match.injection_point` and
- * labels{} bag — there is no first-class `category` column yet. The
- * dashboard's "Active faults" stat-card wants a breakdown by kind, so
- * this module bucketizes by string-matching the rule's name, service,
- * injection point, and labels.
- *
- * Once the backend exposes a typed category (see docs/api/api-needed.md
- * §B.3#3), this whole module can be replaced by a direct field read.
+ * Buckets enabled rules by the kind of fault they inject, for the dashboard's
+ * "Active faults" card. The category comes from each rule's fault spec
+ * (lib/rule-target); heuristics only apply to specs that do not resolve.
  */
+import { type FaultSpecLookup, deriveTarget } from "@/lib/rule-target";
 import type { Rule } from "@/types/api";
 
-export function bucketFaultRules(rules: Rule[]): {
+export interface FaultBuckets {
   inline: number;
   network: number;
+  resource: number;
   cacheBox: number;
-} {
-  let inline = 0;
-  let network = 0;
-  let cacheBox = 0;
-  for (const r of rules) {
-    const cat = categorizeFaultRule(r);
-    if (cat === "cache-box") cacheBox++;
-    else if (cat === "network") network++;
-    else inline++;
-  }
-  return { inline, network, cacheBox };
 }
 
-function categorizeFaultRule(r: Rule): "inline" | "network" | "cache-box" {
-  const ip = (r.match?.injection_point ?? "").toLowerCase();
-  const blob =
-    ip +
-    JSON.stringify(r.match?.labels ?? {}).toLowerCase() +
-    r.name.toLowerCase() +
-    (r.service ?? "").toLowerCase();
-  if (blob.includes("cache") || blob.includes("replay") || blob.includes("freeze"))
-    return "cache-box";
-  if (blob.includes("network") || blob.includes("egress") || blob.includes("timeout"))
-    return "network";
-  return "inline";
+export function bucketFaultRules(rules: readonly Rule[], specs?: FaultSpecLookup): FaultBuckets {
+  const b: FaultBuckets = { inline: 0, network: 0, resource: 0, cacheBox: 0 };
+  for (const r of rules) {
+    const target = deriveTarget(r, specs);
+    if (target === "cachebox") b.cacheBox++;
+    else b[target]++;
+  }
+  return b;
+}
+
+/** "1 inline · 2 resource" with empty buckets left out; "none enabled" when all are empty. */
+export function faultBucketsLabel(b: FaultBuckets): string {
+  const parts = [
+    [b.inline, "inline"],
+    [b.network, "network"],
+    [b.resource, "resource"],
+    [b.cacheBox, "cache-box"],
+  ]
+    .filter(([n]) => (n as number) > 0)
+    .map(([n, label]) => `${n} ${label}`);
+  return parts.length ? parts.join(" · ") : "none enabled";
 }

@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 // Mock the API module before importing the route component
 vi.mock("@/lib/api", () => ({
+  faultsApi: { listFaultSpecs: vi.fn(async () => []) },
   rulesApi: {
     listRules: vi.fn(),
     updateRule: vi.fn(),

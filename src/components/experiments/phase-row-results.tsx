@@ -5,11 +5,12 @@
  */
 import { type PhaseMetrics, pctDelta } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
-import { formatLatencyUs } from "@/lib/utils";
+import { formatCount, formatLatencyUs } from "@/lib/utils";
 import { ACTIVE_PHASE_STATUSES, type PhaseSummary } from "@/types/api";
+import { AlertTriangle } from "lucide-react";
 
 export const ZEUS_FALLBACK_CAPTION =
-  "via zeus run stats — k6 runs aren't harvested into manteion yet";
+  "via zeus run stats — manteion has no harvested row for this run";
 
 export function MetricsGrid({
   metrics,
@@ -33,6 +34,15 @@ export function MetricsGrid({
           value={metrics.error_rate != null ? `${(metrics.error_rate * 100).toFixed(2)}%` : "—"}
         />
       </div>
+      {metrics.dropped_iterations ? (
+        <p className="mt-1.5 flex items-start gap-1 text-[10px] text-status-degraded">
+          <AlertTriangle className="mt-px size-3 shrink-0" aria-hidden />
+          <span>
+            {formatCount(metrics.dropped_iterations)} iterations dropped — the VUs could not sustain
+            the offered rate, so the load ran below plan. Add VUs or lower the rate.
+          </span>
+        </p>
+      ) : null}
       {metrics.source === "zeus" ? (
         <div className="mt-1.5 text-[10px] text-muted-foreground">
           {caption ? `${caption} · ` : ""}
