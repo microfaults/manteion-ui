@@ -4,7 +4,8 @@
  * Three body states:
  *  - `unavailable` → a "Grafana unreachable" failure card (destructive tokens).
  *  - `src` present → the embedded iframe.
- *  - otherwise     → an empty-state tile ("No panel configured").
+ *  - otherwise     → an empty-state tile: "embedding is off" when there is a
+ *                    Grafana link to fall back to, "No panel configured" if not.
  */
 import { GrafanaButton } from "@/components/observability/grafana-button";
 import { cn } from "@/lib/utils";
@@ -67,7 +68,9 @@ export function GrafanaPanel({
             className="flex items-center justify-center rounded-md bg-muted/40 px-4 text-center text-sm text-muted-foreground"
             style={{ minHeight: height }}
           >
-            No panel configured
+            {grafanaUrl
+              ? "Embedding is off — open this panel in Grafana (VITE_GRAFANA_EMBED=true needs allow_embedding on the Grafana side)."
+              : "No panel configured"}
           </div>
         )}
       </div>
