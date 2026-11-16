@@ -127,7 +127,7 @@ describe("RuleEditorPanel — new rule", () => {
     const { onSaved } = renderPanel({ isNew: true, ruleId: null });
 
     await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
-    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalogservice");
     await user.selectOptions(await screen.findByLabelText("Fault spec"), "spec-x");
     await waitFor(() => expect(saveButton().disabled).toBe(false));
     await user.click(saveButton());
@@ -135,7 +135,7 @@ describe("RuleEditorPanel — new rule", () => {
     expect(rulesApi.createRule).toHaveBeenCalledWith(
       expect.objectContaining({
         name: "test-rule",
-        service: "productcatalog",
+        service: "productcatalogservice",
         action: { type: "fault_spec", fault_spec_id: "spec-x" },
       }),
     );
@@ -147,7 +147,7 @@ describe("RuleEditorPanel — new rule", () => {
     vi.mocked(rulesApi.createRule).mockRejectedValue(new Error("validation failed"));
     renderPanel({ isNew: true, ruleId: null });
     await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
-    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalogservice");
     await user.selectOptions(await screen.findByLabelText("Fault spec"), "spec-x");
     await user.click(saveButton());
     expect(await screen.findByText("validation failed")).toBeTruthy();
@@ -157,7 +157,7 @@ describe("RuleEditorPanel — new rule", () => {
     const user = userEvent.setup();
     renderPanel({ isNew: true, ruleId: null });
     await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
-    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalogservice");
     await user.selectOptions(await screen.findByLabelText("Fault spec"), "spec-x");
 
     const priority = screen.getByRole("spinbutton") as HTMLInputElement;
@@ -179,7 +179,7 @@ describe("RuleEditorPanel — rules require faults", () => {
     renderPanel({ isNew: true, ruleId: null });
 
     await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
-    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalogservice");
 
     const notes = await screen.findAllByText(/create one on the faults page first/i);
     expect(notes.length).toBeGreaterThan(0);
@@ -203,7 +203,7 @@ describe("RuleEditorPanel — rules require faults", () => {
     renderPanel({ isNew: true, ruleId: null });
 
     await user.type(screen.getByPlaceholderText("my-rule"), "test-rule");
-    await user.selectOptions(screen.getByLabelText("Service"), "productcatalog");
+    await user.selectOptions(screen.getByLabelText("Service"), "productcatalogservice");
     await user.type(await screen.findByPlaceholderText("spec-…"), "spec-manual");
     await waitFor(() => expect(saveButton().disabled).toBe(false));
     await user.click(saveButton());

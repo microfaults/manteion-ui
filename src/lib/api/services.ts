@@ -20,7 +20,7 @@ const List = z.array(SDKInstanceSchema);
 const _mockInstances: SDKInstance[] = [
   {
     id: "prod-cat-sdk-a1b2c",
-    service: "productcatalog",
+    service: "productcatalogservice",
     version: "v0.4.2",
     address: "10.0.0.12:50051",
     registered_at: "2026-05-22T09:14:00Z",
@@ -29,7 +29,7 @@ const _mockInstances: SDKInstance[] = [
   },
   {
     id: "prod-cat-sdk-d3e4f",
-    service: "productcatalog",
+    service: "productcatalogservice",
     version: "v0.4.1",
     address: "10.0.0.13:50051",
     registered_at: "2026-05-22T09:15:00Z",
@@ -63,6 +63,15 @@ const _mockInstances: SDKInstance[] = [
     last_poll_at: "2026-05-23T11:59:57Z",
     status: "stale",
   },
+  {
+    id: "recommendation-sdk-p1q2r",
+    service: "recommendationservice",
+    version: "v0.4.2",
+    address: "10.0.0.51:50051",
+    registered_at: "2026-05-22T09:16:00Z",
+    last_poll_at: "2026-05-23T11:59:56Z",
+    status: "alive",
+  },
 ];
 
 const _mockDetail: Record<string, Omit<SDKInstanceDetail, keyof SDKInstance>> = {
@@ -91,6 +100,11 @@ const _mockDetail: Record<string, Omit<SDKInstanceDetail, keyof SDKInstance>> = 
     last_rule_version_acked: 41,
     active_rule_ids: ["rule-004", "rule-013"],
     recent_run_ids: ["run-8f2a", "run-7c1b"],
+  },
+  "recommendation-sdk-p1q2r": {
+    last_rule_version_acked: 42,
+    active_rule_ids: [],
+    recent_run_ids: ["run-8f2a"],
   },
 };
 

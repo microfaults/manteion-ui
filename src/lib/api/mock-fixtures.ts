@@ -3,7 +3,8 @@
  * API-catalog data the other api/ modules don't carry inline.
  *
  * Everything here is deliberately coherent with the fixtures in rules.ts,
- * services.ts and faults.ts: the same nine online-boutique services, the same
+ * services.ts and faults.ts: the real bed's service names (REAL_SERVICES in
+ * lib/known-services.ts) and routes, the same
  * rule ids (rule-001…) and fault-spec ids (spec-inline-hang-5s…), so panels
  * that cross-reference by id resolve names instead of showing raw ids.
  *
@@ -40,16 +41,26 @@ const CHECKOUT_ROOT: Workflow["root"] = {
       id: "p-checkout-2",
       waitPolicy: "all",
       children: [
-        { type: "request", id: "r-checkout-2-0", method: "POST", path: "/cart" },
-        { type: "request", id: "r-checkout-2-1", method: "GET", path: "/currency/convert" },
+        {
+          type: "request",
+          id: "r-checkout-2-0",
+          method: "POST",
+          path: "/cart/{user_id}/items",
+        },
+        { type: "request", id: "r-checkout-2-1", method: "POST", path: "/convert" },
       ],
     },
-    { type: "request", id: "r-checkout-3", method: "POST", path: "/cart/checkout" },
+    { type: "request", id: "r-checkout-3", method: "POST", path: "/placeorder" },
     {
       type: "optional",
       id: "o-checkout-4",
       probability: 0.35,
-      child: { type: "request", id: "r-checkout-4", method: "POST", path: "/email/confirm" },
+      child: {
+        type: "request",
+        id: "r-checkout-4",
+        method: "POST",
+        path: "/send-order-confirmation",
+      },
     },
   ],
 };
@@ -68,6 +79,7 @@ const BROWSE_ROOT: Workflow["root"] = {
       probability: 0.6,
       child: { type: "request", id: "r-browse-3", method: "GET", path: "/ads" },
     },
+    { type: "request", id: "r-browse-4", method: "GET", path: "/recommendations" },
   ],
 };
 
@@ -77,7 +89,7 @@ const ABANDON_ROOT: Workflow["root"] = {
   label: "cart-abandon",
   children: [
     { type: "request", id: "r-abandon-0", method: "GET", path: "/products" },
-    { type: "request", id: "r-abandon-1", method: "POST", path: "/cart" },
+    { type: "request", id: "r-abandon-1", method: "POST", path: "/cart/{user_id}/items" },
     { type: "delay", id: "d-abandon-2", label: "abandon", minMs: 2000, maxMs: 5000 },
   ],
 };
@@ -87,7 +99,14 @@ export const mockWorkflows: Workflow[] = [
     id: "wf-checkout-burst",
     name: "checkout-burst",
     version: "v2",
-    targets: ["frontend", "productcatalog", "cartservice", "checkoutservice", "currencyservice"],
+    targets: [
+      "frontend",
+      "productcatalogservice",
+      "cartservice",
+      "checkoutservice",
+      "currencyservice",
+      "emailservice",
+    ],
     estRpsPerVu: 4.2,
     updatedAt: ago(35 * MINUTE),
     description: "Hammer the checkout path end to end.",
@@ -98,18 +117,18 @@ export const mockWorkflows: Workflow[] = [
     id: "wf-browse-catalog",
     name: "browse-catalog",
     version: "v2",
-    targets: ["frontend", "productcatalog", "adservice"],
+    targets: ["frontend", "productcatalogservice", "adservice", "recommendationservice"],
     estRpsPerVu: 6.8,
     updatedAt: ago(3 * HOUR),
-    description: "Read-heavy catalog browsing with ad impressions.",
-    requestNodeCount: 3,
+    description: "Read-heavy catalog browsing with ads and recommendations.",
+    requestNodeCount: 4,
     root: BROWSE_ROOT,
   },
   {
     id: "wf-cart-abandon",
     name: "cart-abandon",
     version: "v2",
-    targets: ["frontend", "productcatalog", "cartservice"],
+    targets: ["frontend", "productcatalogservice", "cartservice"],
     estRpsPerVu: 2.1,
     updatedAt: ago(26 * HOUR),
     description: "Add to cart, then walk away — exercises cart TTL.",
@@ -143,14 +162,17 @@ const replay = (service: string): FrozenService => ({
   mutation_policy: "deny",
 });
 
+/** The planned demo experiment: plain → 50 ms catalog latency → plain, no freeze. */
+export const SAMPLE_EXPERIMENT_ID = "exp-sample-catalog-latency";
+
 export const mockExperiments: Experiment[] = [
   {
     id: "exp-001",
     name: "checkout-p99-isolation",
     description: "Isolate which downstream dominates checkout tail latency.",
-    hypothesis: "productcatalog hang drives >60% of checkout p99.",
+    hypothesis: "productcatalogservice hang drives >60% of checkout p99.",
     status: "running",
-    targeted_services: ["productcatalog", "checkoutservice", "cartservice"],
+    targeted_services: ["productcatalogservice", "checkoutservice", "cartservice"],
     created_by: "pmundra",
     created_at: ago(2 * HOUR),
     started_at: ago(38 * MINUTE),
@@ -160,6 +182,7 @@ export const mockExperiments: Experiment[] = [
         name: "baseline",
         position: 0,
         status: "completed",
+        persist_cache: true,
         workflows: [
           {
             workflow_id: "wf-checkout-burst",
@@ -173,7 +196,7 @@ export const mockExperiments: Experiment[] = [
       }),
       phase({
         id: "ph-001-isolation",
-        name: "isolation-productcatalog",
+        name: "isolation-productcatalogservice",
         position: 1,
         status: "running",
         workflows: [
@@ -214,6 +237,7 @@ export const mockExperiments: Experiment[] = [
         name: "baseline",
         position: 0,
         status: "completed",
+        persist_cache: true,
         workflows: [
           { workflow_id: "wf-cart-abandon", vus: 10, duration_sec: 600, zeus_run_id: "run-002-b" },
         ],
@@ -273,7 +297,7 @@ export const mockExperiments: Experiment[] = [
     name: "ad-blackhole-blast",
     description: "Blackhole adservice under browse load.",
     status: "failed",
-    targeted_services: ["adservice", "productcatalog"],
+    targeted_services: ["adservice", "productcatalogservice"],
     created_by: "nathan",
     created_at: ago(5 * HOUR),
     started_at: ago(4.5 * HOUR),
@@ -316,6 +340,40 @@ export const mockExperiments: Experiment[] = [
         failure_reason: "zeus run run-004-bh exited early (k6 exit 99)",
       }),
       phase({ id: "ph-004-combined", name: "combined", position: 2, status: "skipped" }),
+    ],
+  },
+  {
+    id: SAMPLE_EXPERIMENT_ID,
+    name: "sample-catalog-latency",
+    description: "Add 50 ms to productcatalogservice between two plain browse phases.",
+    hypothesis: "50 ms on productcatalogservice shows up in browse p50 and recovers after.",
+    status: "planned",
+    targeted_services: ["productcatalogservice"],
+    created_by: "pmundra",
+    created_at: ago(10 * MINUTE),
+    phases: [
+      phase({
+        id: "ph-sample-plain",
+        name: "plain",
+        position: 0,
+        status: "pending",
+        workflows: [{ workflow_id: "wf-browse-catalog", vus: 10, duration_sec: 120 }],
+      }),
+      phase({
+        id: "ph-sample-latency",
+        name: "catalog-latency-50ms",
+        position: 1,
+        status: "pending",
+        workflows: [{ workflow_id: "wf-browse-catalog", vus: 10, duration_sec: 120 }],
+        rule_ids: ["rule-014"],
+      }),
+      phase({
+        id: "ph-sample-plain-end",
+        name: "plain-end",
+        position: 2,
+        status: "pending",
+        workflows: [{ workflow_id: "wf-browse-catalog", vus: 10, duration_sec: 120 }],
+      }),
     ],
   },
 ];
@@ -444,12 +502,12 @@ export const mockPhaseResults: Record<string, PhaseResults> = {
 
 // ─── API catalog (workflow builder picker) ─────────────────────────────
 // `depends_on` drives the picker's dependency auto-expansion: picking
-// /cart/checkout also pulls in /products and /cart, prerequisites first.
+// POST /placeorder also pulls in the cart and product routes, prerequisites first.
 
 export const mockCatalogEndpoints: CatalogEndpoint[] = [
   {
     id: "get-products",
-    service: "productcatalog",
+    service: "productcatalogservice",
     method: "GET",
     path: "/products",
     description: "List catalog",
@@ -457,7 +515,7 @@ export const mockCatalogEndpoints: CatalogEndpoint[] = [
   },
   {
     id: "get-product",
-    service: "productcatalog",
+    service: "productcatalogservice",
     method: "GET",
     path: "/products/{id}",
     description: "Product detail",
@@ -472,10 +530,18 @@ export const mockCatalogEndpoints: CatalogEndpoint[] = [
     depends_on: [],
   },
   {
-    id: "get-currency",
-    service: "currencyservice",
+    id: "get-recommendations",
+    service: "recommendationservice",
     method: "GET",
-    path: "/currency/convert",
+    path: "/recommendations",
+    description: "Product recommendations",
+    depends_on: [],
+  },
+  {
+    id: "post-convert",
+    service: "currencyservice",
+    method: "POST",
+    path: "/convert",
     description: "FX conversion",
     depends_on: [],
   },
@@ -483,7 +549,7 @@ export const mockCatalogEndpoints: CatalogEndpoint[] = [
     id: "post-cart",
     service: "cartservice",
     method: "POST",
-    path: "/cart",
+    path: "/cart/{user_id}/items",
     description: "Add item to cart",
     depends_on: ["get-product"],
   },
@@ -491,7 +557,7 @@ export const mockCatalogEndpoints: CatalogEndpoint[] = [
     id: "get-cart",
     service: "cartservice",
     method: "GET",
-    path: "/cart",
+    path: "/cart/{user_id}",
     description: "Read cart",
     depends_on: ["post-cart"],
   },
@@ -507,7 +573,7 @@ export const mockCatalogEndpoints: CatalogEndpoint[] = [
     id: "post-checkout",
     service: "checkoutservice",
     method: "POST",
-    path: "/cart/checkout",
+    path: "/placeorder",
     description: "Place order",
     depends_on: ["post-cart", "post-shipping-quote"],
   },
@@ -515,16 +581,16 @@ export const mockCatalogEndpoints: CatalogEndpoint[] = [
     id: "post-charge",
     service: "paymentservice",
     method: "POST",
-    path: "/payment/charge",
-    description: "Capture payment",
-    depends_on: ["post-checkout"],
+    path: "/charge",
+    description: "Charge a card",
+    depends_on: [],
   },
   {
     id: "post-email",
     service: "emailservice",
     method: "POST",
-    path: "/email/confirm",
+    path: "/send-order-confirmation",
     description: "Order confirmation",
-    depends_on: ["post-checkout"],
+    depends_on: [],
   },
 ];

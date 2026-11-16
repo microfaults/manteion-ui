@@ -167,7 +167,7 @@ export function NetworkEnvelopeFields({ value, onChange }: NetworkEnvelopeFields
           id="fe-net-target"
           value={value.target}
           onChange={(e) => onChange({ target: e.target.value })}
-          placeholder="productcatalog"
+          placeholder="productcatalogservice"
           className="font-mono"
         />
       </Field>

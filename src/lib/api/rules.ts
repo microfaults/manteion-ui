@@ -10,7 +10,7 @@ let _mockRules: Rule[] = [
   {
     id: "rule-001",
     name: "freeze-productcatalog",
-    service: "productcatalog",
+    service: "productcatalogservice",
     enabled: true,
     priority: 100,
     mode: "inline",
@@ -108,7 +108,7 @@ let _mockRules: Rule[] = [
     priority: 95,
     mode: "inline",
     start_policy: "deduplicate_by_rule",
-    action: { type: "cachebox", cachebox: { mode: "replay", key_strategy: "exact_with_body" } },
+    action: { type: "cachebox", cachebox: { mode: "replay", key_strategy: "canonical_v2" } },
     match: { injection_point: "egress", labels: { tenant: "demo" } },
     created_at: "2026-04-10T10:00:00Z",
     updated_at: "2026-04-20T14:30:00Z",
@@ -164,6 +164,18 @@ let _mockRules: Rule[] = [
     created_at: "2026-05-02T08:00:00Z",
     updated_at: "2026-05-21T10:00:00Z",
   },
+  {
+    id: "rule-014",
+    name: "catalog-latency-50ms",
+    service: "productcatalogservice",
+    enabled: true,
+    priority: 80,
+    mode: "inline",
+    action: { type: "fault_spec", fault_spec_id: "spec-inline-latency-50ms" },
+    match: { injection_point: "ingress" },
+    created_at: "2026-05-03T08:00:00Z",
+    updated_at: "2026-05-03T08:00:00Z",
+  },
 ];
 
 function mockDelay() {
@@ -181,6 +193,11 @@ export function mockServicesForRules(ids: readonly string[]): string[] {
     if (rule) out.add(rule.service);
   }
   return [...out];
+}
+
+/** Mock-only: one fixture rule by id, or undefined. */
+export function mockRuleById(id: string): Rule | undefined {
+  return _mockRules.find((r) => r.id === id);
 }
 
 export async function listRules(): Promise<Rule[]> {

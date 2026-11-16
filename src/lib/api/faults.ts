@@ -20,6 +20,14 @@ const _mockSpecs: FaultSpec[] = [
     created_at: "2026-04-01T10:00:00Z",
   },
   {
+    id: "spec-inline-latency-50ms",
+    name: "latency 50ms",
+    category: "inline",
+    fault_type: "latency",
+    params: { delay: "50ms" },
+    created_at: "2026-04-01T10:00:00Z",
+  },
+  {
     id: "spec-inline-latency-100ms",
     name: "latency 100ms",
     category: "inline",
@@ -32,7 +40,7 @@ const _mockSpecs: FaultSpec[] = [
     name: "blackhole",
     category: "network",
     fault_type: "blackhole",
-    network: { target: "productcatalog", direction: "downstream" },
+    network: { target: "productcatalogservice", direction: "downstream" },
     params: {},
     created_at: "2026-04-01T10:00:00Z",
   },

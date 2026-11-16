@@ -10,7 +10,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 /** Demo services, matching the SDK/rule fixtures in api/. */
 const MOCK_SERVICES = [
   "frontend",
-  "productcatalog",
+  "productcatalogservice",
   "cartservice",
   "checkoutservice",
   "paymentservice",
@@ -18,6 +18,7 @@ const MOCK_SERVICES = [
   "currencyservice",
   "adservice",
   "emailservice",
+  "recommendationservice",
 ];
 
 /**
