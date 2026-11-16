@@ -132,24 +132,38 @@ manteion-ui/
 └── tailwind.config.ts · vite.config.ts · tsconfig*.json · biome.json · components.json
 ```
 
-## What's wired vs. what's not
+## Mock demo
 
-The UI is route-complete — every screen in `docs/design/ui-design.md §7` has
-a route and a shell. Many pages are intentionally stubbed with `<NotWiredYet/>`
-because their backend endpoints don't exist yet. See
-[`docs/api/api-needed.md`](./docs/api/api-needed.md) for the full backlog.
+The public demo is the console built in mock mode: every API call and the
+dashboard's Prometheus queries are served from in-browser fixtures, so it
+needs no backend and the data it shows is simulated. `.env.demo` (committed,
+no secrets) sets `VITE_USE_MOCK=true` and `VITE_DEFAULT_ENV=online-boutique`.
 
-Wired today:
-- `/dashboard` — reads `/api/v1/status`, `/api/v1/rules`, `/api/v1/sdk/instances`
-- `/services` · `/services/:id` (detail is stubbed pending new endpoints)
-- `/rules` · `/rules/:id` — full CRUD against `/api/v1/rules`, with the new
-  OPA-rego match-criteria builder
-- `/experiments` — renders the list shape with hoverable phase pills; the
-  backing endpoints (`/api/v1/experiments`, `/api/v1/experiments/{id}/phase/…`)
-  are missing, so the list is empty until manteion-go ships them
+```sh
+pnpm dev --mode demo   # run the demo locally on http://localhost:5173
+pnpm build:demo        # static build of the demo into dist/
+```
 
-Not wired yet:
-- `/faults`, `/workflows`, `/datasets`, `/runs/:id`, `/attacks`, `/settings/*`
+`pnpm build` is unchanged and still produces the operator build.
+
+Deploys run from GitHub Actions (`.github/workflows/ci.yml`). Every push to
+`mock-mode`, `develop` or `main`, and every pull request, runs lint,
+typecheck, tests and `pnpm build:demo`. A push to `mock-mode` then deploys
+`dist/` to the Cloudflare Pages project `manteion`
+(`wrangler pages deploy dist --project-name=manteion --branch=mock-mode`).
+`public/_headers` sets caching and security headers on Pages, and since the
+build has no `404.html`, Pages serves `index.html` for deep links.
+
+The deploy job stays off until the owner, once:
+
+1. creates the Pages project:
+   `wrangler pages project create manteion --production-branch mock-mode`;
+2. adds the repository secrets `CLOUDFLARE_API_TOKEN` (a token with
+   Cloudflare Pages edit permission) and `CLOUDFLARE_ACCOUNT_ID`;
+3. sets the repository variable `DEPLOY_ENABLED` to `true`.
+
+The job runs in the GitHub environment `demo`, which can hold the secrets
+instead of the repository.
 
 ## The OPA-rego rules builder
 

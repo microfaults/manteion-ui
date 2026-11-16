@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsr generate && tsc -b && vite build",
+    "build:demo": "tsr generate && tsc -b && vite build --mode demo",
     "preview": "vite preview",
     "typecheck": "tsr generate && tsc -b --noEmit",
     "lint": "biome check src",
