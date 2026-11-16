@@ -4,10 +4,10 @@
  * Mirrors the orchestrator's observable behaviour closely enough to build the
  * UI against: admission control by service footprint (409), the lifecycle
  * verbs with the backend's status codes, and a timer that walks a started
- * experiment through pending → running → (draining when the phase froze
- * services) → completed, writing results the way harvest.go does at phase
- * end. Fixture experiments are static — only experiments started through the
- * API progress.
+ * experiment through pending → running → (draining when the phase records,
+ * i.e. persist_cache) → completed, writing results the way harvest.go does at
+ * phase end. Only a running phase can be paused, and pausing stops its load.
+ * Fixture experiments are static until started or restarted through the API.
  */
 import type {
   CreateExperimentInput,
@@ -26,8 +26,9 @@ import type {
 } from "@/types/api";
 import { ApiError } from "./client";
 import { datasetExpiresAt, mockDatasetList } from "./datasets";
+import { mockFaultSpecById } from "./faults";
 import { mockExperiments, mockPhaseResults } from "./mock-fixtures";
-import { mockServicesForRules } from "./rules";
+import { mockRuleById, mockServicesForRules } from "./rules";
 
 /** Wall-clock per orchestrator step in mock mode (a real phase runs minutes). */
 export const MOCK_PHASE_STEP_MS = 8_000;
@@ -249,9 +250,40 @@ export function mockDeletePhase(experimentId: string, phaseId: string): void {
 export function mockStart(id: string): Experiment {
   const e = must(id);
   if (e.status !== "planned") throw fail(409, `experiment is ${e.status}, not planned`);
+  admit(e);
+  preflightDatasets(e.phases.filter((p) => p.status === "pending"));
+  launch(e);
+  return cloneExperiment(e);
+}
+
+/** Mock-only demo convenience: every phase back to pending with its results
+ *  and zeus runs dropped, then the same effect as mockStart. Works on a
+ *  planned, running or finished experiment; admission control and the
+ *  dataset preflight still apply, and a refusal leaves the experiment as is. */
+export function mockRestart(id: string): Experiment {
+  const e = must(id);
+  admit(e);
+  preflightDatasets(e.phases);
+  clearTimer(id);
+  for (const p of e.phases) {
+    results.delete(p.id);
+    p.status = "pending";
+    p.started_at = undefined;
+    p.completed_at = undefined;
+    p.failure_reason = undefined;
+    p.workflows = p.workflows.map(({ zeus_run_id, zeus_attack_id, ...w }) => w);
+  }
+  e.completed_at = undefined;
+  e.failure_reason = undefined;
+  launch(e);
+  return cloneExperiment(e);
+}
+
+/** 409 service_overlap when another running experiment shares a service. */
+function admit(e: Experiment): void {
   const mine = footprint(e);
   for (const other of store) {
-    if (other.id === id || other.status !== "running") continue;
+    if (other.id === e.id || other.status !== "running") continue;
     const overlap = footprint(other).filter((s) => mine.includes(s));
     if (overlap.length) {
       throw fail(
@@ -261,17 +293,19 @@ export function mockStart(id: string): Experiment {
       );
     }
   }
-  preflightDatasets(e.phases.filter((p) => p.status === "pending"));
+}
+
+function launch(e: Experiment): void {
   e.status = "running";
   e.started_at = now();
   advance(e);
-  return cloneExperiment(e);
 }
 
 export function mockPause(id: string): ExperimentStatus | "paused" {
   const e = must(id);
   if (e.status !== "running") throw fail(409, `experiment is ${e.status}, not running`);
   const cur = e.phases.find((p) => p.status === "running" || p.status === "draining");
+  if (cur?.status === "draining") throw fail(409, `phase is ${cur.status}, not running`);
   if (cur) cur.status = "paused";
   clearTimer(id);
   return "paused";
@@ -324,9 +358,7 @@ export function mockStartPhase(experimentId: string, phaseId: string): void {
 
 export function mockPausePhase(phaseId: string): void {
   const { exp, phase } = mustPhase(phaseId);
-  if (phase.status !== "running" && phase.status !== "draining") {
-    throw fail(409, `phase is ${phase.status}, not running`);
-  }
+  if (phase.status !== "running") throw fail(409, `phase is ${phase.status}, not running`);
   phase.status = "paused";
   clearTimer(exp.id);
 }
@@ -372,13 +404,13 @@ function advance(e: Experiment): void {
   schedule(e.id);
 }
 
-/** One orchestrator step: a running phase drains first when it froze
- *  services, a draining one completes, then the next pending phase starts. */
+/** One orchestrator step: a running phase drains first when it records
+ *  (persist_cache), a draining one completes, then the next pending phase starts. */
 function tick(id: string): void {
   const e = find(id);
   if (!e || e.status !== "running") return;
   const cur = e.phases.find((p) => p.status === "running" || p.status === "draining");
-  if (cur?.status === "running" && cur.frozen_services.length > 0) {
+  if (cur?.status === "running" && cur.persist_cache) {
     cur.status = "draining";
     schedule(id);
     return;
@@ -465,7 +497,7 @@ function synthesizeResults(p: PhaseSummary): PhaseResults {
           replay_age_mean_ms: 300,
         }
       : undefined,
-    drain: frozen ? undefined : { status: "clean" },
+    drain: p.persist_cache ? { status: "clean" } : undefined,
   };
 }
 
@@ -524,7 +556,7 @@ export function mockPhaseFaults(phaseId: string): PhaseFaults {
           phase_id: phase.id,
           source: "rule",
           service: mockServicesForRules([ruleId])[0],
-          kind: "rule:push",
+          kind: ruleFaultKind(ruleId),
           detail: { rule_id: ruleId },
           started_at: started,
           ended_at: ended,
@@ -542,6 +574,14 @@ export function mockPhaseFaults(phaseId: string): PhaseFaults {
   };
 }
 
+/** Fault-event kind for a rule: `<category>:<fault_type>` of its fault spec,
+ *  or plain `rule` when it injects no single spec (cache-box, composition). */
+function ruleFaultKind(ruleId: string): string {
+  const action = mockRuleById(ruleId)?.action;
+  const spec = action?.type === "fault_spec" ? mockFaultSpecById(action.fault_spec_id) : undefined;
+  return spec ? `${spec.category}:${spec.fault_type}` : "rule";
+}
+
 // ─── Zeus runs (one per phase workflow) ────────────────────────────────
 
 function findRun(runId: string): { exp: Experiment; phase: PhaseSummary; workflow: PhaseWorkflow } {
@@ -557,7 +597,7 @@ function findRun(runId: string): { exp: Experiment; phase: PhaseSummary; workflo
 const zeusStatus: Record<PhaseStatus, string> = {
   pending: "pending",
   running: "running",
-  paused: "running",
+  paused: "stopped",
   draining: "completed",
   completed: "completed",
   failed: "failed",
@@ -574,8 +614,7 @@ export function mockZeusRun(runId: string): ZeusRun {
     workflow_label: phase.name,
     k6_job_name: `k6-${runId}`,
     started_at: phase.started_at,
-    ended_at:
-      phase.status === "running" || phase.status === "paused" ? undefined : phase.completed_at,
+    ended_at: phase.status === "running" ? undefined : phase.completed_at,
     reason: phase.status === "failed" ? "k6 exited with code 99 (threshold breached)" : undefined,
   };
 }

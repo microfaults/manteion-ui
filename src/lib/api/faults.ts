@@ -380,6 +380,11 @@ const _mockCatalog: FaultCatalogEntry[] = [
 
 const FaultSpecsList = z.array(FaultSpecSchema);
 
+/** Mock-only: one fixture fault spec by id, or undefined. */
+export function mockFaultSpecById(id: string): FaultSpec | undefined {
+  return _mockSpecs.find((s) => s.id === id);
+}
+
 // The catalog is static for the lifetime of the backend build, so cache the
 // first successful fetch for the session.
 let _catalogCache: FaultCatalogEntry[] | null = null;

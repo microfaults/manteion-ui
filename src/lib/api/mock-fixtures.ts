@@ -170,9 +170,9 @@ export const mockExperiments: Experiment[] = [
     id: "exp-001",
     name: "checkout-p99-isolation",
     description: "Isolate which downstream dominates checkout tail latency.",
-    hypothesis: "productcatalogservice hang drives >60% of checkout p99.",
+    hypothesis: "shippingservice CPU saturation drives >60% of checkout p99.",
     status: "running",
-    targeted_services: ["productcatalogservice", "checkoutservice", "cartservice"],
+    targeted_services: ["shippingservice", "checkoutservice", "cartservice"],
     created_by: "pmundra",
     created_at: ago(2 * HOUR),
     started_at: ago(38 * MINUTE),
@@ -196,7 +196,7 @@ export const mockExperiments: Experiment[] = [
       }),
       phase({
         id: "ph-001-isolation",
-        name: "isolation-productcatalogservice",
+        name: "isolation-shippingservice",
         position: 1,
         status: "running",
         workflows: [
@@ -209,7 +209,7 @@ export const mockExperiments: Experiment[] = [
         ],
         started_at: ago(4 * MINUTE),
         frozen_services: [replay("cartservice")],
-        rule_ids: ["rule-001"],
+        rule_ids: ["rule-005"],
       }),
       phase({
         id: "ph-001-combined",
@@ -217,7 +217,7 @@ export const mockExperiments: Experiment[] = [
         position: 2,
         status: "pending",
         workflows: [{ workflow_id: "wf-checkout-burst", vus: 25, duration_sec: 300 }],
-        rule_ids: ["rule-001", "rule-003"],
+        rule_ids: ["rule-005", "rule-003"],
       }),
     ],
   },
@@ -483,7 +483,6 @@ export const mockPhaseResults: Record<string, PhaseResults> = {
     ],
     service_latency: [],
     service_cache: [],
-    drain: { status: "clean" },
   },
   "ph-004-blackhole": {
     workflow_results: [

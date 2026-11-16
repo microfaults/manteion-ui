@@ -1,7 +1,7 @@
 /**
  * Mock-mode parity: with VITE_USE_MOCK=true the experiments client keeps a
  * mutable in-memory plan and walks a started experiment through
- * pending → running → (draining when services are frozen) → completed on a
+ * pending → running → (draining when the phase records, persist_cache) → completed on a
  * timer, filling mockPhaseResults — the same observable sequence the
  * orchestrator produces. Loaded with fresh modules so the env flag applies.
  */
@@ -59,12 +59,13 @@ describe("experimentsApi in mock mode", () => {
       phases: [
         {
           name: "baseline",
+          persist_cache: true,
           frozen_services: [],
           workflows: [{ workflow_id: "wf-checkout-burst", vus: 5, duration_sec: 60 }],
           rule_ids: [],
         },
         {
-          // emailservice is outside the running fixture's footprint (exp-001: cartservice + productcatalog)
+          // emailservice is outside the running fixture's footprint (exp-001: cartservice, shippingservice, checkoutservice)
           name: "isolation-emailservice",
           frozen_services: [{ service: "emailservice", mode: "replay", mutation_policy: "deny" }],
           workflows: [{ workflow_id: "wf-checkout-burst", vus: 5, duration_sec: 60 }],
@@ -82,21 +83,22 @@ describe("experimentsApi in mock mode", () => {
     expect(running.phases.map((p) => p.status)).toEqual(["running", "pending"]);
     expect(running.phases[0]?.workflows[0]?.zeus_run_id).toBeTruthy();
 
-    // one tick: baseline completes (no frozen services → no draining), isolation starts
+    // one tick: the recording baseline drains first
     await vi.advanceTimersByTimeAsync(api.MOCK_PHASE_STEP_MS);
     let snap = api.getExperiment(exp.id);
     await vi.advanceTimersByTimeAsync(100);
     let e = await snap;
-    expect(e.phases.map((p) => p.status)).toEqual(["completed", "running"]);
-    expect(api.mockPhaseResultsFor(e.phases[0]?.id ?? "")?.workflow_results.length).toBe(1);
+    expect(e.phases.map((p) => p.status)).toEqual(["draining", "pending"]);
 
-    // next tick: the frozen phase drains first
+    // next tick: baseline completes, the frozen isolation phase starts
     await vi.advanceTimersByTimeAsync(api.MOCK_PHASE_STEP_MS);
     snap = api.getExperiment(exp.id);
     await vi.advanceTimersByTimeAsync(100);
     e = await snap;
-    expect(e.phases[1]?.status).toBe("draining");
+    expect(e.phases.map((p) => p.status)).toEqual(["completed", "running"]);
+    expect(api.mockPhaseResultsFor(e.phases[0]?.id ?? "")?.workflow_results.length).toBe(1);
 
+    // last tick: the frozen phase does not record, so it completes without draining
     await vi.advanceTimersByTimeAsync(api.MOCK_PHASE_STEP_MS);
     snap = api.getExperiment(exp.id);
     await vi.advanceTimersByTimeAsync(100);
@@ -108,7 +110,7 @@ describe("experimentsApi in mock mode", () => {
 
   it("startExperiment refuses a service-footprint overlap with a running experiment (admission control)", async () => {
     const api = await loadMockApi();
-    // exp-001 (fixture) is running and freezes cartservice + rule-001 (productcatalog)
+    // exp-001 (fixture) is running and freezes cartservice
     const created = api.createExperiment({
       name: "overlap",
       phases: [
