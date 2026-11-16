@@ -65,17 +65,22 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
     },
   });
 
-  function onKillSwitch() {
-    const count = activeRules.length;
-    const msg =
-      count > 0
-        ? `Disable all ${count} active rule${count === 1 ? "" : "s"} on this instance?`
-        : "Run the kill switch on this instance? (No active rules are currently reported.)";
-    if (window.confirm(msg)) killSwitch.mutate();
-  }
-
   const service = detail.data?.service ?? fallbackService ?? "—";
   const status = detail.data?.status;
+  const observedErrors = detail.data?.observed_errors ?? [];
+
+  // The endpoint takes an instance id but acts on the whole service.
+  function onKillSwitch() {
+    const count = activeRules.length;
+    const scope = "This applies to every instance of the service.";
+    const msg =
+      count === 0
+        ? `Run the kill switch for ${service}? No active rules are reported; it still cancels the service's running fault configs and applies to every instance of the service.`
+        : count === 1
+          ? `Disable the 1 active rule for ${service} and cancel its running fault configs? ${scope}`
+          : `Disable all ${count} active rules for ${service} and cancel its running fault configs? ${scope}`;
+    if (window.confirm(msg)) killSwitch.mutate();
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -116,15 +121,35 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
               <Field label="Address" value={detail.data.address ?? "—"} mono />
               <Field label="Registered" value={detail.data.registered_at} />
               <Field label="Last poll" value={detail.data.last_poll_at ?? "—"} />
-              {typeof detail.data.last_rule_version_acked === "number" && (
+              {typeof detail.data.observed_generation === "number" && (
                 <Field
-                  label="Rule version acked"
-                  value={String(detail.data.last_rule_version_acked)}
+                  label="Generation observed"
+                  value={String(detail.data.observed_generation)}
                   mono
                 />
               )}
-              {detail.data.last_error && (
-                <Field label="Last error" value={detail.data.last_error} />
+              {typeof detail.data.applied_generation === "number" && (
+                <Field
+                  label="Generation applied"
+                  value={String(detail.data.applied_generation)}
+                  mono
+                />
+              )}
+              {observedErrors.length > 0 && (
+                <>
+                  <dt className="whitespace-nowrap text-xs text-muted-foreground">
+                    Observed errors
+                  </dt>
+                  <dd className="text-sm">
+                    <ul className="flex flex-col gap-1">
+                      {observedErrors.map((err) => (
+                        <li key={err} className="break-words text-status-down">
+                          {err}
+                        </li>
+                      ))}
+                    </ul>
+                  </dd>
+                </>
               )}
             </dl>
           )}
@@ -214,9 +239,8 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
               </p>
             ) : null}
             <p className="mt-2 text-center text-[11px] text-muted-foreground">
-              Disables every rule for this service and bumps the rule version so SDKs drop them on
-              their next poll. Cache-box freezes are phase-driven — release them by stopping the
-              phase.
+              Disables every rule for this service and cancels its active fault configs, on every
+              instance. Cache-box freezes are phase-driven — release them by stopping the phase.
             </p>
           </>
         )}

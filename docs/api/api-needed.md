@@ -129,8 +129,10 @@ Against an older build the panel says "not exposed by this manteion-go build"
 for the detail and hides the kill switch. The per-instance **cache-box
 action is gone**: cache-box is phase-driven in epoch 2
 (`ActiveCacheBoxPhaseForService`); a manual per-instance rule would fight the
-orchestrator's synthesised one. `last_error` / `last_rule_version_acked` are
-not emitted (no columns) — the panel renders them only when present.
+orchestrator's synthesised one. The panel shows the detail's optional
+`observed_generation`, `applied_generation` and `observed_errors[]` when
+present. The kill switch acts on the instance's whole service: it disables
+the service's rules and cancels its active fault configs.
 
 ### B.3 Rules (`/rules`)
 

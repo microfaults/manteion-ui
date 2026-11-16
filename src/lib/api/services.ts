@@ -76,33 +76,39 @@ const _mockInstances: SDKInstance[] = [
 
 const _mockDetail: Record<string, Omit<SDKInstanceDetail, keyof SDKInstance>> = {
   "prod-cat-sdk-a1b2c": {
-    last_rule_version_acked: 42,
+    observed_generation: 42,
+    applied_generation: 42,
     active_rule_ids: ["rule-001"],
     recent_run_ids: ["run-8f2a", "run-7c1b", "run-6d0e"],
   },
   "prod-cat-sdk-d3e4f": {
-    last_rule_version_acked: 41,
+    observed_generation: 42,
+    applied_generation: 41,
     active_rule_ids: ["rule-001"],
     recent_run_ids: ["run-8f2a", "run-7c1b"],
   },
   "checkout-sdk-g5h6i": {
-    last_rule_version_acked: 42,
+    observed_generation: 42,
+    applied_generation: 42,
     active_rule_ids: ["rule-003", "rule-012"],
     recent_run_ids: ["run-8f2a"],
   },
   "cart-sdk-j7k8l": {
-    last_error: "context deadline exceeded polling /api/v1/sdk/rules",
-    last_rule_version_acked: 39,
+    observed_generation: 40,
+    applied_generation: 39,
+    observed_errors: ['fault spec "fs-cart-latency": unknown fault type "slowloris"'],
     active_rule_ids: [],
     recent_run_ids: ["run-5a9c"],
   },
   "payment-sdk-m9n0o": {
-    last_rule_version_acked: 41,
+    observed_generation: 42,
+    applied_generation: 42,
     active_rule_ids: ["rule-004", "rule-013"],
     recent_run_ids: ["run-8f2a", "run-7c1b"],
   },
   "recommendation-sdk-p1q2r": {
-    last_rule_version_acked: 42,
+    observed_generation: 42,
+    applied_generation: 42,
     active_rule_ids: [],
     recent_run_ids: ["run-8f2a"],
   },
@@ -134,7 +140,7 @@ export async function getSDKInstance(id: string): Promise<SDKInstanceDetail> {
 }
 
 /** POST /api/v1/sdk/instances/{id}/kill-switch — disables every rule for the
- *  instance's service and bumps the rule version (manteion-go MR !29). */
+ *  instance's service and cancels that service's active fault configs. */
 export async function killSwitch(id: string): Promise<KillSwitchResult> {
   if (USE_MOCK) {
     await mockDelay();

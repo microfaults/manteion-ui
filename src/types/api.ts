@@ -147,12 +147,15 @@ export const SDKInstanceSchema = z.object({
 export type SDKInstance = z.infer<typeof SDKInstanceSchema>;
 
 /** Detail payload — superset of SDKInstance returned by
- *  GET /api/v1/sdk/instances/{id} (manteion-go MR !29). `recent_run_ids`
- *  carries phase ids; last_error / last_rule_version_acked are not emitted
- *  yet (no columns) and render only when present. */
+ *  GET /api/v1/sdk/instances/{id}. `recent_run_ids` carries phase ids.
+ *  The generations and `observed_errors` come from the instance's last
+ *  status report and may be absent. */
 export const SDKInstanceDetailSchema = SDKInstanceSchema.extend({
-  last_error: z.string().optional(),
-  last_rule_version_acked: z.number().int().optional(),
+  /** Desired-state generation the instance has seen. */
+  observed_generation: z.number().int().optional(),
+  /** Desired-state generation the instance has applied. */
+  applied_generation: z.number().int().optional(),
+  observed_errors: z.array(z.string()).optional(),
   active_rule_ids: z.array(z.string()).default([]),
   recent_run_ids: z.array(z.string()).default([]),
 });

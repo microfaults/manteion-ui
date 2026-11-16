@@ -261,6 +261,13 @@ const CALLS_TOTAL_ERROR_RATE_PROMQL = `100 * (
   + sum(rate(calls_total{status_code=~"4.."}[1m]))
 ) / clamp_min(sum(rate(calls_total[1m])), 1e-12)`;
 
+/**
+ * Cache-box hit ratio in percent, from atropos's own counters. With no cache-box
+ * traffic the division has no sample, which the dashboard shows as no data.
+ */
+export const CACHE_HIT_PROMQL =
+  "sum(rate(atropos_cachebox_hits_total[1m])) / (sum(rate(atropos_cachebox_hits_total[1m])) + sum(rate(atropos_cachebox_misses_total[1m]))) * 100";
+
 /** Distinct workload labels from recent `calls_total` traffic (for UI merge with SDK). */
 export async function fetchServiceNamesFromMetrics(signal?: AbortSignal): Promise<string[]> {
   if (USE_MOCK) {
@@ -330,17 +337,8 @@ export async function fetchDashboardPrometheusBundle(
   );
   const er = await queryInstant(CALLS_TOTAL_ERROR_RATE_PROMQL, signal);
   const erR = await queryRange(CALLS_TOTAL_ERROR_RATE_PROMQL, start, end, step, signal);
-  const ch = await queryInstant(
-    "sum(rate(cache_box_hits_total[1m])) / sum(rate(cache_box_requests_total[1m])) * 100",
-    signal,
-  );
-  const chR = await queryRange(
-    "sum(rate(cache_box_hits_total[1m])) / sum(rate(cache_box_requests_total[1m])) * 100",
-    start,
-    end,
-    step,
-    signal,
-  );
+  const ch = await queryInstant(CACHE_HIT_PROMQL, signal);
+  const chR = await queryRange(CACHE_HIT_PROMQL, start, end, step, signal);
   const perSvc = await queryInstant(
     `sum by(${promByClauseLabel(callsSvcLabel)}) (rate(calls_total[1m]))`,
     signal,
@@ -356,7 +354,8 @@ export async function fetchDashboardPrometheusBundle(
     p99LatencyRange: toPoints(p99R[0]?.values ?? []),
     errorRate: Number.parseFloat(er[0]?.value[1] ?? "0"),
     errorRateRange: toPoints(erR[0]?.values ?? []),
-    cacheHitRate: Number.parseFloat(ch[0]?.value[1] ?? "0"),
+    // NaN (no sample) renders as a dash on the tile, not as a measured 0%.
+    cacheHitRate: Number.parseFloat(ch[0]?.value[1] ?? "NaN"),
     cacheHitRateRange: toPoints(chR[0]?.values ?? []),
     perServiceCallRate,
   };
