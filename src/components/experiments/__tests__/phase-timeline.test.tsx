@@ -12,6 +12,13 @@ vi.mock("@/lib/api", () => ({
 }));
 import { experimentsApi, phasesApi, zeusRunsApi } from "@/lib/api";
 
+const env = vi.hoisted(() => ({ isMock: false }));
+vi.mock("@/lib/env", () => ({
+  get IS_MOCK() {
+    return env.isMock;
+  },
+}));
+
 const NOW = Date.parse("2026-06-01T00:10:00Z");
 const RULES = [
   { id: "rule-1", name: "hang-catalog", service: "productcatalog", enabled: true },
@@ -64,6 +71,7 @@ const row = (name: string) => screen.getByRole("listitem", { name: `Phase ${name
 
 describe("PhaseTimeline", () => {
   beforeEach(() => {
+    env.isMock = false;
     vi.clearAllMocks();
     vi.mocked(experimentsApi.getPhaseResults).mockImplementation(async (_e, phaseId) =>
       phaseId === "ph-baseline" ? HARVESTED : EMPTY,
@@ -260,5 +268,24 @@ describe("PhaseTimeline", () => {
     expect(onPhaseAction).toHaveBeenLastCalledWith(expect.objectContaining({ id: "ph-c" }), {
       type: "start",
     });
+  });
+
+  it("tags phase timing as accelerated only in the mock build", () => {
+    const exp = experiment([
+      phase({
+        id: "ph-run",
+        name: "baseline",
+        status: "running",
+        started_at: "2026-06-01T00:09:00Z",
+      }),
+    ]);
+    const { unmount } = render(wrap(<PhaseTimeline experiment={exp} rules={[]} now={NOW} />));
+    expect(within(row("baseline")).queryByText("accelerated")).toBeNull();
+    unmount();
+
+    env.isMock = true;
+    render(wrap(<PhaseTimeline experiment={exp} rules={[]} now={NOW} />));
+    const tag = within(row("baseline")).getByText("accelerated");
+    expect(tag.getAttribute("title")).toBe("Phases advance every 8 seconds in this simulation");
   });
 });

@@ -3,6 +3,7 @@
  * fallback for run-only phases (captioned, so the operator knows the numbers
  * came from zeus's in-memory summary rather than manteion's tables).
  */
+import { IS_MOCK } from "@/lib/env";
 import { type PhaseMetrics, pctDelta } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
 import { formatCount, formatLatencyUs } from "@/lib/utils";
@@ -42,6 +43,14 @@ export function MetricsGrid({
             the offered rate, so the load ran below plan. Add VUs or lower the rate.
           </span>
         </p>
+      ) : null}
+      {IS_MOCK ? (
+        <span
+          className="mt-1.5 inline-block rounded border border-border px-1 py-px text-[10px] text-muted-foreground"
+          title="Generated in your browser; no load ran"
+        >
+          synthetic
+        </span>
       ) : null}
       {metrics.source === "zeus" ? (
         <div className="mt-1.5 text-[10px] text-muted-foreground">

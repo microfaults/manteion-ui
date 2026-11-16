@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { phasesApi } from "@/lib/api";
 import type { PhaseFinalStatus } from "@/lib/api/phases";
+import { IS_MOCK } from "@/lib/env";
 import type { RuleRef } from "@/lib/experiment-draft";
 import { baselinePhase, phaseDatasetIds, phaseProgress } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
@@ -311,6 +312,7 @@ function Timing({ phase, now }: { phase: PhaseSummary; now?: number }) {
           {phase.status === "running" ? "" : `${phase.status} · `}
           {formatDurationMs(progress.elapsedMs)}
           {planned} · time-based
+          <AcceleratedTag />
         </p>
         {progress.fraction != null ? (
           <progress
@@ -333,7 +335,21 @@ function Timing({ phase, now }: { phase: PhaseSummary; now?: number }) {
     <p className="mt-0.5 text-xs text-muted-foreground">
       {formatDurationMs(progress.elapsedMs)} · {formatRelative(phase.started_at)}
       {phase.completed_at ? ` → ${formatRelative(phase.completed_at)}` : ""}
+      <AcceleratedTag />
     </p>
+  );
+}
+
+/** Mock build only: phases there advance on a fixed short step, not their plan. */
+function AcceleratedTag() {
+  if (!IS_MOCK) return null;
+  return (
+    <span
+      className="ml-1.5 rounded border border-border px-1 py-px text-[10px] text-muted-foreground"
+      title="Phases advance every 8 seconds in this simulation"
+    >
+      accelerated
+    </span>
   );
 }
 
