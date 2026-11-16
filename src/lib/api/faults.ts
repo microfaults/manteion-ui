@@ -6,11 +6,12 @@ import {
   type NetworkEnvelope,
 } from "@/types/api";
 import { z } from "zod";
-import { apiClient } from "./client";
+import { ApiError, apiClient } from "./client";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
-const _mockSpecs: FaultSpec[] = [
+// Mutable so mock-mode create/update/delete persist for the session.
+let _mockSpecs: FaultSpec[] = [
   {
     id: "spec-inline-hang-5s",
     name: "hang 5s",
@@ -380,9 +381,20 @@ const _mockCatalog: FaultCatalogEntry[] = [
 
 const FaultSpecsList = z.array(FaultSpecSchema);
 
-/** Mock-only: one fixture fault spec by id, or undefined. */
+/** Mock-only: one fault spec from the mock store by id, or undefined. */
 export function mockFaultSpecById(id: string): FaultSpec | undefined {
   return _mockSpecs.find((s) => s.id === id);
+}
+
+/** Mock-only: the spec with this id, or the ApiError the client throws on a 404. */
+function mockSpecOrNotFound(id: string): FaultSpec {
+  const spec = mockFaultSpecById(id);
+  if (!spec) {
+    const path = `/api/v1/faults/specs/${encodeURIComponent(id)}`;
+    const message = `Mock: fault spec ${id} not found`;
+    throw new ApiError(404, path, { error: message }, message);
+  }
+  return spec;
 }
 
 // The catalog is static for the lifetime of the backend build, so cache the
@@ -414,9 +426,7 @@ export async function listFaultSpecs(): Promise<FaultSpec[]> {
 export async function getFaultSpec(id: string): Promise<FaultSpec> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 60));
-    const spec = _mockSpecs.find((s) => s.id === id);
-    if (!spec) throw new Error(`Mock: fault spec ${id} not found`);
-    return { ...spec };
+    return { ...mockSpecOrNotFound(id) };
   }
   return apiClient.get(`/api/v1/faults/specs/${encodeURIComponent(id)}`, FaultSpecSchema);
 }
@@ -441,13 +451,36 @@ export interface FaultSpecInput {
 }
 
 export async function createFaultSpec(input: FaultSpecInput): Promise<FaultSpec> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 60));
+    const spec: FaultSpec = {
+      ...input,
+      id: `spec-${input.category}-${input.fault_type}-${Date.now()}`,
+      created_at: new Date().toISOString(),
+    };
+    _mockSpecs = [..._mockSpecs, spec];
+    return { ...spec };
+  }
   return apiClient.post("/api/v1/faults/specs", input, FaultSpecSchema);
 }
 
 export async function updateFaultSpec(id: string, input: FaultSpecInput): Promise<FaultSpec> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 60));
+    const existing = mockSpecOrNotFound(id);
+    const updated: FaultSpec = { ...input, id, created_at: existing.created_at };
+    _mockSpecs = _mockSpecs.map((s) => (s.id === id ? updated : s));
+    return { ...updated };
+  }
   return apiClient.put(`/api/v1/faults/specs/${encodeURIComponent(id)}`, input, FaultSpecSchema);
 }
 
 export async function deleteFaultSpec(id: string): Promise<void> {
+  if (USE_MOCK) {
+    await new Promise((r) => setTimeout(r, 60));
+    mockSpecOrNotFound(id);
+    _mockSpecs = _mockSpecs.filter((s) => s.id !== id);
+    return;
+  }
   await apiClient.del(`/api/v1/faults/specs/${encodeURIComponent(id)}`);
 }
