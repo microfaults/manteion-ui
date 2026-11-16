@@ -173,7 +173,7 @@ export const mockExperiments: Experiment[] = [
     hypothesis: "shippingservice CPU saturation drives >60% of checkout p99.",
     status: "running",
     targeted_services: ["shippingservice", "checkoutservice", "cartservice"],
-    created_by: "pmundra",
+    created_by: "operator",
     created_at: ago(2 * HOUR),
     started_at: ago(38 * MINUTE),
     phases: [
@@ -227,7 +227,7 @@ export const mockExperiments: Experiment[] = [
     description: "Serve cartservice from the cache box and measure drift.",
     status: "completed",
     targeted_services: ["cartservice"],
-    created_by: "pmundra",
+    created_by: "operator",
     created_at: ago(30 * HOUR),
     started_at: ago(28 * HOUR),
     completed_at: ago(27 * HOUR),
@@ -265,7 +265,7 @@ export const mockExperiments: Experiment[] = [
     description: "Ramp injected payment latency 50→400ms.",
     status: "planned",
     targeted_services: ["paymentservice", "checkoutservice"],
-    created_by: "pmundra",
+    created_by: "operator",
     created_at: ago(20 * MINUTE),
     phases: [
       phase({
@@ -349,7 +349,7 @@ export const mockExperiments: Experiment[] = [
     hypothesis: "50 ms on productcatalogservice shows up in browse p50 and recovers after.",
     status: "planned",
     targeted_services: ["productcatalogservice"],
-    created_by: "pmundra",
+    created_by: "operator",
     created_at: ago(10 * MINUTE),
     phases: [
       phase({

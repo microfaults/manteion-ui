@@ -120,7 +120,7 @@ describe("draftToCreateInput", () => {
     const d = draft({
       description: "",
       hypothesis: "tail latency",
-      created_by: "pmundra",
+      created_by: "operator",
       phases: [
         phase({ workflows: [wf({ rate_rps: 0 })] }),
         phase({
@@ -145,7 +145,7 @@ describe("draftToCreateInput", () => {
     expect(input).toEqual({
       name: "checkout-p99",
       hypothesis: "tail latency",
-      created_by: "pmundra",
+      created_by: "operator",
       phases: [
         {
           name: "baseline",

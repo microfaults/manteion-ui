@@ -40,7 +40,7 @@ const EXPERIMENT: Experiment = {
   hypothesis: "productcatalog hang drives >60% of checkout p99.",
   status: "running",
   targeted_services: ["productcatalog", "cartservice"],
-  created_by: "pmundra",
+  created_by: "operator",
   created_at: "2026-06-01T00:00:00Z",
   started_at: "2026-06-01T00:00:00Z",
   phases: [

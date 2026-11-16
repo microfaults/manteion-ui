@@ -1,3 +1,4 @@
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -136,12 +137,14 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
     },
   });
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const del = useMutation({
     mutationFn: () => faultsApi.deleteFaultSpec(faultId ?? ""),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["fault-specs"] });
       onDeleted();
     },
+    onSettled: () => setConfirmDelete(false),
   });
 
   // ── Derived ─────────────────────────────────────────────────────────
@@ -364,10 +367,20 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
           variant="ghost"
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           disabled={isNew || del.isPending}
-          onClick={() => del.mutate()}
+          onClick={() => setConfirmDelete(true)}
         >
           Delete
         </Button>
+        <ConfirmDialog
+          open={confirmDelete}
+          onOpenChange={setConfirmDelete}
+          title="Delete this fault spec?"
+          description={`Removes ${specQuery.data?.name || faultId}. This cannot be undone.`}
+          confirmLabel="Delete fault spec"
+          destructive
+          pending={del.isPending}
+          onConfirm={() => del.mutate()}
+        />
         <Button
           onClick={() => save.mutate()}
           disabled={saveDisabled}

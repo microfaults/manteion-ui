@@ -287,13 +287,32 @@ describe("RuleEditorPanel — existing rule", () => {
     expect((deleteBtn as HTMLButtonElement).disabled).toBe(false);
   });
 
-  it("calls deleteRule and fires onDeleted", async () => {
+  it("asks in a dialog, then calls deleteRule and fires onDeleted", async () => {
     const user = userEvent.setup();
     vi.mocked(rulesApi.deleteRule).mockResolvedValue(undefined);
     const { onDeleted } = renderPanel({ isNew: false, ruleId: "rule-001" });
     await screen.findByDisplayValue("freeze-productcatalog");
     await user.click(screen.getByRole("button", { name: /Delete/i }));
+
+    const dialog = screen.getByRole("dialog", { name: "Delete this rule?" });
+    expect(dialog.textContent).toContain("freeze-productcatalog");
+    expect(rulesApi.deleteRule).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole("button", { name: "Delete rule" }));
+    expect(rulesApi.deleteRule).toHaveBeenCalledWith("rule-001");
     await vi.waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  it("does not delete when the dialog is cancelled", async () => {
+    const user = userEvent.setup();
+    vi.mocked(rulesApi.deleteRule).mockClear();
+    const { onDeleted } = renderPanel({ isNew: false, ruleId: "rule-001" });
+    await screen.findByDisplayValue("freeze-productcatalog");
+    await user.click(screen.getByRole("button", { name: /Delete/i }));
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(rulesApi.deleteRule).not.toHaveBeenCalled();
+    expect(onDeleted).not.toHaveBeenCalled();
   });
 
   it("saves cachebox action with mode + key_strategy", async () => {

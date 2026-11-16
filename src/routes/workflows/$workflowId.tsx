@@ -1,3 +1,4 @@
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -34,25 +35,15 @@ function WorkflowDetailPage() {
     queryFn: () => workflowsApi.getWorkflow(workflowId),
   });
 
-  // Soft confirm before destructive action — native confirm() is the right
-  // ergonomic for a low-frequency destructive op; a full modal would be
-  // overkill until we have undo or batch delete.
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteMut = useMutation({
     mutationFn: () => workflowsApi.deleteWorkflow(workflowId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["workflows"] });
       navigate({ to: "/workflows" });
     },
+    onSettled: () => setConfirmDelete(false),
   });
-  function handleDelete() {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(`Delete workflow "${workflowId}"? This cannot be undone.`)
-    ) {
-      return;
-    }
-    deleteMut.mutate();
-  }
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
@@ -111,13 +102,23 @@ function WorkflowDetailPage() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={handleDelete}
+              onClick={() => setConfirmDelete(true)}
               disabled={deleteMut.isPending}
               className="text-muted-foreground hover:text-destructive"
             >
               <Trash2 className="size-4" />
               {deleteMut.isPending ? "Deleting…" : "Delete"}
             </Button>
+            <ConfirmDialog
+              open={confirmDelete}
+              onOpenChange={setConfirmDelete}
+              title={`Delete workflow "${workflowId}"?`}
+              description="This cannot be undone."
+              confirmLabel="Delete workflow"
+              destructive
+              pending={deleteMut.isPending}
+              onConfirm={() => deleteMut.mutate()}
+            />
             <Button variant="default" disabled>
               Validate against dataset
             </Button>

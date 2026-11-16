@@ -13,16 +13,15 @@ launch experiments, inspect phase-by-phase latency, read the verdict.
 cd manteion-ui
 corepack enable pnpm       # one-time, on systems without pnpm
 pnpm install
-cp .env.example .env.local # defaults are correct for the VM1 SSH tunnel
+cp .env.example .env.local # defaults expect manteion-go on localhost:9090
 pnpm dev                   # http://localhost:5173
 ```
 
-In another terminal, open the SSH tunnel to manteion-go on VM1
-(see [`docs/ops/connecting-to-vm1.md`](./docs/ops/connecting-to-vm1.md)):
+In another terminal, with kubectl pointed at the cluster that runs
+manteion-go, forward its service to `localhost:9090`:
 
 ```sh
-ssh -L 9090:localhost:9090 pmundra@2262-cse115b-01.be.ucsc.edu \
-    'kubectl port-forward svc/manteion 9090:8080'
+kubectl port-forward svc/manteion 9090:8080
 ```
 
 Run the full build + tests:
@@ -48,10 +47,10 @@ is baked into the client bundle.
 
 | Variable | Required | Default | Description |
 |---|---|---|---|
-| `VITE_MANTEION_URL` | yes | `http://localhost:5173` | Base URL the client sends API calls to. The default routes through the Vite dev proxy (`/api/*` → `http://localhost:9090`), which the VM1 SSH tunnel terminates. Override only if you're hitting manteion directly (e.g. a deployed environment). |
+| `VITE_MANTEION_URL` | yes | `http://localhost:5173` | Base URL the client sends API calls to. The default routes through the Vite dev proxy (`/api/*` → `http://localhost:9090`), where the manteion port-forward listens. Override only if you're hitting manteion directly (e.g. a deployed environment). |
 | `VITE_DEFAULT_ENV` | no | `online-boutique` | Active kustomize overlay / environment name. Sent as the `X-Faults-Lab-Environment` header on every request and shown in the sidebar. Change this when targeting a different demo app deployment. |
-| `VITE_GRAFANA_URL` | no | — | Base URL of Grafana (no trailing slash). Dashboard cards link to `/d/atropos-overview?...`. Grafana runs in-cluster on VM1: `ssh -L 3001:localhost:3001 pmundra@2262-cse115b-01.be.ucsc.edu 'kubectl port-forward svc/grafana 3001:3000'`, then set `VITE_GRAFANA_URL=http://localhost:3001`. Leave unset to hide the Grafana links. |
-| `VITE_PROMETHEUS_URL` | no | `http://localhost:5173/prometheus` | Prometheus HTTP API base URL. Dashboard observability cards query this for live RPS, p99, error rate, and cache-hit metrics. The default routes through the Vite proxy at `/prometheus/api/v1/*` → `127.0.0.1:9091` (avoids CORS). Open `ssh -L 9091:localhost:9091 pmundra@2262-cse115b-01.be.ucsc.edu 'kubectl port-forward svc/prometheus 9091:9090'` alongside the manteion tunnel. |
+| `VITE_GRAFANA_URL` | no | — | Base URL of Grafana (no trailing slash). Dashboard cards link to `/d/atropos-overview?...`. For an in-cluster Grafana, run `kubectl port-forward svc/grafana 3001:3000`, then set `VITE_GRAFANA_URL=http://localhost:3001`. Leave unset to hide the Grafana links. |
+| `VITE_PROMETHEUS_URL` | no | `http://localhost:5173/prometheus` | Prometheus HTTP API base URL. Dashboard observability cards query this for live RPS, p99, error rate, and cache-hit metrics. The default routes through the Vite proxy at `/prometheus/api/v1/*` → `127.0.0.1:9091` (avoids CORS). Run `kubectl port-forward svc/prometheus 9091:9090` alongside the manteion port-forward. |
 
 ### Per-environment overrides
 
@@ -63,28 +62,24 @@ For a staging build, create `.env.staging.local` and run:
 pnpm vite build --mode staging
 ```
 
-### Connecting to manteion-go on VM1
+### Connecting to manteion-go
 
-manteion-go runs in k3s on VM1 (`2262-cse115b-01.be.ucsc.edu`) as the
-ClusterIP service `svc/manteion:8080`. Bridge it to your laptop with one
-SSH local-forward:
+manteion-go runs in Kubernetes as the ClusterIP service
+`svc/manteion:8080`. With kubectl pointed at that cluster, forward it to
+your laptop:
 
 ```sh
-ssh -L 9090:localhost:9090 pmundra@2262-cse115b-01.be.ucsc.edu \
-    'kubectl port-forward svc/manteion 9090:8080'
+kubectl port-forward svc/manteion 9090:8080
 ```
 
-This opens an SSH tunnel and starts `kubectl port-forward` on the VM in one
-command — Ctrl-C tears both down. Then in another terminal:
+Ctrl-C stops the forward. Then in another terminal:
 
 ```sh
 pnpm dev   # http://localhost:5173 — defaults proxy /api/* to localhost:9090
 ```
 
 If manteion-go is unreachable, the dashboard shows
-"Could not reach manteion — is VITE_MANTEION_URL correct?". See
-[`docs/ops/connecting-to-vm1.md`](./docs/ops/connecting-to-vm1.md) for the
-traffic-flow diagram and troubleshooting.
+"Could not reach manteion — is VITE_MANTEION_URL correct?".
 
 ## Stack
 
@@ -96,7 +91,7 @@ traffic-flow diagram and troubleshooting.
 | Components | shadcn/ui (copy-in under `src/components/ui/`) |
 | Routing | TanStack Router (file-based, type-safe) |
 | Server state | TanStack Query |
-| Forms | `react-hook-form` + `zod` |
+| Forms | Controlled React state, validated before submit |
 | Rules builder | Custom AND/OR/NOT tree + OPA-rego compile/parse under `src/lib/rego/` |
 | Lint / format | Biome |
 | Test | Vitest + jsdom + Testing Library |

@@ -32,12 +32,13 @@ export class ApiClient {
     this.fetchImpl = opts.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
-  private headers(extra: HeadersInit = {}): HeadersInit {
+  /** Content-Type goes out only with a body: on a bodiless request it would
+   *  make every cross-origin GET and DELETE pay for a CORS preflight. */
+  private headers(hasBody: boolean): HeadersInit {
     return {
       Accept: "application/json",
-      "Content-Type": "application/json",
+      ...(hasBody ? { "Content-Type": "application/json" } : {}),
       "X-Faults-Lab-Environment": this.environment,
-      ...extra,
     };
   }
 
@@ -48,11 +49,9 @@ export class ApiClient {
     schema: S,
   ): Promise<z.infer<S>> {
     const url = `${this.baseUrl}${path.startsWith("/") ? path : `/${path}`}`;
-    const init: RequestInit = {
-      method,
-      headers: this.headers(),
-    };
-    if (body !== undefined && body !== null) {
+    const hasBody = body !== undefined && body !== null;
+    const init: RequestInit = { method, headers: this.headers(hasBody) };
+    if (hasBody) {
       init.body = JSON.stringify(body);
     }
     const res = await this.fetchImpl(url, init);

@@ -1,3 +1,4 @@
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { RuleBuilder } from "@/components/rule-builder";
 import { FaultSpecPicker } from "@/components/rules/fault-spec-picker";
 import {
@@ -234,12 +235,14 @@ function RuleEditorForm({
     },
   });
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const del = useMutation({
     mutationFn: () => rulesApi.deleteRule(ruleId as string),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rules"] });
       onDeleted();
     },
+    onSettled: () => setConfirmDelete(false),
   });
 
   return (
@@ -425,10 +428,20 @@ function RuleEditorForm({
             size="sm"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={isNew || del.isPending}
-            onClick={() => del.mutate()}
+            onClick={() => setConfirmDelete(true)}
           >
             Delete
           </Button>
+          <ConfirmDialog
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title="Delete this rule?"
+            description={`Removes ${name || ruleId}. This cannot be undone.`}
+            confirmLabel="Delete rule"
+            destructive
+            pending={del.isPending}
+            onConfirm={() => del.mutate()}
+          />
           <div className={panelFooterRight()}>
             <Button variant="outline" size="sm" disabled>
               Test push

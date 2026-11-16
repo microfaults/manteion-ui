@@ -1,3 +1,4 @@
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Topbar } from "@/components/layout/topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -33,22 +34,15 @@ function DatasetDetailPage() {
     queryFn: () => datasetsApi.getDataset(datasetId),
   });
 
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const deleteMut = useMutation({
     mutationFn: () => datasetsApi.deleteDataset(datasetId),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ["datasets"] });
       navigate({ to: "/datasets" });
     },
+    onSettled: () => setConfirmDelete(false),
   });
-  function handleDelete() {
-    if (
-      typeof window !== "undefined" &&
-      !window.confirm(`Delete dataset "${datasetId}"? This cannot be undone.`)
-    ) {
-      return;
-    }
-    deleteMut.mutate();
-  }
 
   if (isLoading) {
     return (
@@ -91,13 +85,23 @@ function DatasetDetailPage() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={handleDelete}
+              onClick={() => setConfirmDelete(true)}
               disabled={deleteMut.isPending}
               className="text-muted-foreground hover:text-destructive"
             >
               <Trash2 className="size-4" />
               {deleteMut.isPending ? "Deleting…" : "Delete"}
             </Button>
+            <ConfirmDialog
+              open={confirmDelete}
+              onOpenChange={setConfirmDelete}
+              title={`Delete dataset "${datasetId}"?`}
+              description="This cannot be undone."
+              confirmLabel="Delete dataset"
+              destructive
+              pending={deleteMut.isPending}
+              onConfirm={() => deleteMut.mutate()}
+            />
           </div>
         }
       />

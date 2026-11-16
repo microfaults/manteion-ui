@@ -1,3 +1,4 @@
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { CacheBoxBadge, RuleTypeBadge, StatusBadge } from "@/components/services/service-badges";
 import { Button } from "@/components/ui/button";
 import { rulesApi, servicesApi } from "@/lib/api";
@@ -8,6 +9,7 @@ import type { Rule } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { X, Zap } from "lucide-react";
+import { useState } from "react";
 
 interface Props {
   instanceId: string;
@@ -57,12 +59,14 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
     },
   });
 
+  const [confirmKillSwitch, setConfirmKillSwitch] = useState(false);
   const killSwitch = useMutation({
     mutationFn: () => servicesApi.killSwitch(instanceId),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["rules"] });
       qc.invalidateQueries({ queryKey: ["sdk-instance", instanceId] });
     },
+    onSettled: () => setConfirmKillSwitch(false),
   });
 
   const service = detail.data?.service ?? fallbackService ?? "—";
@@ -70,17 +74,14 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
   const observedErrors = detail.data?.observed_errors ?? [];
 
   // The endpoint takes an instance id but acts on the whole service.
-  function onKillSwitch() {
-    const count = activeRules.length;
-    const scope = "This applies to every instance of the service.";
-    const msg =
-      count === 0
-        ? `Run the kill switch for ${service}? No active rules are reported; it still cancels the service's running fault configs and applies to every instance of the service.`
-        : count === 1
-          ? `Disable the 1 active rule for ${service} and cancel its running fault configs? ${scope}`
-          : `Disable all ${count} active rules for ${service} and cancel its running fault configs? ${scope}`;
-    if (window.confirm(msg)) killSwitch.mutate();
-  }
+  const killSwitchCount = activeRules.length;
+  const killSwitchScope = "This applies to every instance of the service.";
+  const killSwitchPrompt =
+    killSwitchCount === 0
+      ? `Run the kill switch for ${service}? No active rules are reported; it still cancels the service's running fault configs and applies to every instance of the service.`
+      : killSwitchCount === 1
+        ? `Disable the 1 active rule for ${service} and cancel its running fault configs? ${killSwitchScope}`
+        : `Disable all ${killSwitchCount} active rules for ${service} and cancel its running fault configs? ${killSwitchScope}`;
 
   return (
     <div className="flex h-full flex-col">
@@ -227,12 +228,22 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
             <Button
               variant="destructive"
               className="w-full"
-              onClick={onKillSwitch}
+              onClick={() => setConfirmKillSwitch(true)}
               disabled={killSwitch.isPending || detail.isLoading}
             >
               <Zap className="size-4" />
               {killSwitch.isPending ? "Disabling…" : "Kill switch"}
             </Button>
+            <ConfirmDialog
+              open={confirmKillSwitch}
+              onOpenChange={setConfirmKillSwitch}
+              title="Kill switch"
+              description={killSwitchPrompt}
+              confirmLabel="Run kill switch"
+              destructive
+              pending={killSwitch.isPending}
+              onConfirm={() => killSwitch.mutate()}
+            />
             {killSwitch.isError ? (
               <p className="mt-2 text-center text-[11px] text-status-down">
                 {describeApiError(killSwitch.error)}
