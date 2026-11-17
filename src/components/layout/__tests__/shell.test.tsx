@@ -54,14 +54,19 @@ describe("Shell", () => {
     expect(screen.queryByText(NOTICE_TEXT)).toBeNull();
   });
 
-  it("sizes the notice for small screens and lets the bar's sentence wrap there", async () => {
+  it("sizes the notice for small screens and keeps only the bar's label and link there", async () => {
     renderShell();
     const notice = (await screen.findByText(NOTICE_TEXT)).closest("aside");
     expect(notice?.classList.contains("lg:hidden")).toBe(true);
     expect(screen.getByRole("button", { name: "Dismiss" }).classList.contains("size-8")).toBe(true);
+    // Beside the sidebar a phone leaves the sentence a column one word wide,
+    // so below sm the bar keeps its label and the link to the full notice.
     const sentence = screen.getByText(BAR_TEXT);
-    expect(sentence.classList.contains("truncate")).toBe(false);
-    expect(sentence.classList.contains("sm:truncate")).toBe(true);
+    expect(sentence.classList.contains("hidden")).toBe(true);
+    expect(sentence.classList.contains("sm:block")).toBe(true);
+    expect(screen.getByText("Simulated data").classList.contains("hidden")).toBe(false);
+    const about = screen.getByRole("link", { name: "About this demo" });
+    expect(about.classList.contains("hidden")).toBe(false);
   });
 
   it.each([true, false])("brands the sidebar Manteion with the mark (mock %s)", async (isMock) => {

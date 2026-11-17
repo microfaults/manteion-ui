@@ -13,7 +13,7 @@ export function SimulatedBar() {
     >
       <span aria-hidden className="size-1.5 shrink-0 rounded-full bg-status-degraded" />
       <span className="shrink-0 font-medium text-foreground">Simulated data</span>
-      <span className="min-w-0 sm:truncate">
+      <span className="hidden min-w-0 truncate sm:block">
         No cluster is attached. Numbers are generated in your browser, except the sample run, which
         replays recorded figures.
       </span>

@@ -18,14 +18,31 @@ const List = z.array(SDKInstanceSchema);
 // Instances report the enabled rules of their service in rules.ts, so the
 // detail panel's active-rules list resolves names from the shared ["rules"] query.
 
-const _mockInstances: SDKInstance[] = [
+/** A fixture instance carries ages, not timestamps. They are stamped on every
+ *  read, so an "alive" instance always polled a moment ago however long the
+ *  tab has been open, and a "dead" one stays minutes behind. */
+type MockInstance = Omit<SDKInstance, "registered_at" | "last_poll_at"> & {
+  registeredAgoSec: number;
+  lastPollAgoSec: number;
+};
+
+const HOUR_SEC = 3600;
+
+const agoSec = (sec: number): string =>
+  new Date(Date.now() - sec * 1000).toISOString().replace(/\.\d{3}Z$/, "Z");
+
+function stamp({ registeredAgoSec, lastPollAgoSec, ...rest }: MockInstance): SDKInstance {
+  return { ...rest, registered_at: agoSec(registeredAgoSec), last_poll_at: agoSec(lastPollAgoSec) };
+}
+
+const _mockInstances: MockInstance[] = [
   {
     id: "prod-cat-sdk-a1b2c",
     service: "productcatalogservice",
     version: "v0.4.2",
     address: "10.0.0.12:50051",
-    registered_at: "2026-05-22T09:14:00Z",
-    last_poll_at: "2026-05-23T11:59:58Z",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 2,
     status: "alive",
   },
   {
@@ -33,8 +50,8 @@ const _mockInstances: SDKInstance[] = [
     service: "productcatalogservice",
     version: "v0.4.1",
     address: "10.0.0.13:50051",
-    registered_at: "2026-05-22T09:15:00Z",
-    last_poll_at: "2026-05-23T11:59:13Z",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 47,
     status: "stale",
   },
   {
@@ -42,8 +59,8 @@ const _mockInstances: SDKInstance[] = [
     service: "checkoutservice",
     version: "v0.4.2",
     address: "10.0.0.21:50051",
-    registered_at: "2026-05-22T09:10:00Z",
-    last_poll_at: "2026-05-23T11:59:59Z",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 1,
     status: "alive",
   },
   {
@@ -51,8 +68,8 @@ const _mockInstances: SDKInstance[] = [
     service: "cartservice",
     version: "v0.4.0",
     address: "10.0.0.31:50051",
-    registered_at: "2026-05-21T14:22:00Z",
-    last_poll_at: "2026-05-23T11:55:00Z",
+    registeredAgoSec: 45 * HOUR_SEC,
+    lastPollAgoSec: 6 * 60,
     status: "dead",
   },
   {
@@ -60,8 +77,8 @@ const _mockInstances: SDKInstance[] = [
     service: "paymentservice",
     version: "v0.4.2",
     address: "10.0.0.41:50051",
-    registered_at: "2026-05-22T09:12:00Z",
-    last_poll_at: "2026-05-23T11:59:57Z",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 38,
     status: "stale",
   },
   {
@@ -69,8 +86,8 @@ const _mockInstances: SDKInstance[] = [
     service: "recommendationservice",
     version: "v0.4.2",
     address: "10.0.0.51:50051",
-    registered_at: "2026-05-22T09:16:00Z",
-    last_poll_at: "2026-05-23T11:59:56Z",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 3,
     status: "alive",
   },
 ];
@@ -122,7 +139,7 @@ export function mockSDKInstanceDetail(id: string): SDKInstanceDetail {
   if (!inst) throw new Error(`Mock: instance ${id} not found`);
   const extra = _mockDetail[id] ?? { recent_run_ids: [] };
   return {
-    ...inst,
+    ...stamp(inst),
     ...extra,
     recent_run_ids: [...extra.recent_run_ids],
     active_rule_ids: mockActiveRuleIds(inst.service),
@@ -144,7 +161,7 @@ function mockDelay() {
 export async function listSDKInstances(): Promise<SDKInstance[]> {
   if (USE_MOCK) {
     await mockDelay();
-    return [..._mockInstances];
+    return _mockInstances.map(stamp);
   }
   return apiClient.get("/api/v1/sdk/instances", List);
 }

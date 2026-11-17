@@ -73,4 +73,25 @@ describe("mock instance detail", () => {
       for (const phaseId of recent) expect(m.mockPhaseDetail(phaseId).id).toBe(phaseId);
     }
   });
+
+  it("stamps poll times when read, so a status never contradicts its last poll", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-11-16T12:00:00Z"));
+      const ageSec = (id: string) =>
+        (Date.now() - Date.parse(s.mockSDKInstanceDetail(id).last_poll_at ?? "")) / 1000;
+      expect(ageSec("prod-cat-sdk-a1b2c")).toBeLessThan(10);
+      expect(ageSec("prod-cat-sdk-d3e4f")).toBeGreaterThan(30);
+      expect(ageSec("cart-sdk-j7k8l")).toBeGreaterThan(300);
+      expect(s.mockSDKInstanceDetail("prod-cat-sdk-a1b2c").last_poll_at).toBe(
+        "2026-11-16T11:59:58Z",
+      );
+
+      // An hour later the alive instance has still just polled.
+      vi.setSystemTime(new Date("2026-11-16T13:00:00Z"));
+      expect(ageSec("prod-cat-sdk-a1b2c")).toBeLessThan(10);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
