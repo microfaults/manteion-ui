@@ -8,7 +8,7 @@ SSH local-forward.
 ## The one-liner
 
 ```sh
-ssh -L 9090:localhost:19090 pmundra@2262-cse115b-01.be.ucsc.edu \
+ssh -L 9090:localhost:19090 <user>@2262-cse115b-01.be.ucsc.edu \
     'kubectl port-forward --address 127.0.0.1 svc/manteion 19090:8080'
 ```
 

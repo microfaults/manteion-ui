@@ -17,10 +17,12 @@ vi.mock("@/lib/prometheus", () => ({
 import { Route } from "@/routes/dashboard";
 
 describe("Dashboard", () => {
-  it("labels the cache-hit tile as covering every service", async () => {
+  it("labels the cache-hit tile as covering every service over the chart range", async () => {
     const Dashboard = Route.options.component as () => JSX.Element;
     renderWithRouter(<Dashboard />);
     expect(await screen.findByText("Cache-box hit rate")).toBeTruthy();
-    expect(screen.getByText("cache-box replay · all services")).toBeTruthy();
+    expect(screen.getByText("cache-box replay · all services · last 30m")).toBeTruthy();
+    // Same range suffix as the other tiles.
+    expect(screen.getByText("platform total · last 30m")).toBeTruthy();
   });
 });
