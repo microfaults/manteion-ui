@@ -3,13 +3,11 @@
  * on Online Boutique, the figures one real run measured, and a one-click start
  * of the sample experiment in the simulated console.
  */
-import { PhasePill } from "@/components/phase-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api/client";
 import { startSampleExperiment } from "@/lib/sample-experiment";
 import { cn } from "@/lib/utils";
-import type { PhaseName } from "@/types/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useEffect, useState } from "react";
@@ -88,9 +86,9 @@ function Hero() {
       return;
     }
     setRefusal(null);
-    // A cached copy from an earlier visit would show the old run until it went stale.
-    for (const queryKey of [["experiment", id], ["experiments"], ["phases"]])
-      queryClient.invalidateQueries({ queryKey });
+    // The restart resets the sample's phases, results and zeus runs, so any
+    // cached query from an earlier visit may be stale.
+    queryClient.invalidateQueries();
     navigate({ to: "/experiments/$experimentId", params: { experimentId: id } });
   };
 
@@ -127,7 +125,8 @@ function Hero() {
         />
         <span className="text-[13px] leading-5 text-muted-foreground">
           This site runs on simulated data. No cluster is attached, so every service, run and number
-          in the console is generated in your browser.
+          in the console is generated in your browser, except the sample run, which replays figures
+          recorded on the real testbed.
         </span>
       </div>
     </section>
@@ -167,7 +166,6 @@ function HowItWorks() {
 }
 
 interface Result {
-  phase: PhaseName;
   setting: string;
   p95: string;
   caption: string;
@@ -176,27 +174,33 @@ interface Result {
 
 /** Browse p95 per phase of `exp12-dose`, measured on the real testbed on 2026-08-25. */
 const RESULTS: Result[] = [
-  { phase: "baseline", setting: "plain", p95: "10.5 ms", caption: "Browse p95 with no fault." },
+  { setting: "plain", p95: "10.5 ms", caption: "Browse p95 with no fault." },
   {
-    phase: "isolation-1a",
     setting: "catalog +50 ms",
     p95: "364.9 ms",
     caption: "Browse p95 with the fault on.",
     faulted: true,
   },
   {
-    phase: "baseline",
     setting: "plain again",
     p95: "8.4 ms",
     caption: "Browse p95 after the fault is removed.",
   },
 ];
 
-function ResultCard({ phase, setting, p95, caption, faulted }: Result) {
+function ResultCard({ setting, p95, caption, faulted }: Result) {
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-6">
       <div className="flex items-center gap-2.5">
-        <PhasePill name={phase} status="completed" width={72} />
+        {/* A plain bar, not a PhasePill: phase-family names would label a fault phase "isolation". */}
+        <span
+          aria-hidden="true"
+          data-result-bar={faulted ? "fault" : "plain"}
+          className={cn(
+            "inline-block h-4 w-[72px] rounded-sm",
+            faulted ? "bg-primary" : "bg-phase-baseline",
+          )}
+        />
         <span className="font-mono text-xs text-mono">{setting}</span>
       </div>
       <div
@@ -216,7 +220,7 @@ function Measured() {
   return (
     <LandingSection
       eyebrow="What that run measured"
-      title="50 ms at one service, 355 ms at the edge"
+      title="50 ms added at one service, 354 ms added at the edge"
     >
       <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(280px,100%),1fr))] gap-4">
         {RESULTS.map((r) => (

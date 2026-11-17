@@ -10,7 +10,8 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
-const BAR_TEXT = "No cluster is attached; everything here is generated in your browser.";
+const BAR_TEXT =
+  "No cluster is attached. Numbers are generated in your browser, except the sample run, which replays recorded figures.";
 const NOTICE_TEXT = "Built for desktop widths. Some panels will not fit on this screen.";
 
 const renderShell = () => renderWithRouter(<Shell>page body</Shell>);

@@ -29,8 +29,11 @@ vi.mock("@/lib/sample-experiment", async (importOriginal) => ({
 
 /** Landing page at `/` under `root`, plus stub dashboard and experiment
  *  routes, so a test can follow where the page's buttons and links go. */
-function renderApp(path = "/", root: () => JSX.Element = () => <Outlet />) {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+function renderApp(
+  path = "/",
+  root: () => JSX.Element = () => <Outlet />,
+  qc = new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+) {
   const rootRoute = createRootRoute({ component: root });
   const routeTree = rootRoute.addChildren([
     createRoute({ getParentRoute: () => rootRoute, path: "/", component: LandingPage }),
@@ -74,7 +77,16 @@ describe("LandingPage", () => {
     const h1 = await screen.findByRole("heading", { level: 1 });
     expect(h1.textContent).toBe("Change one thing. Hold the traffic. Measure what moved.");
     expect(screen.getAllByRole("heading", { level: 1 })).toHaveLength(1);
-    expect(screen.getByText(/This site runs on simulated data\./)).toBeTruthy();
+    expect(
+      screen.getByText(
+        "This site runs on simulated data. No cluster is attached, so every service, run and number in the console is generated in your browser, except the sample run, which replays figures recorded on the real testbed.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", {
+        name: "50 ms added at one service, 354 ms added at the edge",
+      }),
+    ).toBeTruthy();
     for (const t of ["10.5 ms", "364.9 ms", "8.4 ms"]) expect(screen.getByText(t)).toBeTruthy();
     expect(screen.getByText(/Measured on the real testbed on 2026-08-25/)).toBeTruthy();
     expect(document.title).toBe("Manteion");
@@ -130,6 +142,34 @@ describe("LandingPage", () => {
       expect(hint.classList.contains("sr-only")).toBe(true);
     }
     expect(screen.getByRole("link", { name: "atropos-go (opens in a new tab)" })).toBeTruthy();
+  });
+
+  it("never calls a result card's phase an isolation phase", async () => {
+    renderLanding();
+    const value = await screen.findByText("364.9 ms");
+    const cards = value.closest("section");
+    expect(cards).not.toBeNull();
+    if (!cards) return;
+    const bars = cards.querySelectorAll("[data-result-bar]");
+    expect(bars).toHaveLength(3);
+    for (const bar of bars) expect(bar.getAttribute("aria-hidden")).toBe("true");
+    expect([...bars].map((b) => b.getAttribute("data-result-bar"))).toEqual([
+      "plain",
+      "fault",
+      "plain",
+    ]);
+    expect(within(cards as HTMLElement).queryByRole("img")).toBeNull();
+    expect(cards.innerHTML).not.toMatch(/isolation/i);
+  });
+
+  it("invalidates every cached query before opening the restarted sample", async () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const invalidate = vi.spyOn(qc, "invalidateQueries");
+    const user = userEvent.setup();
+    renderApp("/", undefined, qc);
+    await user.click(await screen.findByRole("button", { name: "Run the sample experiment" }));
+    expect(invalidate).toHaveBeenCalledOnce();
+    expect(invalidate.mock.calls[0]).toEqual([]);
   });
 
   it("starts the sample experiment and opens it", async () => {
