@@ -136,6 +136,17 @@ describe("mock engine phase semantics", () => {
     expect(statuses(SAMPLE_EXPERIMENT_ID)).toEqual(["running", "pending", "pending"]);
   });
 
+  it("restarts a paused experiment from its first phase", () => {
+    m.mockStart(SAMPLE_EXPERIMENT_ID);
+    vi.advanceTimersByTime(m.MOCK_PHASE_STEP_MS);
+    expect(m.mockPause(SAMPLE_EXPERIMENT_ID)).toBe("paused");
+    expect(statuses(SAMPLE_EXPERIMENT_ID)).toEqual(["completed", "paused", "pending"]);
+
+    const restarted = m.mockRestart(SAMPLE_EXPERIMENT_ID);
+    expect(restarted.status).toBe("running");
+    expect(restarted.phases.map((p) => p.status)).toEqual(["running", "pending", "pending"]);
+  });
+
   it("restart keeps honouring admission control against other experiments", () => {
     // exp-002 (completed) freezes cartservice; running fixture exp-001 also freezes it.
     expect(() => m.mockRestart("exp-002")).toThrow(

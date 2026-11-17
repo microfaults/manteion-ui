@@ -212,7 +212,7 @@ export function NewExperimentWizard({ onCreated, onCancel }: NewExperimentWizard
               rows={2}
               value={draft.hypothesis}
               onChange={(e) => patch({ hypothesis: e.target.value })}
-              placeholder="productcatalog hang drives >60% of checkout p99"
+              placeholder="productcatalogservice hang drives >60% of checkout p99"
             />
           </div>
           <div className="space-y-1.5">

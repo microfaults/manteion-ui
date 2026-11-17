@@ -1,7 +1,8 @@
 import { RuleEditorPanel } from "@/components/rules/rule-editor-panel";
+import { ApiError } from "@/lib/api/client";
 import type { FaultSpec, Rule } from "@/types/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -43,7 +44,7 @@ const LATENCY_SPEC: FaultSpec = {
 
 const EXISTING_RULE: Rule = {
   id: "rule-001",
-  name: "freeze-productcatalog",
+  name: "hang-productcatalogservice",
   service: "productcatalog",
   enabled: true,
   priority: 100,
@@ -191,7 +192,7 @@ describe("RuleEditorPanel — rules require faults", () => {
     vi.mocked(faultsApi.listFaultSpecs).mockResolvedValue([LATENCY_SPEC]); // hang spec deleted
     renderPanel({ isNew: false, ruleId: "rule-001" });
 
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     expect(await screen.findByText(/unknown fault spec "spec-inline-hang-5s"/i)).toBeTruthy();
     expect(saveButton().disabled).toBe(true);
   });
@@ -251,20 +252,20 @@ describe("RuleEditorPanel — existing rule", () => {
 
   it("populates name after load", async () => {
     renderPanel({ isNew: false, ruleId: "rule-001" });
-    const input = await screen.findByDisplayValue("freeze-productcatalog");
+    const input = await screen.findByDisplayValue("hang-productcatalogservice");
     expect(input).toBeTruthy();
   });
 
   it("populates the fault spec select after load", async () => {
     renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     const select = (await screen.findByLabelText("Fault spec")) as HTMLSelectElement;
     await waitFor(() => expect(select.value).toBe("spec-inline-hang-5s"));
   });
 
   it("renders match criteria builder for existing rule", async () => {
     renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     expect(screen.getByText("Match criteria")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Builder" })).toBeTruthy();
   });
@@ -273,7 +274,7 @@ describe("RuleEditorPanel — existing rule", () => {
     const user = userEvent.setup();
     vi.mocked(rulesApi.updateRule).mockResolvedValue(EXISTING_RULE);
     const { onSaved } = renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     await waitFor(() => expect(saveButton().disabled).toBe(false));
     await user.click(saveButton());
     expect(rulesApi.updateRule).toHaveBeenCalledWith("rule-001", expect.any(Object));
@@ -282,7 +283,7 @@ describe("RuleEditorPanel — existing rule", () => {
 
   it("delete button is enabled for existing rules", async () => {
     renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     const deleteBtn = screen.getByRole("button", { name: /Delete/i });
     expect((deleteBtn as HTMLButtonElement).disabled).toBe(false);
   });
@@ -291,11 +292,11 @@ describe("RuleEditorPanel — existing rule", () => {
     const user = userEvent.setup();
     vi.mocked(rulesApi.deleteRule).mockResolvedValue(undefined);
     const { onDeleted } = renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     await user.click(screen.getByRole("button", { name: /Delete/i }));
 
     const dialog = screen.getByRole("dialog", { name: "Delete this rule?" });
-    expect(dialog.textContent).toContain("freeze-productcatalog");
+    expect(dialog.textContent).toContain("hang-productcatalogservice");
     expect(rulesApi.deleteRule).not.toHaveBeenCalled();
 
     await user.click(screen.getByRole("button", { name: "Delete rule" }));
@@ -303,11 +304,35 @@ describe("RuleEditorPanel — existing rule", () => {
     await vi.waitFor(() => expect(onDeleted).toHaveBeenCalled());
   });
 
+  it("keeps the dialog open and shows why when the delete fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(rulesApi.deleteRule).mockRejectedValue(
+      new ApiError(409, "/api/v1/rules/rule-001", { error: "rule is attached to a phase" }),
+    );
+    const { onDeleted } = renderPanel({ isNew: false, ruleId: "rule-001" });
+    await screen.findByDisplayValue("hang-productcatalogservice");
+    await user.click(screen.getByRole("button", { name: /Delete/i }));
+    await user.click(screen.getByRole("button", { name: "Delete rule" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Delete this rule?" });
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "manteion answered 409: rule is attached to a phase",
+    );
+    expect(
+      (within(dialog).getByRole("button", { name: "Delete rule" }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(onDeleted).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: /Delete/i }));
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).toBeNull();
+  });
+
   it("does not delete when the dialog is cancelled", async () => {
     const user = userEvent.setup();
     vi.mocked(rulesApi.deleteRule).mockClear();
     const { onDeleted } = renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     await user.click(screen.getByRole("button", { name: /Delete/i }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -356,7 +381,7 @@ describe("RuleEditorPanel — existing rule", () => {
     vi.mocked(rulesApi.updateRule).mockResolvedValue(backgroundRule);
     const user = userEvent.setup();
     renderPanel({ isNew: false, ruleId: "rule-001" });
-    await screen.findByDisplayValue("freeze-productcatalog");
+    await screen.findByDisplayValue("hang-productcatalogservice");
     await waitFor(() => expect(saveButton().disabled).toBe(false));
     await user.click(saveButton());
     expect(rulesApi.updateRule).toHaveBeenCalledWith(

@@ -108,7 +108,7 @@ manteion-ui/
 │   ├── README.md            ← index for the rest of this tree
 │   ├── design/              ← ui-design.md, figma-changes.md
 │   ├── api/                 ← api-needed.md (endpoints the UI expects)
-│   ├── ops/                 ← connecting-to-vm1.md (SSH tunnel setup)
+│   ├── ops/                 ← runbooks for the retired VM environment, kept as history
 │   └── archive/             ← shipped review/fix plans, kept for history
 ├── src/
 │   ├── main.tsx · router.tsx · globals.css
@@ -206,6 +206,7 @@ eq / in / matches / starts_with / numeric / NOT / dotted-key fields.
   for manteion-go.
 - [`docs/design/figma-changes.md`](./docs/design/figma-changes.md) — what
   shipped to the Figma file this round.
-- [`docs/ops/connecting-to-vm1.md`](./docs/ops/connecting-to-vm1.md) — SSH
-  tunnel from your laptop to manteion-go on the VM1 cluster.
+- [`docs/ops/connecting-to-vm1.md`](./docs/ops/connecting-to-vm1.md) — the
+  runbooks under `docs/ops/` describe the retired VM environment and are kept
+  as history.
 - `../VISION.md` — product north star; what "the experiment loop" means.

@@ -17,7 +17,7 @@ const BACKEND_KEY_STRATEGIES = [
 
 const cacheboxRule = (keyStrategy: string) => ({
   id: "rule-cachebox-001",
-  name: "freeze-productcatalog",
+  name: "hang-productcatalogservice",
   service: "productcatalog",
   enabled: true,
   priority: 100,

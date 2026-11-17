@@ -1,6 +1,7 @@
+import { ApiError } from "@/lib/api/client";
 import { renderWithRouter } from "@/test-utils/render-with-router";
 import type { Dataset } from "@/types/api";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -54,6 +55,30 @@ describe("Dataset detail delete", () => {
     await user.click(screen.getByRole("button", { name: "Delete dataset" }));
     expect(datasetsApi.deleteDataset).toHaveBeenCalledWith(DATASET.id);
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open and shows why when the delete fails", async () => {
+    vi.mocked(datasetsApi.deleteDataset).mockRejectedValue(
+      new ApiError(409, "/api/v1/datasets/ds-checkout-seed", {
+        error: "in use by a planned experiment",
+      }),
+    );
+    const user = userEvent.setup();
+    await user.click(await renderPage());
+    await user.click(screen.getByRole("button", { name: "Delete dataset" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "manteion answered 409: in use by a planned experiment",
+    );
+    expect(
+      (within(dialog).getByRole("button", { name: "Delete dataset" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).toBeNull();
   });
 
   it("does not delete when the dialog is cancelled", async () => {

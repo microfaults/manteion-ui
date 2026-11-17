@@ -62,7 +62,7 @@ interface NodeProps {
 }
 
 /** A rounded card with a mono name and an optional subtitle line, centred. */
-function Node({
+function DiagramNode({
   x,
   y,
   w,
@@ -176,7 +176,7 @@ export function MeshDiagram() {
         <Line x1={472} y1={328} x2={628} y2={328} tone="request" arrow={false} />
         <Line x1={628} y1={328} x2={628} y2={273} tone="request" />
 
-        <Node
+        <DiagramNode
           x={24}
           y={148}
           w={144}
@@ -185,7 +185,7 @@ export function MeshDiagram() {
           subtitle="load generator"
           boxClass={plainBox}
         />
-        <Node
+        <DiagramNode
           x={312}
           y={148}
           w={144}
@@ -194,7 +194,7 @@ export function MeshDiagram() {
           subtitle="edge service"
           boxClass={plainBox}
         />
-        <Node
+        <DiagramNode
           x={568}
           y={148}
           w={120}
@@ -205,7 +205,7 @@ export function MeshDiagram() {
           subtitleClass="fill-status-down"
           subtitleMono
         />
-        <Node
+        <DiagramNode
           x={736}
           y={148}
           w={184}
@@ -215,7 +215,7 @@ export function MeshDiagram() {
           nameSize={12}
           boxClass="fill-surface-sunken stroke-border-strong"
         />
-        <Node
+        <DiagramNode
           x={548}
           y={8}
           w={160}
@@ -225,7 +225,7 @@ export function MeshDiagram() {
           boxClass="fill-primary-muted stroke-primary"
           subtitleClass="fill-mono"
         />
-        <Node
+        <DiagramNode
           x={296}
           y={300}
           w={176}

@@ -9,7 +9,7 @@ const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 let _mockRules: Rule[] = [
   {
     id: "rule-001",
-    name: "freeze-productcatalog",
+    name: "hang-productcatalogservice",
     service: "productcatalogservice",
     enabled: true,
     priority: 100,

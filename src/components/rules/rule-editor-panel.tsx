@@ -17,6 +17,7 @@ import { NativeSelect } from "@/components/ui/native-select";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { faultsApi, rulesApi, servicesApi } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
 import type { RuleInput } from "@/lib/api/rules";
 import { FALLBACK_SERVICES } from "@/lib/known-services";
 import { type MatchNode, emptyRoot } from "@/lib/rego/ast";
@@ -239,10 +240,10 @@ function RuleEditorForm({
   const del = useMutation({
     mutationFn: () => rulesApi.deleteRule(ruleId as string),
     onSuccess: () => {
+      setConfirmDelete(false);
       qc.invalidateQueries({ queryKey: ["rules"] });
       onDeleted();
     },
-    onSettled: () => setConfirmDelete(false),
   });
 
   return (
@@ -428,7 +429,10 @@ function RuleEditorForm({
             size="sm"
             className="text-destructive hover:bg-destructive/10 hover:text-destructive"
             disabled={isNew || del.isPending}
-            onClick={() => setConfirmDelete(true)}
+            onClick={() => {
+              del.reset();
+              setConfirmDelete(true);
+            }}
           >
             Delete
           </Button>
@@ -440,6 +444,7 @@ function RuleEditorForm({
             confirmLabel="Delete rule"
             destructive
             pending={del.isPending}
+            error={del.isError ? describeApiError(del.error) : undefined}
             onConfirm={() => del.mutate()}
           />
           <div className={panelFooterRight()}>

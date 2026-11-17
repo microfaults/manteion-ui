@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WorkflowTree } from "@/components/workflow-tree";
 import { workflowsApi } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
 import { cn } from "@/lib/utils";
 import type { WaitPolicy, Workflow, WorkflowNode } from "@/lib/workflow-types";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -39,10 +40,10 @@ function WorkflowDetailPage() {
   const deleteMut = useMutation({
     mutationFn: () => workflowsApi.deleteWorkflow(workflowId),
     onSuccess: async () => {
+      setConfirmDelete(false);
       await queryClient.invalidateQueries({ queryKey: ["workflows"] });
       navigate({ to: "/workflows" });
     },
-    onSettled: () => setConfirmDelete(false),
   });
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -102,7 +103,10 @@ function WorkflowDetailPage() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => {
+                deleteMut.reset();
+                setConfirmDelete(true);
+              }}
               disabled={deleteMut.isPending}
               className="text-muted-foreground hover:text-destructive"
             >
@@ -117,6 +121,7 @@ function WorkflowDetailPage() {
               confirmLabel="Delete workflow"
               destructive
               pending={deleteMut.isPending}
+              error={deleteMut.isError ? describeApiError(deleteMut.error) : undefined}
               onConfirm={() => deleteMut.mutate()}
             />
             <Button variant="default" disabled>

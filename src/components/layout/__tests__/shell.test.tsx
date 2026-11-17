@@ -1,6 +1,6 @@
 import { Shell } from "@/components/layout/shell";
 import { renderWithRouter } from "@/test-utils/render-with-router";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const env = vi.hoisted(() => ({ isMock: true }));
@@ -51,6 +51,25 @@ describe("Shell", () => {
     renderShell();
     expect(await screen.findByText("page body")).toBeTruthy();
     expect(screen.queryByText(NOTICE_TEXT)).toBeNull();
+  });
+
+  it("sizes the notice for small screens and lets the bar's sentence wrap there", async () => {
+    renderShell();
+    const notice = (await screen.findByText(NOTICE_TEXT)).closest("aside");
+    expect(notice?.classList.contains("lg:hidden")).toBe(true);
+    expect(screen.getByRole("button", { name: "Dismiss" }).classList.contains("size-8")).toBe(true);
+    const sentence = screen.getByText(BAR_TEXT);
+    expect(sentence.classList.contains("truncate")).toBe(false);
+    expect(sentence.classList.contains("sm:truncate")).toBe(true);
+  });
+
+  it.each([true, false])("brands the sidebar Manteion with the mark (mock %s)", async (isMock) => {
+    env.isMock = isMock;
+    renderShell();
+    const nav = await screen.findByRole("navigation", { name: "Primary" });
+    expect(within(nav).getByText("Manteion")).toBeTruthy();
+    expect(within(nav).queryByText("Faults Lab")).toBeNull();
+    expect(nav.querySelector('img[src="/favicon.svg"]')).not.toBeNull();
   });
 
   it("still shows and dismisses the notice when sessionStorage is blocked", async () => {

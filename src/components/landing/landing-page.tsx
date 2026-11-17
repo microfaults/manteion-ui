@@ -6,7 +6,7 @@
 import { PhasePill } from "@/components/phase-pill";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { describeApiError } from "@/lib/api-errors";
+import { ApiError } from "@/lib/api/client";
 import { startSampleExperiment } from "@/lib/sample-experiment";
 import { cn } from "@/lib/utils";
 import type { PhaseName } from "@/types/api";
@@ -80,7 +80,11 @@ function Hero() {
     try {
       id = startSampleExperiment();
     } catch (e) {
-      setRefusal(describeApiError(e));
+      setRefusal(
+        e instanceof ApiError && e.status === 409
+          ? "The sample could not start because another experiment in this session is using the same service. Stop it in the console, then try again."
+          : "The sample could not start. Reload the page and try again.",
+      );
       return;
     }
     setRefusal(null);

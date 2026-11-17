@@ -11,6 +11,7 @@ interface ShellProps {
 
 export function Shell({ children }: ShellProps) {
   const main = <main className="flex min-w-0 flex-1 flex-col">{children}</main>;
+  // Kept as its own branch so the operator build's DOM stays identical to before the demo chrome.
   if (!IS_MOCK) {
     return (
       <TooltipProvider delayDuration={150}>

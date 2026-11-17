@@ -37,7 +37,7 @@ import { rulesApi } from "@/lib/api";
 const MOCK_RULES: Rule[] = [
   {
     id: "r1",
-    name: "freeze-productcatalog",
+    name: "hang-productcatalogservice",
     service: "productcatalog",
     enabled: true,
     priority: 100,
@@ -88,13 +88,13 @@ describe("RulesPage list", () => {
 
   it("renders rule names after load", async () => {
     await renderRulesPage();
-    expect(await screen.findByText("freeze-productcatalog")).toBeTruthy();
+    expect(await screen.findByText("hang-productcatalogservice")).toBeTruthy();
     expect(screen.getByText("cart-ingress-500")).toBeTruthy();
   });
 
   it("shows count summary", async () => {
     await renderRulesPage();
-    await screen.findByText("freeze-productcatalog");
+    await screen.findByText("hang-productcatalogservice");
     expect(screen.getByText(/2 total · 1 enabled/)).toBeTruthy();
   });
 
@@ -107,16 +107,16 @@ describe("RulesPage list", () => {
   it("filters rules by search term", async () => {
     const user = userEvent.setup();
     await renderRulesPage();
-    await screen.findByText("freeze-productcatalog");
+    await screen.findByText("hang-productcatalogservice");
     await user.type(screen.getByPlaceholderText("Search rules…"), "cart");
-    expect(screen.queryByText("freeze-productcatalog")).toBeNull();
+    expect(screen.queryByText("hang-productcatalogservice")).toBeNull();
     expect(screen.getByText("cart-ingress-500")).toBeTruthy();
   });
 
   it("shows empty state when search has no matches", async () => {
     const user = userEvent.setup();
     await renderRulesPage();
-    await screen.findByText("freeze-productcatalog");
+    await screen.findByText("hang-productcatalogservice");
     await user.type(screen.getByPlaceholderText("Search rules…"), "zzznomatch");
     expect(screen.getByText(/No rules match your search/)).toBeTruthy();
   });

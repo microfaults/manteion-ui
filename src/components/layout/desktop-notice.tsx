@@ -42,7 +42,7 @@ export function DesktopNotice() {
           writeDismissed();
           setDismissed(true);
         }}
-        className="shrink-0 rounded-md p-1 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        className="inline-flex size-8 shrink-0 items-center justify-center rounded-md hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-3.5" aria-hidden />
       </button>

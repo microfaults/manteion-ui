@@ -1,7 +1,8 @@
 import { FaultEditor } from "@/components/fault-editor";
+import { ApiError } from "@/lib/api/client";
 import type { FaultSpec } from "@/types/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -61,6 +62,31 @@ describe("FaultEditor delete", () => {
     await user.click(screen.getByRole("button", { name: "Delete fault spec" }));
     expect(faultsApi.deleteFaultSpec).toHaveBeenCalledWith(SPEC.id);
     await vi.waitFor(() => expect(onDeleted).toHaveBeenCalled());
+  });
+
+  it("keeps the dialog open and shows why when the delete fails", async () => {
+    vi.mocked(faultsApi.deleteFaultSpec).mockRejectedValue(
+      new ApiError(409, "/api/v1/fault-specs/x", { error: "spec is used by rule-001" }),
+    );
+    const user = userEvent.setup();
+    const { onDeleted } = renderEditor();
+    await screen.findByDisplayValue("latency-250ms");
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    await user.click(screen.getByRole("button", { name: "Delete fault spec" }));
+
+    const dialog = screen.getByRole("dialog", { name: "Delete this fault spec?" });
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "manteion answered 409: spec is used by rule-001",
+    );
+    expect(
+      (within(dialog).getByRole("button", { name: "Delete fault spec" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+    expect(onDeleted).not.toHaveBeenCalled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).toBeNull();
   });
 
   it("does not delete when the dialog is cancelled", async () => {

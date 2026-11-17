@@ -9,7 +9,7 @@ const ERRORED = { status: "error" } as const;
 
 function draft(overrides: Partial<RuleDraft> = {}): RuleDraft {
   return {
-    name: "freeze-productcatalog",
+    name: "hang-productcatalogservice",
     service: "productcatalog",
     priority: 50,
     action: FAULT_ACTION,

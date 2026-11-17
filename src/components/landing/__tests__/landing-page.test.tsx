@@ -126,7 +126,10 @@ describe("LandingPage", () => {
     for (const a of [...github, screen.getByRole("link", { name: /atropos-go/ })]) {
       expect(a.getAttribute("target")).toBe("_blank");
       expect(a.getAttribute("rel")).toBe("noreferrer");
+      const hint = within(a).getByText("(opens in a new tab)");
+      expect(hint.classList.contains("sr-only")).toBe(true);
     }
+    expect(screen.getByRole("link", { name: "atropos-go (opens in a new tab)" })).toBeTruthy();
   });
 
   it("starts the sample experiment and opens it", async () => {
@@ -151,7 +154,20 @@ describe("LandingPage", () => {
     const router = renderLanding();
     await user.click(await screen.findByRole("button", { name: "Run the sample experiment" }));
     expect(screen.getByRole("alert").textContent).toBe(
-      "manteion answered 409 (service_overlap): service footprint overlaps running experiment exp-001",
+      "The sample could not start because another experiment in this session is using the same service. Stop it in the console, then try again.",
+    );
+    expect(router.state.location.pathname).toBe("/");
+  });
+
+  it("asks for a reload when the sample fails to start for any other reason", async () => {
+    vi.mocked(startSampleExperiment).mockImplementation(() => {
+      throw new ApiError(404, "mock://manteion", { error: "not found" }, "not found");
+    });
+    const user = userEvent.setup();
+    const router = renderLanding();
+    await user.click(await screen.findByRole("button", { name: "Run the sample experiment" }));
+    expect(screen.getByRole("alert").textContent).toBe(
+      "The sample could not start. Reload the page and try again.",
     );
     expect(router.state.location.pathname).toBe("/");
   });

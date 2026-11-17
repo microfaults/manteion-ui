@@ -143,8 +143,9 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
                   </dt>
                   <dd className="text-sm">
                     <ul className="flex flex-col gap-1">
-                      {observedErrors.map((err) => (
-                        <li key={err} className="break-words text-status-down">
+                      {observedErrors.map((err, i) => (
+                        // biome-ignore lint/suspicious/noArrayIndexKey: the same error text can repeat
+                        <li key={i} className="break-words text-status-down">
                           {err}
                         </li>
                       ))}

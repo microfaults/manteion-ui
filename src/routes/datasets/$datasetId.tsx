@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { datasetsApi } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
 import { cn, formatBytes, formatRelative, formatTtl, pluralize } from "@/lib/utils";
 import type { Dataset } from "@/types/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -38,10 +39,10 @@ function DatasetDetailPage() {
   const deleteMut = useMutation({
     mutationFn: () => datasetsApi.deleteDataset(datasetId),
     onSuccess: async () => {
+      setConfirmDelete(false);
       await queryClient.invalidateQueries({ queryKey: ["datasets"] });
       navigate({ to: "/datasets" });
     },
-    onSettled: () => setConfirmDelete(false),
   });
 
   if (isLoading) {
@@ -85,7 +86,10 @@ function DatasetDetailPage() {
               type="button"
               variant="ghost"
               size="sm"
-              onClick={() => setConfirmDelete(true)}
+              onClick={() => {
+                deleteMut.reset();
+                setConfirmDelete(true);
+              }}
               disabled={deleteMut.isPending}
               className="text-muted-foreground hover:text-destructive"
             >
@@ -100,6 +104,7 @@ function DatasetDetailPage() {
               confirmLabel="Delete dataset"
               destructive
               pending={deleteMut.isPending}
+              error={deleteMut.isError ? describeApiError(deleteMut.error) : undefined}
               onConfirm={() => deleteMut.mutate()}
             />
           </div>

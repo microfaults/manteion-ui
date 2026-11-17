@@ -40,7 +40,7 @@ describe("bucketFaultRules", () => {
   });
 
   it("a rule named like a freeze is not a cache-box unless its action is one", () => {
-    expect(bucketFaultRules([rule({ name: "freeze-productcatalog" })]).cacheBox).toBe(0);
+    expect(bucketFaultRules([rule({ name: "hang-productcatalogservice" })]).cacheBox).toBe(0);
   });
 
   it("labels an empty set", () => {

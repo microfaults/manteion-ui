@@ -4,6 +4,13 @@ import type { Experiment, PhaseDetail as PhaseDetailDto } from "@/types/api";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const env = vi.hoisted(() => ({ isMock: false }));
+vi.mock("@/lib/env", () => ({
+  get IS_MOCK() {
+    return env.isMock;
+  },
+}));
+
 vi.mock("@/lib/api", () => ({
   phasesApi: {
     getPhaseDetail: vi.fn(),
@@ -76,6 +83,7 @@ const EXPERIMENT: Experiment = {
 
 describe("PhaseDetail", () => {
   beforeEach(() => {
+    env.isMock = false;
     vi.clearAllMocks();
     vi.mocked(phasesApi.getPhaseDetail).mockResolvedValue(DETAIL);
     vi.mocked(phasesApi.getPhaseFaults).mockResolvedValue({
@@ -115,7 +123,7 @@ describe("PhaseDetail", () => {
     vi.mocked(rulesApi.listRules).mockResolvedValue([
       {
         id: "rule-1",
-        name: "freeze-productcatalog",
+        name: "hang-productcatalogservice",
         service: "productcatalog",
         enabled: true,
         priority: 1,
@@ -155,7 +163,7 @@ describe("PhaseDetail", () => {
     expect(screen.getByText("1 run")).toBeTruthy();
 
     const faults = screen.getByRole("region", { name: "Faults in effect" });
-    expect(await within(faults).findByText("freeze-productcatalog")).toBeTruthy();
+    expect(await within(faults).findByText("hang-productcatalogservice")).toBeTruthy();
     expect(within(faults).getByText("enabled")).toBeTruthy();
     expect(within(faults).getByText(/· replay · canonical_v2/)).toBeTruthy();
     expect(within(faults).getByText(/cachebox:replay/)).toBeTruthy();
@@ -210,5 +218,18 @@ describe("PhaseDetail", () => {
     expect(screen.queryByRole("button", { name: "Stop" })).toBeNull();
     const timeline = screen.getByRole("region", { name: "Run timeline" });
     expect(await within(timeline).findByText("running → completed")).toBeTruthy();
+  });
+
+  it("tags the timing line as accelerated only in the mock build", async () => {
+    const { unmount } = renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
+    const timing = await screen.findByText(/3m 24s \/ 5m · time-based/);
+    expect(within(timing).queryByText("accelerated")).toBeNull();
+    unmount();
+
+    env.isMock = true;
+    renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
+    const mockTiming = await screen.findByText(/3m 24s \/ 5m · time-based/);
+    const tag = within(mockTiming).getByText("accelerated");
+    expect(tag.getAttribute("title")).toBe("Phases advance every 8 seconds in this simulation");
   });
 });

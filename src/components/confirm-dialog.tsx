@@ -10,6 +10,8 @@ interface ConfirmDialogProps {
   destructive?: boolean;
   /** Disables the confirm button while the action it started is in flight. */
   pending?: boolean;
+  /** Why the last attempt failed, shown inside the dialog; the confirm button stays enabled to retry. */
+  error?: string;
   onConfirm: () => void;
   onOpenChange: (open: boolean) => void;
 }
@@ -27,6 +29,7 @@ export function ConfirmDialog({
   confirmLabel,
   destructive = false,
   pending = false,
+  error,
   onConfirm,
   onOpenChange,
 }: ConfirmDialogProps) {
@@ -51,6 +54,12 @@ export function ConfirmDialog({
           </Button>
         </>
       }
-    />
+    >
+      {error ? (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      ) : null}
+    </Dialog>
   );
 }

@@ -7,6 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { faultsApi, rulesApi } from "@/lib/api";
+import { describeApiError } from "@/lib/api-errors";
 import type { FaultSpecInput } from "@/lib/api/faults";
 import { cn } from "@/lib/utils";
 import type { FaultCategory, FaultSpec, Rule } from "@/types/api";
@@ -141,10 +142,10 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
   const del = useMutation({
     mutationFn: () => faultsApi.deleteFaultSpec(faultId ?? ""),
     onSuccess: () => {
+      setConfirmDelete(false);
       qc.invalidateQueries({ queryKey: ["fault-specs"] });
       onDeleted();
     },
-    onSettled: () => setConfirmDelete(false),
   });
 
   // ── Derived ─────────────────────────────────────────────────────────
@@ -367,7 +368,10 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
           variant="ghost"
           className="text-destructive hover:bg-destructive/10 hover:text-destructive"
           disabled={isNew || del.isPending}
-          onClick={() => setConfirmDelete(true)}
+          onClick={() => {
+            del.reset();
+            setConfirmDelete(true);
+          }}
         >
           Delete
         </Button>
@@ -379,6 +383,7 @@ export function FaultEditor({ faultId, onSaved, onDeleted }: FaultEditorProps) {
           confirmLabel="Delete fault spec"
           destructive
           pending={del.isPending}
+          error={del.isError ? describeApiError(del.error) : undefined}
           onConfirm={() => del.mutate()}
         />
         <Button

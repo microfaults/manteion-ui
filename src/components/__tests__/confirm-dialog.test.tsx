@@ -1,10 +1,14 @@
 import { ConfirmDialog } from "@/components/confirm-dialog";
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-function Harness({ pending = false, onConfirm }: { pending?: boolean; onConfirm: () => void }) {
+function Harness({
+  pending = false,
+  error,
+  onConfirm,
+}: { pending?: boolean; error?: string; onConfirm: () => void }) {
   const [open, setOpen] = useState(true);
   return (
     <ConfirmDialog
@@ -14,6 +18,7 @@ function Harness({ pending = false, onConfirm }: { pending?: boolean; onConfirm:
       confirmLabel="Delete rule"
       destructive
       pending={pending}
+      error={error}
       onConfirm={onConfirm}
       onOpenChange={setOpen}
     />
@@ -55,6 +60,20 @@ describe("ConfirmDialog", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it("shows an error inside the dialog as an alert, and nothing without one", () => {
+    const { unmount } = render(<Harness onConfirm={vi.fn()} />);
+    expect(screen.queryByRole("alert")).toBeNull();
+    unmount();
+
+    render(<Harness error="manteion answered 409: rule is attached" onConfirm={vi.fn()} />);
+    const dialog = screen.getByRole("dialog", { name: "Delete this rule?" });
+    expect(within(dialog).getByRole("alert").textContent).toBe(
+      "manteion answered 409: rule is attached",
+    );
+    const confirm = screen.getByRole("button", { name: "Delete rule" }) as HTMLButtonElement;
+    expect(confirm.disabled).toBe(false);
   });
 
   it("disables the confirm button while pending", () => {

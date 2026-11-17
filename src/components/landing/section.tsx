@@ -49,7 +49,7 @@ export function Lead({ children, className }: { children: ReactNode; className?:
   );
 }
 
-/** Link that leaves the site; the trailing arrow is decorative. */
+/** Link that leaves the site in a new tab, said aloud to screen readers; the trailing arrow is decorative. */
 export function ExternalLink({
   href,
   className,
@@ -67,6 +67,7 @@ export function ExternalLink({
       className={cn("text-primary hover:underline", className)}
     >
       {children}
+      <span className="sr-only"> (opens in a new tab)</span>
       <span aria-hidden="true"> ↗</span>
     </a>
   );

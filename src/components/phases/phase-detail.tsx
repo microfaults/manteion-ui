@@ -5,6 +5,7 @@
  * run.state timeline observed while polling, and results (harvested, else
  * zeus run stats) once the phase is terminal.
  */
+import { AcceleratedTag } from "@/components/experiments/accelerated-tag";
 import { MetricsGrid } from "@/components/experiments/phase-row-results";
 import { PhasePill } from "@/components/phase-pill";
 import { StatCard } from "@/components/stat-card";
@@ -481,6 +482,7 @@ function ProgressLine({
           {formatDurationMs(progress.elapsedMs)}
           {progress.plannedMs != null ? ` / ${formatDurationMs(progress.plannedMs)}` : ""} ·
           time-based (no mid-run metrics)
+          <AcceleratedTag />
         </p>
         {progress.fraction != null ? (
           <progress
@@ -497,6 +499,7 @@ function ProgressLine({
     <p className="mt-1 text-xs text-muted-foreground">
       {formatDurationMs(progress.elapsedMs)} · {formatRelative(phase.started_at)}
       {phase.completed_at ? ` → ${formatRelative(phase.completed_at)}` : ""}
+      <AcceleratedTag />
     </p>
   );
 }

@@ -1,6 +1,7 @@
+import { ApiError } from "@/lib/api/client";
 import { mockWorkflows } from "@/lib/api/mock-fixtures";
 import { renderWithRouter } from "@/test-utils/render-with-router";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -46,6 +47,28 @@ describe("Workflow detail delete", () => {
     await user.click(screen.getByRole("button", { name: "Delete workflow" }));
     expect(workflowsApi.deleteWorkflow).toHaveBeenCalledWith(WORKFLOW.id);
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open and shows why when the delete fails", async () => {
+    vi.mocked(workflowsApi.deleteWorkflow).mockRejectedValue(
+      new ApiError(409, "/api/v1/workflows/x", { error: "in use by a planned experiment" }),
+    );
+    const user = userEvent.setup();
+    await user.click(await renderPage());
+    await user.click(screen.getByRole("button", { name: "Delete workflow" }));
+
+    const dialog = screen.getByRole("dialog");
+    expect((await within(dialog).findByRole("alert")).textContent).toBe(
+      "manteion answered 409: in use by a planned experiment",
+    );
+    expect(
+      (within(dialog).getByRole("button", { name: "Delete workflow" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(false);
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Delete" }));
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).toBeNull();
   });
 
   it("does not delete when the dialog is cancelled", async () => {

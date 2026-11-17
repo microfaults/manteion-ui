@@ -219,7 +219,7 @@ function DashboardPage() {
             />
             <ObservabilityCard
               title="Cache-box hit rate"
-              subtitle={`productcatalog · replay · ${rangeLabel}`}
+              subtitle="cache-box replay · all services"
               value={formatFinite(dashboardMetrics.data?.cacheHitRate, (v) => `${v.toFixed(1)}%`)}
               valueHint={trendQualifier(
                 dashboardMetrics.data?.cacheHitRateRange,

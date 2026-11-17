@@ -5,6 +5,7 @@
  * skips them silently), frozen services, fault events on demand, results or
  * the zeus fallback when terminal, failure reasons, and per-phase actions.
  */
+import { AcceleratedTag } from "@/components/experiments/accelerated-tag";
 import { PhaseRowResults } from "@/components/experiments/phase-row-results";
 import { PhasePill } from "@/components/phase-pill";
 import { Badge } from "@/components/ui/badge";
@@ -12,7 +13,6 @@ import { Button } from "@/components/ui/button";
 import { NativeSelect } from "@/components/ui/native-select";
 import { phasesApi } from "@/lib/api";
 import type { PhaseFinalStatus } from "@/lib/api/phases";
-import { IS_MOCK } from "@/lib/env";
 import type { RuleRef } from "@/lib/experiment-draft";
 import { baselinePhase, phaseDatasetIds, phaseProgress } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
@@ -337,19 +337,6 @@ function Timing({ phase, now }: { phase: PhaseSummary; now?: number }) {
       {phase.completed_at ? ` → ${formatRelative(phase.completed_at)}` : ""}
       <AcceleratedTag />
     </p>
-  );
-}
-
-/** Mock build only: phases there advance on a fixed short step, not their plan. */
-function AcceleratedTag() {
-  if (!IS_MOCK) return null;
-  return (
-    <span
-      className="ml-1.5 rounded border border-border px-1 py-px text-[10px] text-muted-foreground"
-      title="Phases advance every 8 seconds in this simulation"
-    >
-      accelerated
-    </span>
   );
 }
 

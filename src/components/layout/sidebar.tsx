@@ -3,7 +3,6 @@ import { Link, useRouterState } from "@tanstack/react-router";
 import {
   Activity,
   BarChart3,
-  BoxesIcon,
   Database,
   FlaskConical,
   Layers,
@@ -68,8 +67,8 @@ export function Sidebar() {
       {/* Brand + environment */}
       <div className="border-b border-sidebar-border px-5 py-5">
         <div className="flex items-center gap-2 text-lg font-semibold tracking-tight">
-          <BoxesIcon className="size-5 text-sidebar-primary" aria-hidden />
-          Faults Lab
+          <img src="/favicon.svg" alt="" className="size-5" />
+          Manteion
         </div>
         <div className="mt-1 text-xs text-sidebar-foreground/60">{env}</div>
       </div>
