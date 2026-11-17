@@ -5,6 +5,20 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type React from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const env = vi.hoisted(() => ({ isMock: false }));
+vi.mock("@/lib/env", () => ({
+  get IS_MOCK() {
+    return env.isMock;
+  },
+}));
+
+// The mock engine's provenance: which phases replayed the recorded figures.
+const engine = vi.hoisted(() => ({ recorded: new Set<string>() }));
+vi.mock("@/lib/api/mock-experiments", () => ({
+  isEngineDrivenPhase: () => false,
+  isRecordedPhase: (id: string) => engine.recorded.has(id),
+}));
+
 vi.mock("@/lib/api", () => ({
   experimentsApi: {
     getExperiment: vi.fn(),
@@ -75,6 +89,8 @@ function wrap(ui: React.ReactNode) {
 
 describe("ExperimentDetail", () => {
   beforeEach(() => {
+    env.isMock = false;
+    engine.recorded.clear();
     vi.clearAllMocks();
     vi.mocked(experimentsApi.getExperiment).mockResolvedValue(EXPERIMENT);
     vi.mocked(experimentsApi.getExperimentResults).mockResolvedValue({
@@ -150,5 +166,49 @@ describe("ExperimentDetail", () => {
     expect(within(iso).getByText("hang-catalog")).toBeTruthy();
     fireEvent.click(within(iso).getByRole("button", { name: "Pause" }));
     await vi.waitFor(() => expect(phasesApi.pausePhase).toHaveBeenCalledWith("ph-iso"));
+  });
+
+  describe("the Requests card's source", () => {
+    const renderDetail = async () => {
+      render(wrap(<ExperimentDetail experimentId="exp-1" onDeleted={() => {}} />));
+      expect(await screen.findByText("43.4k")).toBeTruthy();
+    };
+
+    it("says harvested so far in operator builds", async () => {
+      engine.recorded.add("ph-baseline");
+      await renderDetail();
+      expect(screen.getByText("harvested so far")).toBeTruthy();
+      expect(screen.queryByText(/recorded so far|synthetic so far/)).toBeNull();
+    });
+
+    it("says recorded so far in the mock build when every completed phase is recorded", async () => {
+      env.isMock = true;
+      engine.recorded.add("ph-baseline");
+      await renderDetail();
+      expect(screen.getByText("recorded so far")).toBeTruthy();
+      expect(screen.queryByText(/harvested so far|synthetic so far/)).toBeNull();
+    });
+
+    it("says synthetic so far in the mock build for generated results", async () => {
+      env.isMock = true;
+      await renderDetail();
+      expect(screen.getByText("synthetic so far")).toBeTruthy();
+      expect(screen.queryByText(/harvested so far|recorded so far/)).toBeNull();
+    });
+
+    it("says synthetic so far when only some completed phases are recorded", async () => {
+      env.isMock = true;
+      engine.recorded.add("ph-baseline");
+      vi.mocked(experimentsApi.getExperiment).mockResolvedValue({
+        ...EXPERIMENT,
+        phases: EXPERIMENT.phases.map((p) => ({
+          ...p,
+          status: "completed",
+          completed_at: "2026-06-01T00:11:00Z",
+        })),
+      });
+      await renderDetail();
+      expect(screen.getByText("synthetic so far")).toBeTruthy();
+    });
   });
 });

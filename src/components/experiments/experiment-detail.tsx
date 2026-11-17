@@ -4,7 +4,7 @@
  * Polls every 5 s while running — the cadence expctl uses in production.
  */
 import { ExperimentActions } from "@/components/experiments/experiment-actions";
-import { latencyDecimals } from "@/components/experiments/phase-row-results";
+import { latencyDecimals, phasesProvenance } from "@/components/experiments/phase-row-results";
 import { type PhaseAction, PhaseTimeline } from "@/components/experiments/phase-timeline";
 import { GrafanaPanel } from "@/components/observability/grafana-panel";
 import { StatCard } from "@/components/stat-card";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs } from "@/components/ui/tabs";
 import { experimentsApi, phasesApi, rulesApi, workflowsApi } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
+import { IS_MOCK } from "@/lib/env";
 import type { RuleRef } from "@/lib/experiment-draft";
 import { type GrafanaMetric, grafanaDashboardUrl, grafanaPanelSrc } from "@/lib/grafana";
 import { formatCount, formatDurationMs, formatLatencyUs, formatRelative } from "@/lib/utils";
@@ -123,6 +124,10 @@ export function ExperimentDetail({ experimentId, onDeleted, now }: ExperimentDet
   const current = exp.phases.find((p) => ACTIVE_PHASE_STATUSES.has(p.status));
   const rollup = results.data?.available ? results.data : undefined;
   const worstPhase = exp.phases.find((p) => p.id === rollup?.worst_p99_phase_id);
+  // Only completed phases have results, so they are what the rollup sums.
+  const rollupSource = IS_MOCK
+    ? phasesProvenance(exp.phases.filter((p) => p.status === "completed").map((p) => p.id))
+    : "harvested";
   const services = exp.targeted_services.length ? exp.targeted_services : footprint(exp, rules);
   const grafanaBase = import.meta.env.VITE_GRAFANA_URL as string | undefined;
   const grafanaEmbed = import.meta.env.VITE_GRAFANA_EMBED === "true";
@@ -191,7 +196,7 @@ export function ExperimentDetail({ experimentId, onDeleted, now }: ExperimentDet
         <StatCard
           label="Requests"
           value={<span className="font-mono">{formatCount(rollup?.total_request_count)}</span>}
-          footer={rollup ? "harvested so far" : "no results yet"}
+          footer={rollup ? `${rollupSource} so far` : "no results yet"}
         />
         <StatCard
           label="Error rate"

@@ -70,6 +70,14 @@ export function phaseProvenance(phaseId?: string): "recorded" | "synthetic" {
   return phaseId != null && isRecordedPhase(phaseId) ? "recorded" : "synthetic";
 }
 
+/** Mock build only: provenance of a number aggregated over several phases,
+ *  recorded only when every contributing phase has recorded results. */
+export function phasesProvenance(phaseIds: readonly string[]): "recorded" | "synthetic" {
+  return phaseIds.length > 0 && phaseIds.every((id) => phaseProvenance(id) === "recorded")
+    ? "recorded"
+    : "synthetic";
+}
+
 /** Decimal places for a phase's latencies: recorded figures keep the one
  *  decimal they were measured with; everything else uses the default format. */
 export function latencyDecimals(phaseId?: string): number | undefined {
