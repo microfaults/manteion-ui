@@ -7,8 +7,11 @@ import { zeusRunsApi } from "@/lib/api";
 import type { ZeusRun } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
+import { useFinalRefetch } from "./use-final-refetch";
 
 export function useZeusRun(runId: string | undefined, live: boolean) {
+  // Polling stops when the phase ends; fetch the run's final state once more.
+  useFinalRefetch(["zeus-run", runId ?? ""], live);
   return useQuery({
     queryKey: ["zeus-run", runId ?? ""],
     queryFn: () => zeusRunsApi.getRun(runId ?? ""),

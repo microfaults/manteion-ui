@@ -29,6 +29,7 @@ import { describeApiError } from "@/lib/api-errors";
 import type { PhaseFinalStatus } from "@/lib/api/phases";
 import { IS_MOCK } from "@/lib/env";
 import { phaseDatasetIds, phaseProgress } from "@/lib/phase-metrics";
+import { useFinalRefetch } from "@/lib/use-final-refetch";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
 import { type RunTransition, useRunStateTimeline, useZeusRun } from "@/lib/use-zeus-run";
 import { cn, formatCount, formatDurationMs, formatLatencyUs, formatRelative } from "@/lib/utils";
@@ -82,6 +83,8 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
   const active = !!phase && ACTIVE_PHASE_STATUSES.has(phase.status);
   const terminal = !!phase && TERMINAL_PHASE_STATUSES.has(phase.status);
 
+  // Fault events close when the phase ends; fetch them once more after it does.
+  useFinalRefetch(["phase-faults", phaseId], active);
   const faults = useQuery({
     queryKey: ["phase-faults", phaseId],
     queryFn: () => phasesApi.getPhaseFaults(phaseId),

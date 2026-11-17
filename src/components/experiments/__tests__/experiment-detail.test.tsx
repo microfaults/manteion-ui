@@ -211,4 +211,60 @@ describe("ExperimentDetail", () => {
       expect(screen.getByText("synthetic so far")).toBeTruthy();
     });
   });
+
+  it("fetches the rollup again when the last phase ends, and shows the full totals", async () => {
+    const phase = (id: string, name: string, status: "completed" | "running") => ({
+      id,
+      name,
+      position: 0,
+      status,
+      workflows: [{ workflow_id: "wf-browse", vus: 10, duration_sec: 120 }],
+      frozen_services: [],
+      rule_ids: [],
+    });
+    const state = { done: false };
+    vi.mocked(experimentsApi.getExperiment).mockImplementation(async () => ({
+      ...EXPERIMENT,
+      status: state.done ? "completed" : "running",
+      phases: [
+        { ...phase("ph-1", "plain", "completed"), position: 0 },
+        { ...phase("ph-2", "catalog-latency-50ms", "completed"), position: 1 },
+        { ...phase("ph-3", "plain-end", state.done ? "completed" : "running"), position: 2 },
+      ],
+    }));
+    vi.mocked(experimentsApi.getExperimentResults).mockImplementation(async () => ({
+      experiment_id: "exp-1",
+      available: true,
+      phase_count: 3,
+      completed_phase_count: state.done ? 3 : 2,
+      total_request_count: state.done ? 817 + 859 + 819 : 817 + 859,
+      total_error_count: 0,
+      overall_error_rate: 0,
+      worst_p99_us: 366_300,
+      worst_p99_phase_id: "ph-2",
+      best_p99_us: state.done ? 14_600 : 39_500,
+      best_p99_phase_id: state.done ? "ph-3" : "ph-1",
+      computed_at: "2026-06-01T00:05:00Z",
+    }));
+
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <ExperimentDetail experimentId="exp-1" onDeleted={() => {}} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByText("1.7k")).toBeTruthy();
+    expect(screen.getByText(/2 phases measured/)).toBeTruthy();
+    const calls = vi.mocked(experimentsApi.getExperimentResults).mock.calls.length;
+
+    // The experiment's own poll sees it finish with all three phases terminal.
+    state.done = true;
+    await qc.invalidateQueries({ queryKey: ["experiment", "exp-1"] });
+
+    expect(await screen.findByText("2.5k")).toBeTruthy();
+    expect(vi.mocked(experimentsApi.getExperimentResults).mock.calls.length).toBeGreaterThan(calls);
+    expect(screen.getByText(/3 phases measured/)).toBeTruthy();
+    expect(screen.getByText(/· plain-end$/)).toBeTruthy();
+    expect(screen.queryByText("1.7k")).toBeNull();
+  });
 });

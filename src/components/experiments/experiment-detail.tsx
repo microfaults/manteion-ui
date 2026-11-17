@@ -63,13 +63,20 @@ export function ExperimentDetail({ experimentId, onDeleted, now }: ExperimentDet
   });
   const exp = experiment.data;
   const running = exp?.status === "running";
-  const measured = exp?.phases.some((p) => TERMINAL_PHASE_STATUSES.has(p.status)) ?? false;
+  const terminalCount =
+    exp?.phases.filter((p) => TERMINAL_PHASE_STATUSES.has(p.status)).length ?? 0;
+  const measured = terminalCount > 0;
 
+  // Keyed by the number of terminal phases, so the rollup is fetched again
+  // whenever a phase ends, including the last one (the poll stops with the
+  // experiment). The previous rollup stays on screen while the new one loads.
   const results = useQuery({
-    queryKey: ["experiment-results", experimentId],
+    queryKey: ["experiment-results", experimentId, terminalCount],
     queryFn: () => experimentsApi.getExperimentResults(experimentId),
     enabled: measured,
     refetchInterval: running ? 5_000 : false,
+    placeholderData: (prev, prevQuery) =>
+      prevQuery?.queryKey[1] === experimentId ? prev : undefined,
     retry: false,
   });
   const rulesQuery = useQuery({

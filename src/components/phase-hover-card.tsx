@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card";
 import { experimentsApi } from "@/lib/api";
 import { type PhaseMetrics, phaseProgress } from "@/lib/phase-metrics";
+import { useFinalRefetch } from "@/lib/use-final-refetch";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
 import { formatDurationMs } from "@/lib/utils";
 import {
@@ -62,6 +63,8 @@ export function PhaseHoverCard({
   const [open, setOpen] = useState(defaultOpen);
   const isLive = ACTIVE_PHASE_STATUSES.has(statusHint);
 
+  // Polling stops when the phase ends; fetch its final state (and so its results) once more.
+  useFinalRefetch(["phase", experimentId, phaseId], isLive);
   const query = useQuery({
     queryKey: ["phase", experimentId, phaseId],
     queryFn: () => experimentsApi.getPhaseStatus(experimentId, phaseId),
