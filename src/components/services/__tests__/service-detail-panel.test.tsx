@@ -1,7 +1,7 @@
 import { ServiceDetailPanel } from "@/components/services/service-detail-panel";
 import { renderWithRouter } from "@/test-utils/render-with-router";
 import type { Rule, SDKInstanceDetail } from "@/types/api";
-import { screen } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,9 @@ vi.mock("@/lib/api", () => ({
   },
 }));
 import { rulesApi, servicesApi } from "@/lib/api";
+import { ApiError } from "@/lib/api/client";
+import { mockRuleById } from "@/lib/api/rules";
+import { mockSDKInstanceDetail } from "@/lib/api/services";
 
 const rule = (id: string): Rule => ({
   id,
@@ -164,5 +167,52 @@ describe("ServiceDetailPanel", () => {
       "Run the kill switch for cartservice? No active rules are reported; it still cancels the service's running fault configs and applies to every instance of the service.",
     );
     expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open and shows why when the kill switch fails", async () => {
+    const user = userEvent.setup();
+    vi.mocked(servicesApi.getSDKInstance).mockResolvedValue(detail({ active_rule_ids: ["r-1"] }));
+    vi.mocked(servicesApi.killSwitch).mockRejectedValueOnce(
+      new ApiError(503, "/api/v1/sdk/instances/cart-sdk-j7k8l/kill-switch", {}, "unavailable"),
+    );
+    renderPanel();
+    expect(await screen.findByText("rule r-1")).toBeTruthy();
+    await openKillSwitch(user);
+    await user.click(screen.getByRole("button", { name: "Run kill switch" }));
+    const dialog = screen.getByRole("dialog", { name: "Kill switch" });
+    const alert = await within(dialog).findByRole("alert");
+    expect(alert.textContent).toContain("503");
+    // Only the dialog reports the failure.
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+
+    // Reopening starts clean.
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    await openKillSwitch(user);
+    expect(within(screen.getByRole("dialog")).queryByRole("alert")).toBeNull();
+  });
+
+  it("closes the dialog when the kill switch succeeds", async () => {
+    const user = userEvent.setup();
+    vi.mocked(servicesApi.getSDKInstance).mockResolvedValue(detail({ active_rule_ids: ["r-1"] }));
+    renderPanel();
+    expect(await screen.findByText("rule r-1")).toBeTruthy();
+    await openKillSwitch(user);
+    await user.click(screen.getByRole("button", { name: "Run kill switch" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
+
+  it("counts the mock service's enabled rules in the prompt", async () => {
+    const user = userEvent.setup();
+    const mockDetail = mockSDKInstanceDetail("prod-cat-sdk-a1b2c");
+    vi.mocked(servicesApi.getSDKInstance).mockResolvedValue(mockDetail);
+    vi.mocked(rulesApi.listRules).mockResolvedValue(
+      mockDetail.active_rule_ids.flatMap((id) => mockRuleById(id) ?? []),
+    );
+    renderWithRouter(<ServiceDetailPanel instanceId="prod-cat-sdk-a1b2c" onClose={vi.fn()} />);
+    expect(await screen.findByText("catalog-latency-50ms")).toBeTruthy();
+    expect(await openKillSwitch(user)).toContain(
+      "Disable all 2 active rules for productcatalogservice and cancel its running fault configs?",
+    );
   });
 });

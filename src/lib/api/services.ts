@@ -8,14 +8,15 @@ import {
 } from "@/types/api";
 import { z } from "zod";
 import { apiClient } from "./client";
+import { mockActiveRuleIds, mockDisableServiceRules } from "./rules";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
 const List = z.array(SDKInstanceSchema);
 
 // ─── Mock fixtures (VITE_USE_MOCK=true) ────────────────────────────────
-// Instance IDs reference rule IDs from rules.ts so the detail panel's
-// active-rules list resolves names from the shared ["rules"] query.
+// Instances report the enabled rules of their service in rules.ts, so the
+// detail panel's active-rules list resolves names from the shared ["rules"] query.
 
 const _mockInstances: SDKInstance[] = [
   {
@@ -74,45 +75,67 @@ const _mockInstances: SDKInstance[] = [
   },
 ];
 
-const _mockDetail: Record<string, Omit<SDKInstanceDetail, keyof SDKInstance>> = {
+/** Per-instance detail the list does not carry. `active_rule_ids` is not
+ *  stored: it is derived from the mock rule store on every read, so the kill
+ *  switch's count and effect agree with what the panel lists. Recent phase
+ *  ids are phases of the experiment fixtures, so each link resolves. */
+const _mockDetail: Record<
+  string,
+  Omit<SDKInstanceDetail, keyof SDKInstance | "active_rule_ids">
+> = {
   "prod-cat-sdk-a1b2c": {
     observed_generation: 42,
     applied_generation: 42,
-    active_rule_ids: ["rule-001"],
-    recent_run_ids: ["run-8f2a", "run-7c1b", "run-6d0e"],
+    recent_run_ids: ["ph-001-isolation", "ph-001-baseline", "ph-004-blackhole"],
   },
   "prod-cat-sdk-d3e4f": {
     observed_generation: 42,
     applied_generation: 41,
-    active_rule_ids: ["rule-001"],
-    recent_run_ids: ["run-8f2a", "run-7c1b"],
+    recent_run_ids: ["ph-001-baseline", "ph-004-baseline"],
   },
   "checkout-sdk-g5h6i": {
     observed_generation: 42,
     applied_generation: 42,
-    active_rule_ids: ["rule-003", "rule-012"],
-    recent_run_ids: ["run-8f2a"],
+    recent_run_ids: ["ph-001-isolation", "ph-001-baseline"],
   },
   "cart-sdk-j7k8l": {
     observed_generation: 40,
     applied_generation: 39,
     observed_errors: ['fault spec "fs-cart-latency": unknown fault type "slowloris"'],
-    active_rule_ids: [],
-    recent_run_ids: ["run-5a9c"],
+    recent_run_ids: ["ph-002-replay", "ph-002-baseline"],
   },
   "payment-sdk-m9n0o": {
     observed_generation: 42,
     applied_generation: 42,
-    active_rule_ids: ["rule-004", "rule-013"],
-    recent_run_ids: ["run-8f2a", "run-7c1b"],
+    recent_run_ids: ["ph-001-baseline"],
   },
   "recommendation-sdk-p1q2r": {
     observed_generation: 42,
     applied_generation: 42,
-    active_rule_ids: [],
-    recent_run_ids: ["run-8f2a"],
+    recent_run_ids: ["ph-004-blackhole", "ph-004-baseline"],
   },
 };
+
+/** Mock-only: GET /api/v1/sdk/instances/{id} served from the fixtures. */
+export function mockSDKInstanceDetail(id: string): SDKInstanceDetail {
+  const inst = _mockInstances.find((i) => i.id === id);
+  if (!inst) throw new Error(`Mock: instance ${id} not found`);
+  const extra = _mockDetail[id] ?? { recent_run_ids: [] };
+  return {
+    ...inst,
+    ...extra,
+    recent_run_ids: [...extra.recent_run_ids],
+    active_rule_ids: mockActiveRuleIds(inst.service),
+  };
+}
+
+/** Mock-only: the kill switch disables every enabled rule of the instance's
+ *  service in the mock rule store, as the backend does for the whole service. */
+export function mockKillSwitch(id: string): KillSwitchResult {
+  const inst = _mockInstances.find((i) => i.id === id);
+  if (!inst) throw new Error(`Mock: instance ${id} not found`);
+  return { disabled_rule_ids: mockDisableServiceRules(inst.service), at: new Date().toISOString() };
+}
 
 function mockDelay() {
   return new Promise((r) => setTimeout(r, 80));
@@ -131,10 +154,7 @@ export async function listSDKInstances(): Promise<SDKInstance[]> {
 export async function getSDKInstance(id: string): Promise<SDKInstanceDetail> {
   if (USE_MOCK) {
     await mockDelay();
-    const inst = _mockInstances.find((i) => i.id === id);
-    if (!inst) throw new Error(`Mock: instance ${id} not found`);
-    const extra = _mockDetail[id] ?? { active_rule_ids: [], recent_run_ids: [] };
-    return { ...inst, ...extra };
+    return mockSDKInstanceDetail(id);
   }
   return apiClient.get(`/api/v1/sdk/instances/${encodeURIComponent(id)}`, SDKInstanceDetailSchema);
 }
@@ -144,8 +164,7 @@ export async function getSDKInstance(id: string): Promise<SDKInstanceDetail> {
 export async function killSwitch(id: string): Promise<KillSwitchResult> {
   if (USE_MOCK) {
     await mockDelay();
-    const disabled = _mockDetail[id]?.active_rule_ids ?? [];
-    return { disabled_rule_ids: [...disabled], at: new Date().toISOString() };
+    return mockKillSwitch(id);
   }
   return apiClient.post(
     `/api/v1/sdk/instances/${encodeURIComponent(id)}/kill-switch`,

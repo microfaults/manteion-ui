@@ -200,6 +200,23 @@ export function mockRuleById(id: string): Rule | undefined {
   return _mockRules.find((r) => r.id === id);
 }
 
+/** Mock-only: ids of the enabled rules of `service`, which is what the backend
+ *  reports as an instance's active rules. */
+export function mockActiveRuleIds(service: string): string[] {
+  return _mockRules.filter((r) => r.service === service && r.enabled).map((r) => r.id);
+}
+
+/** Mock-only: the kill switch's effect on the rule store. Disables every
+ *  enabled rule of `service` and returns their ids. */
+export function mockDisableServiceRules(service: string): string[] {
+  const ids = mockActiveRuleIds(service);
+  const at = new Date().toISOString();
+  _mockRules = _mockRules.map((r) =>
+    ids.includes(r.id) ? { ...r, enabled: false, updated_at: at } : r,
+  );
+  return ids;
+}
+
 export async function listRules(): Promise<Rule[]> {
   if (USE_MOCK) {
     await mockDelay();

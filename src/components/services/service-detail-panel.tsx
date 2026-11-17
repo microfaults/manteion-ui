@@ -63,10 +63,10 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
   const killSwitch = useMutation({
     mutationFn: () => servicesApi.killSwitch(instanceId),
     onSuccess: () => {
+      setConfirmKillSwitch(false);
       qc.invalidateQueries({ queryKey: ["rules"] });
       qc.invalidateQueries({ queryKey: ["sdk-instance", instanceId] });
     },
-    onSettled: () => setConfirmKillSwitch(false),
   });
 
   const service = detail.data?.service ?? fallbackService ?? "—";
@@ -229,7 +229,10 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
             <Button
               variant="destructive"
               className="w-full"
-              onClick={() => setConfirmKillSwitch(true)}
+              onClick={() => {
+                killSwitch.reset();
+                setConfirmKillSwitch(true);
+              }}
               disabled={killSwitch.isPending || detail.isLoading}
             >
               <Zap className="size-4" />
@@ -243,13 +246,9 @@ export function ServiceDetailPanel({ instanceId, fallbackService, onClose }: Pro
               confirmLabel="Run kill switch"
               destructive
               pending={killSwitch.isPending}
+              error={killSwitch.isError ? describeApiError(killSwitch.error) : undefined}
               onConfirm={() => killSwitch.mutate()}
             />
-            {killSwitch.isError ? (
-              <p className="mt-2 text-center text-[11px] text-status-down">
-                {describeApiError(killSwitch.error)}
-              </p>
-            ) : null}
             <p className="mt-2 text-center text-[11px] text-muted-foreground">
               Disables every rule for this service and cancels its active fault configs, on every
               instance. Cache-box freezes are phase-driven — release them by stopping the phase.
