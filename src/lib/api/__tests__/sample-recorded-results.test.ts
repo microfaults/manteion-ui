@@ -8,15 +8,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type Engine = typeof import("../mock-experiments");
 type Fixtures = typeof import("../mock-fixtures");
+type Rules = typeof import("../rules");
 
 let m: Engine;
 let f: Fixtures;
+let r: Rules;
 
 beforeEach(async () => {
   vi.useFakeTimers();
   vi.resetModules();
   m = await import("../mock-experiments");
   f = await import("../mock-fixtures");
+  r = await import("../rules");
 });
 
 afterEach(() => {
@@ -90,7 +93,7 @@ describe("sample experiment replays the recorded figures", () => {
     expect(done.status).toBe("completed");
 
     for (const phase of done.phases) {
-      expect(f.isRecordedPhase(phase.id)).toBe(false);
+      expect(m.isRecordedPhase(phase.id)).toBe(false);
       const row = m.mockPhaseResultsFor(phase.id)?.workflow_results[0];
       const rec = f.SAMPLE_RECORDED_RESULTS[phase.name];
       expect(row).toBeDefined();
@@ -99,19 +102,81 @@ describe("sample experiment replays the recorded figures", () => {
     }
   });
 
-  it("recognises the sample's phases by membership, not by name", () => {
-    for (const phase of m.mockGet(f.SAMPLE_EXPERIMENT_ID).phases) {
-      expect(f.isRecordedPhase(phase.id)).toBe(true);
-    }
-    expect(f.isRecordedPhase("plain")).toBe(false);
-    expect(f.isRecordedPhase("ph-001-baseline")).toBe(false);
-    expect(f.isRecordedPhase("")).toBe(false);
+  it("marks a phase recorded only once its recorded results are stored", () => {
+    const phaseIds = m.mockGet(f.SAMPLE_EXPERIMENT_ID).phases.map((p) => p.id);
+    for (const id of phaseIds) expect(m.isRecordedPhase(id)).toBe(false);
+    m.mockRestart(f.SAMPLE_EXPERIMENT_ID);
+    runToEnd(f.SAMPLE_EXPERIMENT_ID);
+    for (const id of phaseIds) expect(m.isRecordedPhase(id)).toBe(true);
+    expect(m.isRecordedPhase("plain")).toBe(false);
+    expect(m.isRecordedPhase("ph-001-baseline")).toBe(false);
+    expect(m.isRecordedPhase("")).toBe(false);
+  });
+
+  it("drops the recorded mark when the sample is restarted", () => {
+    m.mockRestart(f.SAMPLE_EXPERIMENT_ID);
+    runToEnd(f.SAMPLE_EXPERIMENT_ID);
+    m.mockRestart(f.SAMPLE_EXPERIMENT_ID);
+    for (const p of m.mockGet(f.SAMPLE_EXPERIMENT_ID).phases)
+      expect(m.isRecordedPhase(p.id)).toBe(false);
   });
 
   it("does not throw once a visitor has deleted the sample", () => {
     const phaseIds = m.mockGet(f.SAMPLE_EXPERIMENT_ID).phases.map((p) => p.id);
     m.mockDelete(f.SAMPLE_EXPERIMENT_ID);
-    expect(() => phaseIds.map((id) => f.isRecordedPhase(id))).not.toThrow();
+    expect(() => phaseIds.map((id) => m.isRecordedPhase(id))).not.toThrow();
     expect(() => m.mockList()).not.toThrow();
+  });
+});
+
+describe("sample experiment generates results once it no longer matches the recording", () => {
+  const expectGenerated = (phaseId: string, name: string) => {
+    const row = m.mockPhaseResultsFor(phaseId)?.workflow_results[0];
+    const rec = f.SAMPLE_RECORDED_RESULTS[name];
+    expect(row).toBeDefined();
+    expect(row?.request_count).not.toBe(rec?.request_count);
+    expect(row?.latency_p95_us).not.toBe(ms(rec?.p95_ms ?? 0));
+    expect(m.isRecordedPhase(phaseId)).toBe(false);
+  };
+
+  it("generates every phase when catalog-latency-50ms is disabled", () => {
+    expect(r.mockDisableServiceRules("productcatalogservice")).toContain("rule-014");
+    m.mockRestart(f.SAMPLE_EXPERIMENT_ID);
+    const done = runToEnd(f.SAMPLE_EXPERIMENT_ID);
+    expect(done.status).toBe("completed");
+    for (const p of done.phases) expectGenerated(p.id, p.name);
+  });
+
+  it("generates every phase when a visitor has added a phase to the sample", () => {
+    m.mockCreatePhase(f.SAMPLE_EXPERIMENT_ID, {
+      name: "extra",
+      workflows: [{ workflow_id: "wf-browse-catalog", vus: 10, duration_sec: 120 }],
+      frozen_services: [],
+      rule_ids: [],
+    });
+    m.mockStart(f.SAMPLE_EXPERIMENT_ID);
+    vi.advanceTimersByTime(4 * m.MOCK_PHASE_STEP_MS + 1);
+    const done = m.mockGet(f.SAMPLE_EXPERIMENT_ID);
+    expect(done.status).toBe("completed");
+    for (const p of done.phases.filter((p) => p.name in f.SAMPLE_RECORDED_RESULTS))
+      expectGenerated(p.id, p.name);
+  });
+
+  it("does not record a phase stopped before the end of its plan", () => {
+    m.mockRestart(f.SAMPLE_EXPERIMENT_ID);
+    vi.advanceTimersByTime(m.MOCK_PHASE_STEP_MS + 1);
+    const [plain, latency] = m.mockGet(f.SAMPLE_EXPERIMENT_ID).phases;
+    expect(latency?.status).toBe("running");
+    m.mockStopPhase(latency?.id ?? "", "completed");
+    expect(m.isRecordedPhase(plain?.id ?? "")).toBe(true);
+    expectGenerated(latency?.id ?? "", "catalog-latency-50ms");
+  });
+
+  it("does not record a phase completed by stopping the experiment", () => {
+    m.mockRestart(f.SAMPLE_EXPERIMENT_ID);
+    m.mockStop(f.SAMPLE_EXPERIMENT_ID, "completed");
+    const [plain] = m.mockGet(f.SAMPLE_EXPERIMENT_ID).phases;
+    expect(plain?.status).toBe("completed");
+    expectGenerated(plain?.id ?? "", "plain");
   });
 });

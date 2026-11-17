@@ -1,9 +1,10 @@
 import { PhaseTimeline } from "@/components/experiments/phase-timeline";
+import * as engine from "@/lib/api/mock-experiments";
 import type { Experiment, PhaseSummary } from "@/types/api";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type React from "react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({
   experimentsApi: { getPhaseResults: vi.fn() },
@@ -270,22 +271,53 @@ describe("PhaseTimeline", () => {
     });
   });
 
-  it("tags phase timing as accelerated only in the mock build", () => {
-    const exp = experiment([
-      phase({
-        id: "ph-run",
-        name: "baseline",
-        status: "running",
-        started_at: "2026-06-01T00:09:00Z",
-      }),
-    ]);
-    const { unmount } = render(wrap(<PhaseTimeline experiment={exp} rules={[]} now={NOW} />));
-    expect(within(row("baseline")).queryByText("accelerated")).toBeNull();
-    unmount();
+  describe("accelerated tag", () => {
+    afterEach(() => {
+      vi.clearAllTimers();
+      vi.useRealTimers();
+    });
 
-    env.isMock = true;
-    render(wrap(<PhaseTimeline experiment={exp} rules={[]} now={NOW} />));
-    const tag = within(row("baseline")).getByText("accelerated");
-    expect(tag.getAttribute("title")).toBe("Phases advance every 8 seconds in this simulation");
+    /** Starts a one-phase experiment in the mock engine and returns it. */
+    function startInEngine() {
+      vi.useFakeTimers();
+      const exp = engine.mockCreate({
+        name: "visitor-run",
+        phases: [
+          {
+            name: "baseline",
+            workflows: [{ workflow_id: "wf-checkout-burst", vus: 5, duration_sec: 60 }],
+            frozen_services: [],
+            rule_ids: [],
+          },
+        ],
+      });
+      engine.mockStart(exp.id);
+      return engine.mockGet(exp.id);
+    }
+
+    it("tags a phase the mock engine started", () => {
+      const exp = startInEngine();
+      env.isMock = true;
+      render(wrap(<PhaseTimeline experiment={exp} rules={[]} />));
+      const tag = within(row("baseline")).getByText("accelerated");
+      expect(tag.getAttribute("title")).toBe("Phases advance every 8 seconds in this simulation");
+    });
+
+    it("does not tag the running fixture phase, whose timing is fixed", () => {
+      env.isMock = true;
+      const exp = engine.mockGet("exp-001");
+      expect(exp.phases.find((p) => p.name === "isolation-shippingservice")?.status).toBe(
+        "running",
+      );
+      render(wrap(<PhaseTimeline experiment={exp} rules={[]} />));
+      expect(within(row("isolation-shippingservice")).getByText(/time-based/)).toBeTruthy();
+      expect(screen.queryByText("accelerated")).toBeNull();
+    });
+
+    it("never tags in operator builds", () => {
+      const exp = startInEngine();
+      render(wrap(<PhaseTimeline experiment={exp} rules={[]} />));
+      expect(within(row("baseline")).queryByText("accelerated")).toBeNull();
+    });
   });
 });

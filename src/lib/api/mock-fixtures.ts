@@ -200,11 +200,12 @@ export const mockExperiments: Experiment[] = [
         name: "isolation-shippingservice",
         position: 1,
         status: "running",
+        // A long soak: fixtures never tick, so the plan must outlast a visit.
         workflows: [
           {
             workflow_id: "wf-checkout-burst",
             vus: 25,
-            duration_sec: 300,
+            duration_sec: 3600,
             zeus_run_id: "run-001-isolation",
           },
         ],
@@ -397,8 +398,9 @@ export interface RecordedPhaseResult {
 
 /** Browse workflow of `exp12-dose` on the real testbed, 2026-08-25 (phases
  *  p1-plain, p4-lat50, p9-plain-end), keyed by the sample's phase names. The
- *  mock engine replays these for the sample instead of generating numbers.
- *  Measured values only: keep them verbatim. */
+ *  mock engine replays these for an unmodified sample phase that runs to its
+ *  end (see isRecordedPhase in mock-experiments.ts). Measured values only:
+ *  keep them verbatim. */
 export const SAMPLE_RECORDED_RESULTS: Readonly<Record<string, RecordedPhaseResult>> = {
   plain: {
     request_count: 817,
@@ -425,19 +427,6 @@ export const SAMPLE_RECORDED_RESULTS: Readonly<Record<string, RecordedPhaseResul
     dropped_iterations: 0,
   },
 };
-
-/** Ids of the sample fixture's phases. Phase ids are unique across
- *  experiments, so a visitor's experiment that reuses a phase name never
- *  matches; a deleted sample simply leaves nothing to match. */
-const SAMPLE_PHASE_IDS: ReadonlySet<string> = new Set(
-  mockExperiments.find((e) => e.id === SAMPLE_EXPERIMENT_ID)?.phases.map((p) => p.id) ?? [],
-);
-
-/** True only for the three phases of the sample experiment, whose results
- *  are the recorded figures rather than generated ones. */
-export function isRecordedPhase(phaseId: string): boolean {
-  return SAMPLE_PHASE_IDS.has(phaseId);
-}
 
 /** One harvested workflow result. Request count = rps × seconds. */
 function harvested(

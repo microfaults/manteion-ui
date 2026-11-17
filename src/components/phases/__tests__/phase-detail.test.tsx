@@ -11,6 +11,13 @@ vi.mock("@/lib/env", () => ({
   },
 }));
 
+// The mock engine's provenance: which phases it drove and which replay recorded figures.
+const engine = vi.hoisted(() => ({ driven: new Set<string>(), recorded: new Set<string>() }));
+vi.mock("@/lib/api/mock-experiments", () => ({
+  isEngineDrivenPhase: (id: string) => engine.driven.has(id),
+  isRecordedPhase: (id: string) => engine.recorded.has(id),
+}));
+
 vi.mock("@/lib/api", () => ({
   phasesApi: {
     getPhaseDetail: vi.fn(),
@@ -84,6 +91,8 @@ const EXPERIMENT: Experiment = {
 describe("PhaseDetail", () => {
   beforeEach(() => {
     env.isMock = false;
+    engine.driven.clear();
+    engine.recorded.clear();
     vi.clearAllMocks();
     vi.mocked(phasesApi.getPhaseDetail).mockResolvedValue(DETAIL);
     vi.mocked(phasesApi.getPhaseFaults).mockResolvedValue({
@@ -220,16 +229,93 @@ describe("PhaseDetail", () => {
     expect(await within(timeline).findByText("running → completed")).toBeTruthy();
   });
 
-  it("tags the timing line as accelerated only in the mock build", async () => {
+  it("tags the timing line as accelerated only for a phase the mock engine drives", async () => {
+    engine.driven.add("ph-iso");
     const { unmount } = renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
     const timing = await screen.findByText(/3m 24s \/ 5m · time-based/);
     expect(within(timing).queryByText("accelerated")).toBeNull();
     unmount();
 
     env.isMock = true;
+    engine.driven.clear();
+    const fixture = renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
+    const fixtureTiming = await screen.findByText(/3m 24s \/ 5m · time-based/);
+    expect(within(fixtureTiming).queryByText("accelerated")).toBeNull();
+    fixture.unmount();
+
+    engine.driven.add("ph-iso");
     renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
     const mockTiming = await screen.findByText(/3m 24s \/ 5m · time-based/);
     const tag = within(mockTiming).getByText("accelerated");
     expect(tag.getAttribute("title")).toBe("Phases advance every 8 seconds in this simulation");
+  });
+
+  describe("where a completed phase's results came from", () => {
+    // The plain phase of the sample as recorded: p50 7.0, p95 10.5, p99 39.5 ms.
+    beforeEach(() => {
+      vi.mocked(phasesApi.getPhaseDetail).mockResolvedValue({
+        ...DETAIL,
+        status: "completed",
+        completed_at: "2026-06-01T00:11:36Z",
+      });
+      vi.mocked(zeusRunsApi.getRun).mockResolvedValue({
+        id: RUN_ID,
+        status: "completed",
+        started_at: "2026-06-01T00:06:37Z",
+        ended_at: "2026-06-01T00:11:36Z",
+      });
+      vi.mocked(experimentsApi.getPhaseResults).mockResolvedValue({
+        workflow_results: [
+          {
+            phase_id: "ph-iso",
+            workflow_id: "wf-checkout",
+            request_count: 817,
+            error_count: 0,
+            error_rate: 0,
+            throughput_rps: 817 / 120,
+            latency_p50_us: 7_000,
+            latency_p95_us: 10_500,
+            latency_p99_us: 39_500,
+          },
+        ],
+        service_latency: [],
+        service_cache: [],
+      });
+    });
+    const results = () => screen.getByRole("region", { name: "Results" });
+
+    it("says harvested in operator builds, with the default latency format", async () => {
+      engine.recorded.add("ph-iso");
+      renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
+      expect(await screen.findByText("817")).toBeTruthy();
+      expect(screen.getAllByText("harvested")).toHaveLength(2);
+      expect(screen.queryByText("recorded")).toBeNull();
+      expect(screen.queryByText("synthetic")).toBeNull();
+      expect(screen.getAllByText("40ms")).toHaveLength(2);
+      expect(within(results()).getByText("7.00ms · 11ms")).toBeTruthy();
+    });
+
+    it("says synthetic for generated results in the mock build", async () => {
+      env.isMock = true;
+      renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
+      expect(await screen.findByText("817")).toBeTruthy();
+      // Two stat-card footers and the results grid's tag.
+      expect(screen.getAllByText("synthetic")).toHaveLength(3);
+      expect(screen.queryByText("harvested")).toBeNull();
+      expect(screen.queryByText("recorded")).toBeNull();
+      expect(screen.getAllByText("40ms")).toHaveLength(2);
+    });
+
+    it("says recorded and keeps one decimal for replayed recorded results", async () => {
+      env.isMock = true;
+      engine.recorded.add("ph-iso");
+      renderWithRouter(<PhaseDetail phaseId="ph-iso" now={NOW} />);
+      expect(await screen.findByText("817")).toBeTruthy();
+      expect(screen.getAllByText("recorded")).toHaveLength(3);
+      expect(screen.queryByText("harvested")).toBeNull();
+      expect(screen.queryByText("synthetic")).toBeNull();
+      expect(screen.getAllByText("39.5ms")).toHaveLength(2);
+      expect(within(results()).getByText("7.0ms · 10.5ms")).toBeTruthy();
+    });
   });
 });

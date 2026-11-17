@@ -6,7 +6,11 @@
  * zeus run stats) once the phase is terminal.
  */
 import { AcceleratedTag } from "@/components/experiments/accelerated-tag";
-import { MetricsGrid } from "@/components/experiments/phase-row-results";
+import {
+  MetricsGrid,
+  latencyDecimals,
+  phaseProvenance,
+} from "@/components/experiments/phase-row-results";
 import { PhasePill } from "@/components/phase-pill";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +27,7 @@ import {
 import { experimentsApi, phasesApi, rulesApi, workflowsApi } from "@/lib/api";
 import { describeApiError } from "@/lib/api-errors";
 import type { PhaseFinalStatus } from "@/lib/api/phases";
+import { IS_MOCK } from "@/lib/env";
 import { phaseDatasetIds, phaseProgress } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
 import { type RunTransition, useRunStateTimeline, useZeusRun } from "@/lib/use-zeus-run";
@@ -151,6 +156,9 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
     ? results.results.service_cache.reduce((s, c) => s + c.cache_hit_rate, 0) /
       results.results.service_cache.length
     : undefined;
+  // The mock build generates its numbers, or replays the sample's recorded ones.
+  const resultSource = IS_MOCK ? phaseProvenance(phaseId) : "harvested";
+  const decimals = latencyDecimals(phaseId);
   const failureReason =
     phase.failure_reason ?? exp?.phases.find((p) => p.id === phase.id)?.failure_reason;
 
@@ -242,7 +250,7 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
             metrics
               ? metrics.source === "zeus"
                 ? "zeus run stats"
-                : "harvested"
+                : resultSource
               : "final at completion"
           }
         />
@@ -261,12 +269,12 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
         />
         <StatCard
           label="p99"
-          value={<span className="font-mono">{formatLatencyUs(metrics?.p99_us)}</span>}
+          value={<span className="font-mono">{formatLatencyUs(metrics?.p99_us, decimals)}</span>}
           footer={
             metrics?.source === "zeus"
               ? "zeus run stats · ns→µs"
               : metrics
-                ? "harvested"
+                ? resultSource
                 : "final at completion"
           }
         />
@@ -438,7 +446,8 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
             <dl className="grid grid-cols-[6rem_1fr] gap-y-1 text-xs">
               <dt className="text-muted-foreground">p50 · p95</dt>
               <dd className="font-mono">
-                {formatLatencyUs(metrics.p50_us)} · {formatLatencyUs(metrics.p95_us)}
+                {formatLatencyUs(metrics.p50_us, decimals)} ·{" "}
+                {formatLatencyUs(metrics.p95_us, decimals)}
               </dd>
               <dt className="text-muted-foreground">cache hit</dt>
               <dd className="font-mono">
@@ -482,7 +491,7 @@ function ProgressLine({
           {formatDurationMs(progress.elapsedMs)}
           {progress.plannedMs != null ? ` / ${formatDurationMs(progress.plannedMs)}` : ""} ·
           time-based (no mid-run metrics)
-          <AcceleratedTag />
+          <AcceleratedTag phaseId={phase.id} />
         </p>
         {progress.fraction != null ? (
           <progress
@@ -499,7 +508,7 @@ function ProgressLine({
     <p className="mt-1 text-xs text-muted-foreground">
       {formatDurationMs(progress.elapsedMs)} · {formatRelative(phase.started_at)}
       {phase.completed_at ? ` → ${formatRelative(phase.completed_at)}` : ""}
-      <AcceleratedTag />
+      <AcceleratedTag phaseId={phase.id} />
     </p>
   );
 }

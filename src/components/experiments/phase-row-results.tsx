@@ -3,7 +3,7 @@
  * fallback for run-only phases (captioned, so the operator knows the numbers
  * came from zeus's in-memory summary rather than manteion's tables).
  */
-import { isRecordedPhase } from "@/lib/api/mock-fixtures";
+import { isRecordedPhase } from "@/lib/api/mock-experiments";
 import { IS_MOCK } from "@/lib/env";
 import { type PhaseMetrics, pctDelta } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
@@ -32,7 +32,11 @@ export function MetricsGrid({
   return (
     <div className="rounded-md border border-border bg-muted/30 p-2 text-xs">
       <div className="grid grid-cols-3 gap-2">
-        <Metric label="p99" value={formatLatencyUs(metrics.p99_us)} delta={delta} />
+        <Metric
+          label="p99"
+          value={formatLatencyUs(metrics.p99_us, latencyDecimals(phaseId))}
+          delta={delta}
+        />
         <Metric label="RPS" value={metrics.rps != null ? metrics.rps.toFixed(1) : "—"} />
         <Metric
           label="errors"
@@ -48,7 +52,7 @@ export function MetricsGrid({
           </span>
         </p>
       ) : null}
-      {IS_MOCK ? <ProvenanceTag recorded={phaseId != null && isRecordedPhase(phaseId)} /> : null}
+      {IS_MOCK ? <ProvenanceTag provenance={phaseProvenance(phaseId)} /> : null}
       {metrics.source === "zeus" ? (
         <div className="mt-1.5 text-[10px] text-muted-foreground">
           {caption ? `${caption} · ` : ""}
@@ -59,9 +63,21 @@ export function MetricsGrid({
   );
 }
 
-/** Mock build only: where the numbers came from. The sample's phases replay
- *  the real run; everything else is generated in the browser. */
-function ProvenanceTag({ recorded }: { recorded: boolean }) {
+/** Mock build only: where a phase's stored numbers came from. The sample's
+ *  phases replay the real run when it ran unmodified to its end; everything
+ *  else is generated in the browser. */
+export function phaseProvenance(phaseId?: string): "recorded" | "synthetic" {
+  return phaseId != null && isRecordedPhase(phaseId) ? "recorded" : "synthetic";
+}
+
+/** Decimal places for a phase's latencies: recorded figures keep the one
+ *  decimal they were measured with; everything else uses the default format. */
+export function latencyDecimals(phaseId?: string): number | undefined {
+  return IS_MOCK && phaseProvenance(phaseId) === "recorded" ? 1 : undefined;
+}
+
+function ProvenanceTag({ provenance }: { provenance: "recorded" | "synthetic" }) {
+  const recorded = provenance === "recorded";
   return (
     <span
       className="mt-1.5 inline-block rounded border border-border px-1 py-px text-[10px] text-muted-foreground"
@@ -71,7 +87,7 @@ function ProvenanceTag({ recorded }: { recorded: boolean }) {
           : "Generated in your browser; no load ran"
       }
     >
-      {recorded ? "recorded" : "synthetic"}
+      {provenance}
     </span>
   );
 }

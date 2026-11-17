@@ -28,8 +28,8 @@ import { ApiError } from "./client";
 import { datasetExpiresAt, mockDatasetList } from "./datasets";
 import { mockFaultSpecById } from "./faults";
 import {
+  SAMPLE_EXPERIMENT_ID,
   SAMPLE_RECORDED_RESULTS,
-  isRecordedPhase,
   mockExperiments,
   mockPhaseResults,
 } from "./mock-fixtures";
@@ -41,6 +41,11 @@ export const MOCK_PHASE_STEP_MS = 8_000;
 let store: Experiment[] = mockExperiments.map(cloneExperiment);
 const results = new Map<string, PhaseResults>(Object.entries(mockPhaseResults));
 const timers = new Map<string, ReturnType<typeof setTimeout>>();
+/** Phases this engine started in this session (mockStart, mockRestart,
+ *  mockStartPhase or its own advance), so their timing is the 8 s step. */
+const driven = new Set<string>();
+/** Phases whose stored results are the replayed recorded figures. */
+const recorded = new Set<string>();
 let seq = 0;
 
 const now = () => new Date().toISOString();
@@ -140,6 +145,21 @@ export function mockGetPhase(experimentId: string, phaseId: string): PhaseSummar
 }
 export function mockPhaseResultsFor(phaseId: string): PhaseResults | undefined {
   return results.get(phaseId);
+}
+
+/** Mock-only: true when this engine started the phase in this session, so its
+ *  timing follows the accelerated step. Fixture phases keep their fixed
+ *  timings and answer false. */
+export function isEngineDrivenPhase(phaseId: string): boolean {
+  return driven.has(phaseId);
+}
+
+/** Mock-only: true when the phase's stored results are the figures recorded
+ *  on the real testbed rather than generated ones. Follows the results the
+ *  engine actually wrote, so an edited sample or a phase stopped early is not
+ *  recorded. */
+export function isRecordedPhase(phaseId: string): boolean {
+  return recorded.has(phaseId);
 }
 
 /** Services an experiment touches: frozen services ∪ services of its rules. */
@@ -272,6 +292,8 @@ export function mockRestart(id: string): Experiment {
   clearTimer(id);
   for (const p of e.phases) {
     results.delete(p.id);
+    recorded.delete(p.id);
+    driven.delete(p.id);
     p.status = "pending";
     p.started_at = undefined;
     p.completed_at = undefined;
@@ -342,7 +364,7 @@ function finishExperiment(e: Experiment, status: ExperimentStatus): ExperimentSt
   if (e.status !== "running") throw fail(409, `experiment is ${e.status}, not running`);
   clearTimer(e.id);
   for (const p of e.phases) {
-    if (isActive(p.status)) finishPhase(p, status === "completed" ? "completed" : "skipped");
+    if (isActive(p.status)) finishPhase(e, p, status === "completed" ? "completed" : "skipped");
     else if (p.status === "pending") p.status = "skipped";
   }
   e.status = status;
@@ -382,7 +404,7 @@ export function mockStopPhase(phaseId: string, status?: string): void {
   }
   const { exp, phase } = mustPhase(phaseId);
   if (!isActive(phase.status)) throw fail(409, `phase is ${phase.status}, not in flight`);
-  finishPhase(phase, final);
+  finishPhase(exp, phase, final);
   clearTimer(exp.id);
   if (final === "failed") {
     exp.status = "failed";
@@ -420,7 +442,7 @@ function tick(id: string): void {
     schedule(id);
     return;
   }
-  if (cur) finishPhase(cur, "completed");
+  if (cur) finishPhase(e, cur, "completed", true);
   advance(e);
 }
 
@@ -438,6 +460,7 @@ function clearTimer(id: string): void {
 }
 
 function startPhase(p: PhaseSummary): void {
+  driven.add(p.id);
   p.status = "running";
   p.started_at = now();
   p.completed_at = undefined;
@@ -450,18 +473,46 @@ function stampZeusIds(w: PhaseWorkflow, phaseId: string, i: number): PhaseWorkfl
     ...(w.target_url ? { zeus_attack_id: w.zeus_attack_id ?? `atk-${phaseId}-${i}` } : {}),
   };
 }
-function finishPhase(p: PhaseSummary, status: PhaseStatus): void {
+/** Ends a phase. `natural` is true only when the orchestrator loop ran it to
+ *  the end of its plan; an operator stop or an experiment stop is not. */
+function finishPhase(e: Experiment, p: PhaseSummary, status: PhaseStatus, natural = false): void {
   p.status = status;
   p.completed_at = now();
-  if (status === "completed") results.set(p.id, recordedResults(p) ?? synthesizeResults(p));
+  recorded.delete(p.id);
+  if (status !== "completed") return;
+  const replay = natural && replaysRecording(e, p) ? recordedResults(p) : undefined;
+  if (replay) recorded.add(p.id);
+  results.set(p.id, replay ?? synthesizeResults(p));
+}
+
+/** The sample fixture as first loaded; the store holds clones. */
+const SAMPLE_FIXTURE = mockExperiments.find((x) => x.id === SAMPLE_EXPERIMENT_ID);
+const sameIds = (a: readonly string[], b: readonly string[]) =>
+  a.length === b.length && a.every((id, i) => id === b[i]);
+
+/** True when the recorded figures still describe what this phase would have
+ *  measured: it is a phase of the sample, the sample still has exactly the
+ *  fixture's phases with their rule and workflow ids, and every rule those
+ *  phases attach is still enabled. */
+function replaysRecording(e: Experiment, p: PhaseSummary): boolean {
+  if (e.id !== SAMPLE_EXPERIMENT_ID || !SAMPLE_FIXTURE) return false;
+  const fixture = SAMPLE_FIXTURE.phases;
+  if (e.phases.length !== fixture.length || !fixture.some((f) => f.id === p.id)) return false;
+  for (const f of fixture) {
+    const cur = e.phases.find((x) => x.id === f.id);
+    if (!cur || !sameIds(cur.rule_ids, f.rule_ids)) return false;
+    const wf = (ph: PhaseSummary) => ph.workflows.map((w) => w.workflow_id);
+    if (!sameIds(wf(cur), wf(f))) return false;
+    if (f.rule_ids.some((id) => !mockRuleById(id)?.enabled)) return false;
+  }
+  return true;
 }
 
 /** The sample experiment replays what its phases measured on the real
  *  testbed (SAMPLE_RECORDED_RESULTS) instead of generated numbers. Throughput
  *  is the recorded request count over the planned duration, and p99.9 is left
- *  out because it was not recorded. undefined for every other phase. */
+ *  out because it was not recorded. */
 function recordedResults(p: PhaseSummary): PhaseResults | undefined {
-  if (!isRecordedPhase(p.id)) return undefined;
   const rec = SAMPLE_RECORDED_RESULTS[p.name];
   const w = p.workflows[0];
   if (!rec || !w) return undefined;

@@ -4,6 +4,7 @@
  * Polls every 5 s while running — the cadence expctl uses in production.
  */
 import { ExperimentActions } from "@/components/experiments/experiment-actions";
+import { latencyDecimals } from "@/components/experiments/phase-row-results";
 import { type PhaseAction, PhaseTimeline } from "@/components/experiments/phase-timeline";
 import { GrafanaPanel } from "@/components/observability/grafana-panel";
 import { StatCard } from "@/components/stat-card";
@@ -205,7 +206,11 @@ export function ExperimentDetail({ experimentId, onDeleted, now }: ExperimentDet
         />
         <StatCard
           label="Worst p99"
-          value={<span className="font-mono">{formatLatencyUs(rollup?.worst_p99_us)}</span>}
+          value={
+            <span className="font-mono">
+              {formatLatencyUs(rollup?.worst_p99_us, latencyDecimals(rollup?.worst_p99_phase_id))}
+            </span>
+          }
           footer={
             rollup
               ? `${worstPhase?.name ?? rollup.worst_p99_phase_id ?? "—"} · ${rollup.completed_phase_count ?? done} phase${
@@ -252,14 +257,14 @@ export function ExperimentDetail({ experimentId, onDeleted, now }: ExperimentDet
               <dl className="mt-2 grid grid-cols-[8rem_1fr] gap-y-1 text-xs">
                 <dt className="text-muted-foreground">Best p99</dt>
                 <dd className="font-mono">
-                  {formatLatencyUs(rollup.best_p99_us)} ·{" "}
+                  {formatLatencyUs(rollup.best_p99_us, latencyDecimals(rollup.best_p99_phase_id))} ·{" "}
                   {exp.phases.find((p) => p.id === rollup.best_p99_phase_id)?.name ??
                     rollup.best_p99_phase_id}
                 </dd>
                 <dt className="text-muted-foreground">Worst p99</dt>
                 <dd className="font-mono">
-                  {formatLatencyUs(rollup.worst_p99_us)} ·{" "}
-                  {worstPhase?.name ?? rollup.worst_p99_phase_id}
+                  {formatLatencyUs(rollup.worst_p99_us, latencyDecimals(rollup.worst_p99_phase_id))}{" "}
+                  · {worstPhase?.name ?? rollup.worst_p99_phase_id}
                 </dd>
                 <dt className="text-muted-foreground">Errors</dt>
                 <dd className="font-mono">

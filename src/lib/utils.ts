@@ -11,11 +11,14 @@ export function pluralize(count: number, singular: string, plural?: string): str
   return `${count.toLocaleString()} ${plural ?? `${singular}s`}`;
 }
 
-/** Format microseconds as a compact latency string. */
-export function formatLatencyUs(us: number | null | undefined): string {
+/** Format microseconds as a compact latency string. `msDecimals` fixes the
+ *  decimal places of millisecond values (1 ms up to 1 s); without it they get
+ *  two places below 10 ms and none above. */
+export function formatLatencyUs(us: number | null | undefined, msDecimals?: number): string {
   if (us == null) return "—";
   if (us < 1000) return `${Math.round(us)}µs`;
   const ms = us / 1000;
+  if (msDecimals != null && ms < 1000) return `${ms.toFixed(msDecimals)}ms`;
   if (ms < 10) return `${ms.toFixed(2)}ms`;
   if (ms < 1000) return `${Math.round(ms)}ms`;
   return `${(ms / 1000).toFixed(2)}s`;

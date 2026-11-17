@@ -161,3 +161,34 @@ describe("mock engine phase semantics", () => {
     expect(m.mockGet("exp-002").status).toBe("completed");
   });
 });
+
+describe("which phases the engine drives", () => {
+  it("leaves fixture phases with fixed timings undriven", () => {
+    for (const p of m.mockGet("exp-001").phases) expect(m.isEngineDrivenPhase(p.id)).toBe(false);
+  });
+
+  it("gives the running fixture phase a plan a visit cannot outlast", () => {
+    const running = m.mockGet("exp-001").phases.find((p) => p.status === "running");
+    expect(running?.id).toBe("ph-001-isolation");
+    for (const w of running?.workflows ?? []) expect(w.duration_sec).toBe(3600);
+    const startedMsAgo = Date.now() - Date.parse(running?.started_at ?? "");
+    expect(startedMsAgo).toBeGreaterThanOrEqual(4 * 60_000);
+    expect(startedMsAgo).toBeLessThan(5 * 60_000);
+  });
+
+  it("drives every phase it starts, through start and its own advance", () => {
+    const exp = createRecordThenReplay();
+    const [record, replay] = exp.phases;
+    m.mockStart(exp.id);
+    expect(m.isEngineDrivenPhase(record?.id ?? "")).toBe(true);
+    expect(m.isEngineDrivenPhase(replay?.id ?? "")).toBe(false);
+    vi.advanceTimersByTime(2 * m.MOCK_PHASE_STEP_MS + 1);
+    expect(m.isEngineDrivenPhase(replay?.id ?? "")).toBe(true);
+  });
+
+  it("drives the phases of a restarted experiment", () => {
+    m.mockRestart(SAMPLE_EXPERIMENT_ID);
+    const [first] = m.mockGet(SAMPLE_EXPERIMENT_ID).phases;
+    expect(m.isEngineDrivenPhase(first?.id ?? "")).toBe(true);
+  });
+});

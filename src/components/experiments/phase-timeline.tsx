@@ -312,7 +312,7 @@ function Timing({ phase, now }: { phase: PhaseSummary; now?: number }) {
           {phase.status === "running" ? "" : `${phase.status} · `}
           {formatDurationMs(progress.elapsedMs)}
           {planned} · time-based
-          <AcceleratedTag />
+          <AcceleratedTag phaseId={phase.id} />
         </p>
         {progress.fraction != null ? (
           <progress
@@ -335,7 +335,7 @@ function Timing({ phase, now }: { phase: PhaseSummary; now?: number }) {
     <p className="mt-0.5 text-xs text-muted-foreground">
       {formatDurationMs(progress.elapsedMs)} · {formatRelative(phase.started_at)}
       {phase.completed_at ? ` → ${formatRelative(phase.completed_at)}` : ""}
-      <AcceleratedTag />
+      <AcceleratedTag phaseId={phase.id} />
     </p>
   );
 }
