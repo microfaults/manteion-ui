@@ -3,6 +3,7 @@
  * fallback for run-only phases (captioned, so the operator knows the numbers
  * came from zeus's in-memory summary rather than manteion's tables).
  */
+import { isRecordedPhase } from "@/lib/api/mock-fixtures";
 import { IS_MOCK } from "@/lib/env";
 import { type PhaseMetrics, pctDelta } from "@/lib/phase-metrics";
 import { usePhaseMetrics } from "@/lib/use-phase-metrics";
@@ -17,11 +18,14 @@ export function MetricsGrid({
   metrics,
   baselineP99Us,
   caption,
+  phaseId,
 }: {
   metrics: PhaseMetrics;
   baselineP99Us?: number;
   /** Prefix for the zeus caption (e.g. the workflow name). */
   caption?: string;
+  /** In the mock build, tells the sample's recorded phases from generated ones. */
+  phaseId?: string;
 }) {
   const delta =
     metrics.p99_us != null && baselineP99Us ? pctDelta(baselineP99Us, metrics.p99_us) : undefined;
@@ -44,14 +48,7 @@ export function MetricsGrid({
           </span>
         </p>
       ) : null}
-      {IS_MOCK ? (
-        <span
-          className="mt-1.5 inline-block rounded border border-border px-1 py-px text-[10px] text-muted-foreground"
-          title="Generated in your browser; no load ran"
-        >
-          synthetic
-        </span>
-      ) : null}
+      {IS_MOCK ? <ProvenanceTag recorded={phaseId != null && isRecordedPhase(phaseId)} /> : null}
       {metrics.source === "zeus" ? (
         <div className="mt-1.5 text-[10px] text-muted-foreground">
           {caption ? `${caption} · ` : ""}
@@ -59,6 +56,23 @@ export function MetricsGrid({
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** Mock build only: where the numbers came from. The sample's phases replay
+ *  the real run; everything else is generated in the browser. */
+function ProvenanceTag({ recorded }: { recorded: boolean }) {
+  return (
+    <span
+      className="mt-1.5 inline-block rounded border border-border px-1 py-px text-[10px] text-muted-foreground"
+      title={
+        recorded
+          ? "Measured on the real testbed on 2026-08-25 (experiment exp12-dose), replayed here"
+          : "Generated in your browser; no load ran"
+      }
+    >
+      {recorded ? "recorded" : "synthetic"}
+    </span>
   );
 }
 
@@ -107,7 +121,14 @@ export function PhaseRowResults({
   if (state.isLoading) return <p className="text-xs text-muted-foreground">Loading results…</p>;
   if (state.metrics) {
     const caption = phase.workflows.length === 1 ? phase.workflows[0]?.workflow_id : undefined;
-    return <MetricsGrid metrics={state.metrics} baselineP99Us={baselineP99Us} caption={caption} />;
+    return (
+      <MetricsGrid
+        metrics={state.metrics}
+        baselineP99Us={baselineP99Us}
+        caption={caption}
+        phaseId={phase.id}
+      />
+    );
   }
   const drove = phase.workflows.some((w) => w.zeus_run_id || w.zeus_attack_id);
   return (

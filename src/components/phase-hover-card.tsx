@@ -156,7 +156,7 @@ export function PhaseSummaryContent({
 
       {metrics ? (
         <div className="mt-3">
-          <MetricsGrid metrics={metrics} baselineP99Us={baselineP99Us} />
+          <MetricsGrid metrics={metrics} baselineP99Us={baselineP99Us} phaseId={summary?.id} />
         </div>
       ) : status === "pending" ? (
         <p className="mt-3 text-xs italic text-muted-foreground">Not run yet.</p>

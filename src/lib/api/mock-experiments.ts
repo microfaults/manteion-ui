@@ -27,7 +27,12 @@ import type {
 import { ApiError } from "./client";
 import { datasetExpiresAt, mockDatasetList } from "./datasets";
 import { mockFaultSpecById } from "./faults";
-import { mockExperiments, mockPhaseResults } from "./mock-fixtures";
+import {
+  SAMPLE_RECORDED_RESULTS,
+  isRecordedPhase,
+  mockExperiments,
+  mockPhaseResults,
+} from "./mock-fixtures";
 import { mockRuleById, mockServicesForRules } from "./rules";
 
 /** Wall-clock per orchestrator step in mock mode (a real phase runs minutes). */
@@ -448,7 +453,38 @@ function stampZeusIds(w: PhaseWorkflow, phaseId: string, i: number): PhaseWorkfl
 function finishPhase(p: PhaseSummary, status: PhaseStatus): void {
   p.status = status;
   p.completed_at = now();
-  if (status === "completed") results.set(p.id, synthesizeResults(p));
+  if (status === "completed") results.set(p.id, recordedResults(p) ?? synthesizeResults(p));
+}
+
+/** The sample experiment replays what its phases measured on the real
+ *  testbed (SAMPLE_RECORDED_RESULTS) instead of generated numbers. Throughput
+ *  is the recorded request count over the planned duration, and p99.9 is left
+ *  out because it was not recorded. undefined for every other phase. */
+function recordedResults(p: PhaseSummary): PhaseResults | undefined {
+  if (!isRecordedPhase(p.id)) return undefined;
+  const rec = SAMPLE_RECORDED_RESULTS[p.name];
+  const w = p.workflows[0];
+  if (!rec || !w) return undefined;
+  const seconds = w.duration_sec ?? 120;
+  return {
+    workflow_results: [
+      {
+        phase_id: p.id,
+        workflow_id: w.workflow_id,
+        request_count: rec.request_count,
+        error_count: Math.round(rec.request_count * rec.error_rate),
+        error_rate: rec.error_rate,
+        throughput_rps: rec.request_count / seconds,
+        latency_p50_us: Math.round(rec.p50_ms * 1000),
+        latency_p95_us: Math.round(rec.p95_ms * 1000),
+        latency_p99_us: Math.round(rec.p99_ms * 1000),
+        computed_at: now(),
+        raw_metrics: { requests_dropped: rec.dropped_iterations },
+      },
+    ],
+    service_latency: [],
+    service_cache: [],
+  };
 }
 
 /** Plausible harvested numbers: a faulted phase is slower and errors more,

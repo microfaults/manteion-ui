@@ -18,6 +18,7 @@ import type {
   FrozenService,
   PhaseResults,
   PhaseSummary,
+  PhaseWorkflow,
   PhaseWorkflowResult,
 } from "@/types/api";
 
@@ -346,7 +347,8 @@ export const mockExperiments: Experiment[] = [
     id: SAMPLE_EXPERIMENT_ID,
     name: "sample-catalog-latency",
     description: "Add 50 ms to productcatalogservice between two plain browse phases.",
-    hypothesis: "50 ms on productcatalogservice shows up in browse p50 and recovers after.",
+    hypothesis:
+      "Adding 50 ms at productcatalogservice raises browse p95 by about 7 ms per 1 ms added, and it recovers when the fault is removed.",
     status: "planned",
     targeted_services: ["productcatalogservice"],
     created_by: "operator",
@@ -357,14 +359,14 @@ export const mockExperiments: Experiment[] = [
         name: "plain",
         position: 0,
         status: "pending",
-        workflows: [{ workflow_id: "wf-browse-catalog", vus: 10, duration_sec: 120 }],
+        workflows: [sampleBrowse()],
       }),
       phase({
         id: "ph-sample-latency",
         name: "catalog-latency-50ms",
         position: 1,
         status: "pending",
-        workflows: [{ workflow_id: "wf-browse-catalog", vus: 10, duration_sec: 120 }],
+        workflows: [sampleBrowse()],
         rule_ids: ["rule-014"],
       }),
       phase({
@@ -372,11 +374,70 @@ export const mockExperiments: Experiment[] = [
         name: "plain-end",
         position: 2,
         status: "pending",
-        workflows: [{ workflow_id: "wf-browse-catalog", vus: 10, duration_sec: 120 }],
+        workflows: [sampleBrowse()],
       }),
     ],
   },
 ];
+
+/** Browse workflow of a phase of the sample experiment. */
+function sampleBrowse(): PhaseWorkflow {
+  return { workflow_id: "wf-browse-catalog", vus: 10, rate_rps: 3, duration_sec: 120 };
+}
+
+/** One phase of the sample, as measured on the real testbed. */
+export interface RecordedPhaseResult {
+  request_count: number;
+  error_rate: number;
+  p50_ms: number;
+  p95_ms: number;
+  p99_ms: number;
+  dropped_iterations: number;
+}
+
+/** Browse workflow of `exp12-dose` on the real testbed, 2026-08-25 (phases
+ *  p1-plain, p4-lat50, p9-plain-end), keyed by the sample's phase names. The
+ *  mock engine replays these for the sample instead of generating numbers.
+ *  Measured values only: keep them verbatim. */
+export const SAMPLE_RECORDED_RESULTS: Readonly<Record<string, RecordedPhaseResult>> = {
+  plain: {
+    request_count: 817,
+    error_rate: 0,
+    p50_ms: 7.0,
+    p95_ms: 10.5,
+    p99_ms: 39.5,
+    dropped_iterations: 0,
+  },
+  "catalog-latency-50ms": {
+    request_count: 859,
+    error_rate: 0,
+    p50_ms: 76.0,
+    p95_ms: 364.9,
+    p99_ms: 366.3,
+    dropped_iterations: 0,
+  },
+  "plain-end": {
+    request_count: 819,
+    error_rate: 0,
+    p50_ms: 5.8,
+    p95_ms: 8.4,
+    p99_ms: 14.6,
+    dropped_iterations: 0,
+  },
+};
+
+/** Ids of the sample fixture's phases. Phase ids are unique across
+ *  experiments, so a visitor's experiment that reuses a phase name never
+ *  matches; a deleted sample simply leaves nothing to match. */
+const SAMPLE_PHASE_IDS: ReadonlySet<string> = new Set(
+  mockExperiments.find((e) => e.id === SAMPLE_EXPERIMENT_ID)?.phases.map((p) => p.id) ?? [],
+);
+
+/** True only for the three phases of the sample experiment, whose results
+ *  are the recorded figures rather than generated ones. */
+export function isRecordedPhase(phaseId: string): boolean {
+  return SAMPLE_PHASE_IDS.has(phaseId);
+}
 
 /** One harvested workflow result. Request count = rps × seconds. */
 function harvested(

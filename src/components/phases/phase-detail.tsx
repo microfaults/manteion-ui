@@ -433,7 +433,7 @@ export function PhaseDetail({ phaseId, now }: PhaseDetailProps) {
           <p className="mt-2 text-xs text-muted-foreground">Loading results…</p>
         ) : metrics ? (
           <div className="mt-3 grid gap-3 md:grid-cols-[1fr_16rem]">
-            <MetricsGrid metrics={metrics} />
+            <MetricsGrid metrics={metrics} phaseId={phaseId} />
             <dl className="grid grid-cols-[6rem_1fr] gap-y-1 text-xs">
               <dt className="text-muted-foreground">p50 · p95</dt>
               <dd className="font-mono">
