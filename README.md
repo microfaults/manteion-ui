@@ -141,6 +141,8 @@ pnpm build:demo        # static build of the demo into dist/
 
 `pnpm build` is unchanged and still produces the operator build.
 
+The demo is live at <https://manteion.pages.dev>.
+
 Deploys run from GitHub Actions (`.github/workflows/ci.yml`). Every push to
 `mock-mode`, `develop` or `main`, and every pull request, runs lint,
 typecheck, tests and `pnpm build:demo`. A push to `mock-mode` then deploys
@@ -159,6 +161,20 @@ The deploy job stays off until the owner, once:
 
 The job runs in the GitHub environment `demo`, which can hold the secrets
 instead of the repository.
+
+#### CI configuration
+
+GitHub Actions is the only CI that needs configuration. These are all the
+names it reads (Settings → Secrets and variables → Actions):
+
+| Kind | Name | Used for |
+|---|---|---|
+| Secret | `CLOUDFLARE_API_TOKEN` | Pages deploy; a token limited to Cloudflare Pages edit |
+| Secret | `CLOUDFLARE_ACCOUNT_ID` | Pages deploy |
+| Variable | `DEPLOY_ENABLED` | `true` turns the deploy job on; must be a repository variable |
+
+`.gitlab-ci.yml` is the legacy pipeline for the old GitLab remote. It needs no
+secrets or variables, and no `GITLAB_*` name is read by any GitHub workflow.
 
 ## The OPA-rego rules builder
 

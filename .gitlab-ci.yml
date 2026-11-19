@@ -1,3 +1,8 @@
+# LEGACY pipeline for the old GitLab remote (`origin`, git.ucsc.edu).
+# Current CI and deploys are GitHub Actions: .github/workflows/ci.yml.
+# This file reads no secrets or custom variables, only GitLab's built-in ones.
+# Remove it once nothing is pushed to `origin` any more.
+
 workflow:
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
