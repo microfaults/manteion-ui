@@ -1,6 +1,6 @@
 # manteion-ui
 
-Operator console for faults-lab: a React 18 + Vite + TanStack Router/Query single-page app that talks to manteion-go's `/api/v1` and, for the dashboard tiles, to Prometheus. With `VITE_USE_MOCK=true` it runs entirely on fixtures, which is how the public static demo is built.
+Operator console for faults-lab: a React 19 + Vite + TanStack Router/Query single-page app that talks to manteion-go's `/api/v1` and, for the dashboard tiles, to Prometheus. With `VITE_USE_MOCK=true` it runs entirely on fixtures, which is how the public static demo is built.
 
 ## Workspace
 

@@ -1,5 +1,6 @@
 import { renderWithRouter } from "@/test-utils/render-with-router";
 import { screen } from "@testing-library/react";
+import type { JSX } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/api", () => ({

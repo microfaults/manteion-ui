@@ -86,7 +86,7 @@ If manteion-go is unreachable, the dashboard shows
 | Concern | Pick |
 |---|---|
 | Build | Vite 5 + `@vitejs/plugin-react-swc` |
-| Framework | React 18 + TypeScript (strict) |
+| Framework | React 19 + TypeScript (strict) |
 | Styling | Tailwind CSS + CSS variables (tokens from `docs/design/ui-design.md §5`) |
 | Components | shadcn/ui (copy-in under `src/components/ui/`) |
 | Routing | TanStack Router (file-based, type-safe) |
