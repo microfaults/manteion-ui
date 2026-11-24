@@ -55,7 +55,7 @@ All `VITE_*` variables are baked into the bundle at build time.
 - In a mock build `/` is the public landing page and the console carries a "Simulated data" bar; in an operator build `/` redirects to the dashboard and neither exists.
 - `VITE_MANTEION_URL` defaults to same-origin; in dev, Vite proxies `/api` to `http://localhost:9090`.
 - The browser queries Prometheus directly, not through manteion: `src/lib/prometheus.ts` fetches `VITE_PROMETHEUS_URL` (default `http://localhost:9091`); in dev `/prometheus/api/*` is proxied to `127.0.0.1:9091`.
-- `pnpm dev --mode vm1` reads `.env.vm1` (mock off, manteion at `localhost:5174`, Grafana at `localhost:3300`). That mode, the tunnel commands in `.env.example` and `vite.config.ts`, and `docs/ops/` all target the retired VM1.
+- `docs/ops/` (ssh tunnels and `kubectl port-forward` on vm1) and the README links into it target the retired VM1; read them as history.
 - `VITE_GRAFANA_URL` turns on Grafana links; `VITE_GRAFANA_EMBED=true` embeds panels and needs `allow_embedding` on the Grafana side. `VITE_DEFAULT_ENV` and `VITE_OPERATOR` are display defaults.
 
 ## Where the code misleads
