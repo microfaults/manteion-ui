@@ -11,6 +11,23 @@ export function pluralize(count: number, singular: string, plural?: string): str
   return `${count.toLocaleString()} ${plural ?? `${singular}s`}`;
 }
 
+/** Count + noun + optional verb, design-system style:
+ *  plural(0, "rule", "uses this", "use this") → "No rules use this",
+ *  plural(1, …) → "1 rule uses this", plural(3, …) → "3 rules use this".
+ *  `noun` is a singular, or a [singular, plural] pair for irregular plurals. */
+export function plural(
+  n: number,
+  noun: string | readonly [string, string],
+  verbOne?: string,
+  verbMany?: string,
+): string {
+  const [one, many] = typeof noun === "string" ? [noun, `${noun}s`] : noun;
+  const tail = (verb: string | undefined) => (verb ? ` ${verb}` : "");
+  if (n === 0) return `No ${many}${tail(verbMany)}`;
+  if (n === 1) return `1 ${one}${tail(verbOne)}`;
+  return `${n.toLocaleString("en-US")} ${many}${tail(verbMany)}`;
+}
+
 /** Format microseconds as a compact latency string. `msDecimals` fixes the
  *  decimal places of millisecond values (1 ms up to 1 s); without it they get
  *  two places below 10 ms and none above. */
@@ -55,11 +72,16 @@ export function formatTtl(ttlS: number | null | undefined): string {
   return `${ttlS}s`;
 }
 
-/** Relative "N minutes ago" style timestamp. */
-export function formatRelative(iso: string | null | undefined): string {
+/** Ages below this read "just now" rather than "0s ago" (design system
+ *  README, Content: Recent time). */
+const JUST_NOW_MS = 10_000;
+
+/** Relative "N minutes ago" style timestamp: "just now" under 10 s (and for
+ *  future times), then "45s ago", "12 min ago", "3h ago", "2d ago". */
+export function formatRelative(iso: string | null | undefined, now: number = Date.now()): string {
   if (!iso) return "—";
-  const ms = Date.now() - new Date(iso).getTime();
-  if (ms < 0) return "just now";
+  const ms = now - new Date(iso).getTime();
+  if (ms < JUST_NOW_MS) return "just now";
   const s = Math.floor(ms / 1000);
   if (s < 60) return `${s}s ago`;
   const m = Math.floor(s / 60);

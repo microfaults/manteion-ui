@@ -1,25 +1,16 @@
 /**
  * Prometheus HTTP API client — instant + range queries.
  */
+import { REAL_SERVICES } from "@/lib/known-services";
 
 /** Never fall back to VITE_MANTEION_URL — that sends PromQL to manteion and yields 404s. */
 const BASE = import.meta.env.VITE_PROMETHEUS_URL ?? "http://localhost:9091";
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === "true";
 
-/** Demo services, matching the SDK/rule fixtures in api/. */
-const MOCK_SERVICES = [
-  "frontend",
-  "productcatalogservice",
-  "cartservice",
-  "checkoutservice",
-  "paymentservice",
-  "shippingservice",
-  "currencyservice",
-  "adservice",
-  "emailservice",
-  "recommendationservice",
-];
+/** Demo services with traffic: the bed's eleven, the same set the SDK
+ *  instance fixtures register (fixture-consistency.test.ts checks it). */
+export const MOCK_METRIC_SERVICES: readonly string[] = REAL_SERVICES;
 
 /**
  * Deterministic pseudo-random in [0,1) — a demo series should wobble like real
@@ -271,9 +262,9 @@ export const CACHE_HIT_PROMQL =
 /** Distinct workload labels from recent `calls_total` traffic (for UI merge with SDK). */
 export async function fetchServiceNamesFromMetrics(signal?: AbortSignal): Promise<string[]> {
   if (USE_MOCK) {
-    // Includes one service with no SDK registration so the dashboard's
-    // "Prometheus traffic only" row is exercised.
-    return [...MOCK_SERVICES].sort((a, b) => a.localeCompare(b));
+    // Every bed service registers an SDK instance in the fixtures, so the
+    // metric names add no traffic-only rows to the dashboard.
+    return [...MOCK_METRIC_SERVICES].sort((a, b) => a.localeCompare(b));
   }
   const label = await resolveCallsTotalServiceLabel(signal);
   const r = await queryInstant(
@@ -301,7 +292,7 @@ export async function fetchDashboardPrometheusBundle(
     const errorRateRange = mockSeries(rangeMinutes, 1.4, 0.9, 3);
     const cacheHitRateRange = mockSeries(rangeMinutes, 91, 6, 4);
     const perServiceCallRate: Record<string, number> = {};
-    MOCK_SERVICES.forEach((svc, i) => {
+    MOCK_METRIC_SERVICES.forEach((svc, i) => {
       perServiceCallRate[svc] = Number((6 + noise(i + 11) * 34).toFixed(1));
     });
     return {

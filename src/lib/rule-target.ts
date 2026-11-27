@@ -45,9 +45,16 @@ export function ruleSubtitle(rule: Rule, specs?: FaultSpecLookup): string {
   const action = rule.action;
   const resolved = action.type === "fault_spec" ? specs?.get(action.fault_spec_id) : undefined;
   if (resolved) return `${target} · ${resolved.name}`;
-  const id = action.type === "cachebox" ? "cachebox" : faultId(action);
+  // A cache-box rule's detail is its mode, verbatim: "cachebox · replay".
+  if (action.type === "cachebox") return detailed(target, action.cachebox.mode);
+  const id = faultId(action);
   if (!id) return target;
   const parts = id.split(":");
   if (parts.length >= 2 && parts[0] === target) return `${target} · ${parts.slice(1).join(":")}`;
   return `${target} · ${id.slice(0, 24)}`;
+}
+
+/** "target · detail", or the target alone when the detail adds nothing. */
+function detailed(target: string, detail: string | undefined): string {
+  return detail && detail !== target ? `${target} · ${detail}` : target;
 }

@@ -24,7 +24,7 @@ import {
 } from "@/lib/prometheus";
 import { specLookup } from "@/lib/rule-target";
 import { type ServiceHealth, summarizeServiceHealth } from "@/lib/service-health";
-import { buildServicesPanelRows, displayServiceName } from "@/lib/service-panel";
+import { buildServicesPanelRows, formatVersion } from "@/lib/service-panel";
 import { formatDurationMs, formatFinite, formatRelative } from "@/lib/utils";
 import { ACTIVE_PHASE_STATUSES, type ExperimentStatus, TERMINAL_PHASE_STATUSES } from "@/types/api";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -342,7 +342,7 @@ function DashboardPage() {
                       className="flex items-center justify-between gap-3 py-2.5 first:pt-0"
                     >
                       <div className="min-w-0">
-                        <div className="truncate font-medium">{displayServiceName(row.name)}</div>
+                        <div className="truncate font-mono font-medium">{row.name}</div>
                         <div className="text-xs text-muted-foreground">
                           {row.source === "sdk" ? (
                             <>
@@ -350,7 +350,7 @@ function DashboardPage() {
                               {row.version === "mixed"
                                 ? "mixed versions"
                                 : row.version
-                                  ? `v${row.version}`
+                                  ? formatVersion(row.version)
                                   : "v?"}
                             </>
                           ) : (

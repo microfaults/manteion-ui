@@ -89,12 +89,10 @@ export function buildServicesPanelRows(
   return { total: rows.length, rows };
 }
 
-/** Strip the conventional "service" suffix so e.g. "productcatalogservice"
- *  renders as "productcatalog" in the table. Falls back to the original
- *  name when stripping would leave an empty string. */
-export function displayServiceName(name: string): string {
-  const trimmed = name.replace(/service$/i, "");
-  return trimmed.length > 0 ? trimmed : name;
+/** A version with exactly one leading "v": fixtures send "v0.4.0", an
+ *  operator backend may send a bare "0.4.2"; both print as "v0.4.x". */
+export function formatVersion(version: string): string {
+  return version.startsWith("v") ? version : `v${version}`;
 }
 
 // ── internals ──────────────────────────────────────────────────────────

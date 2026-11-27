@@ -57,7 +57,7 @@ export function HeldConstant() {
       </Lead>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(400px,100%),1fr))] gap-4">
         <SpecCard title="The mesh" specs={MESH} />
-        <SpecCard title="The testbed" specs={TESTBED} />
+        <SpecCard title="The testbed · recorded 2026-08-25" specs={TESTBED} />
       </div>
     </LandingSection>
   );

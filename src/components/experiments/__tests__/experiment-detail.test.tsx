@@ -168,6 +168,23 @@ describe("ExperimentDetail", () => {
     await vi.waitFor(() => expect(phasesApi.pausePhase).toHaveBeenCalledWith("ph-iso"));
   });
 
+  it("says just now, never 0s ago, for a run that has only just started", async () => {
+    const justNow = new Date().toISOString();
+    vi.mocked(experimentsApi.getExperiment).mockResolvedValue({
+      ...EXPERIMENT,
+      started_at: justNow,
+    });
+    vi.mocked(experimentsApi.getExperimentResults).mockResolvedValue({
+      ...(await experimentsApi.getExperimentResults("exp-1")),
+      computed_at: justNow,
+    });
+    render(wrap(<ExperimentDetail experimentId="exp-1" onDeleted={() => {}} />));
+    expect(await screen.findByText(/started just now/)).toBeTruthy();
+    const computed = await screen.findByText("Computed");
+    expect(computed.nextElementSibling?.textContent).toBe("just now");
+    expect(screen.queryByText(/\b0s ago/)).toBeNull();
+  });
+
   describe("the Requests card's source", () => {
     const renderDetail = async () => {
       render(wrap(<ExperimentDetail experimentId="exp-1" onDeleted={() => {}} />));

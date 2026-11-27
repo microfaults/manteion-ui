@@ -35,6 +35,11 @@ function stamp({ registeredAgoSec, lastPollAgoSec, ...rest }: MockInstance): SDK
   return { ...rest, registered_at: agoSec(registeredAgoSec), last_poll_at: agoSec(lastPollAgoSec) };
 }
 
+/** Every service of the bed embeds atropos, so each of the eleven in
+ *  REAL_SERVICES registers at least one instance, and all instances of one
+ *  service share a status: the Dashboard tile (best instance) and the
+ *  Services card (worst instance) then agree. fixture-consistency.test.ts
+ *  fails when this drifts from the other fixtures. */
 const _mockInstances: MockInstance[] = [
   {
     id: "prod-cat-sdk-a1b2c",
@@ -51,8 +56,8 @@ const _mockInstances: MockInstance[] = [
     version: "v0.4.1",
     address: "10.0.0.13:50051",
     registeredAgoSec: 26 * HOUR_SEC,
-    lastPollAgoSec: 47,
-    status: "stale",
+    lastPollAgoSec: 4,
+    status: "alive",
   },
   {
     id: "checkout-sdk-g5h6i",
@@ -90,6 +95,60 @@ const _mockInstances: MockInstance[] = [
     lastPollAgoSec: 3,
     status: "alive",
   },
+  {
+    id: "ad-sdk-s3t4u",
+    service: "adservice",
+    version: "v0.4.2",
+    address: "10.0.0.61:50051",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 2,
+    status: "alive",
+  },
+  {
+    id: "currency-sdk-v5w6x",
+    service: "currencyservice",
+    version: "v0.4.2",
+    address: "10.0.0.71:50051",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 1,
+    status: "alive",
+  },
+  {
+    id: "email-sdk-y7z8a",
+    service: "emailservice",
+    version: "v0.4.2",
+    address: "10.0.0.81:50051",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 5,
+    status: "alive",
+  },
+  {
+    id: "frontend-sdk-b9c0d",
+    service: "frontend",
+    version: "v0.4.2",
+    address: "10.0.0.11:50051",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 1,
+    status: "alive",
+  },
+  {
+    id: "shipping-sdk-e1f2g",
+    service: "shippingservice",
+    version: "v0.4.2",
+    address: "10.0.0.91:50051",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 3,
+    status: "alive",
+  },
+  {
+    id: "assistant-sdk-h3i4j",
+    service: "shoppingassistantservice",
+    version: "v0.4.2",
+    address: "10.0.0.101:50051",
+    registeredAgoSec: 26 * HOUR_SEC,
+    lastPollAgoSec: 4,
+    status: "alive",
+  },
 ];
 
 /** Per-instance detail the list does not carry. `active_rule_ids` is not
@@ -107,7 +166,7 @@ const _mockDetail: Record<
   },
   "prod-cat-sdk-d3e4f": {
     observed_generation: 42,
-    applied_generation: 41,
+    applied_generation: 42,
     recent_run_ids: ["ph-001-baseline", "ph-004-baseline"],
   },
   "checkout-sdk-g5h6i": {
@@ -131,6 +190,36 @@ const _mockDetail: Record<
     applied_generation: 42,
     recent_run_ids: ["ph-004-blackhole", "ph-004-baseline"],
   },
+  "ad-sdk-s3t4u": {
+    observed_generation: 42,
+    applied_generation: 42,
+    recent_run_ids: ["ph-004-blackhole", "ph-004-baseline"],
+  },
+  "currency-sdk-v5w6x": {
+    observed_generation: 42,
+    applied_generation: 42,
+    recent_run_ids: ["ph-001-isolation", "ph-001-baseline"],
+  },
+  "email-sdk-y7z8a": {
+    observed_generation: 42,
+    applied_generation: 42,
+    recent_run_ids: ["ph-001-isolation", "ph-001-baseline"],
+  },
+  "frontend-sdk-b9c0d": {
+    observed_generation: 42,
+    applied_generation: 42,
+    recent_run_ids: ["ph-001-isolation", "ph-001-baseline", "ph-004-blackhole"],
+  },
+  "shipping-sdk-e1f2g": {
+    observed_generation: 42,
+    applied_generation: 42,
+    recent_run_ids: ["ph-001-isolation", "ph-001-baseline"],
+  },
+  "assistant-sdk-h3i4j": {
+    observed_generation: 42,
+    applied_generation: 42,
+    recent_run_ids: [],
+  },
 };
 
 /** Mock-only: GET /api/v1/sdk/instances/{id} served from the fixtures. */
@@ -144,6 +233,11 @@ export function mockSDKInstanceDetail(id: string): SDKInstanceDetail {
     recent_run_ids: [...extra.recent_run_ids],
     active_rule_ids: mockActiveRuleIds(inst.service),
   };
+}
+
+/** Mock-only: the instance list as GET /api/v1/sdk/instances serves it. */
+export function mockSDKInstances(): SDKInstance[] {
+  return _mockInstances.map(stamp);
 }
 
 /** Mock-only: the kill switch disables every enabled rule of the instance's
@@ -161,7 +255,7 @@ function mockDelay() {
 export async function listSDKInstances(): Promise<SDKInstance[]> {
   if (USE_MOCK) {
     await mockDelay();
-    return _mockInstances.map(stamp);
+    return mockSDKInstances();
   }
   return apiClient.get("/api/v1/sdk/instances", List);
 }

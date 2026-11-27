@@ -113,6 +113,22 @@ describe("ruleSubtitle", () => {
   });
 });
 
+describe("ruleSubtitle for cache-box rules", () => {
+  const cacheRule = (mode: "replay" | "passthrough") =>
+    ({
+      ...BASE,
+      id: "r",
+      action: { type: "cachebox", cachebox: { mode, key_strategy: "exact" } },
+      match: {},
+    }) as Rule;
+
+  it("names the mode, not the target twice", () => {
+    expect(ruleSubtitle(cacheRule("replay"))).toBe("cachebox · replay");
+    expect(ruleSubtitle(cacheRule("passthrough"))).toBe("cachebox · passthrough");
+    expect(ruleSubtitle(cacheRule("replay"))).not.toBe("cachebox · cachebox");
+  });
+});
+
 describe("with the fault library (VM1 ids are opaque)", () => {
   const specs = specLookup([
     {

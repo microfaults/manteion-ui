@@ -81,7 +81,7 @@ describe("mock instance detail", () => {
       const ageSec = (id: string) =>
         (Date.now() - Date.parse(s.mockSDKInstanceDetail(id).last_poll_at ?? "")) / 1000;
       expect(ageSec("prod-cat-sdk-a1b2c")).toBeLessThan(10);
-      expect(ageSec("prod-cat-sdk-d3e4f")).toBeGreaterThan(30);
+      expect(ageSec("payment-sdk-m9n0o")).toBeGreaterThan(30);
       expect(ageSec("cart-sdk-j7k8l")).toBeGreaterThan(300);
       expect(s.mockSDKInstanceDetail("prod-cat-sdk-a1b2c").last_poll_at).toBe(
         "2026-11-16T11:59:58Z",
