@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { faultsApi, rulesApi } from "@/lib/api";
 import { formatParams } from "@/lib/faults";
-import { cn } from "@/lib/utils";
+import { cn, plural } from "@/lib/utils";
 import type { FaultCategory, FaultSpec } from "@/types/api";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
@@ -154,9 +154,7 @@ function FaultsPage() {
                         <td className="px-5 py-2.5">
                           <p className="font-mono text-sm font-medium">{spec.name}</p>
                           <p className="text-xs text-muted-foreground">
-                            {count > 0
-                              ? `${count} rule${count === 1 ? "" : "s"} use this`
-                              : "unused"}
+                            {plural(count, "rule", "uses this", "use this")}
                           </p>
                         </td>
                         <td className="px-3 py-2.5 text-xs text-foreground">{spec.category}</td>

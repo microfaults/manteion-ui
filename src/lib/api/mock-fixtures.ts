@@ -349,7 +349,7 @@ export const mockExperiments: Experiment[] = [
     name: "sample-catalog-latency",
     description: "Add 50 ms to productcatalogservice between two plain browse phases.",
     hypothesis:
-      "Adding 50 ms at productcatalogservice raises browse p95 by about 7 ms per 1 ms added, and it recovers when the fault is removed.",
+      "Adding 50 ms at productcatalogservice raises browse p95 by about 7 ms per 1 ms added, because the product and cart pages that make up the p95 tail call it about seven times each; p95 recovers when the fault is removed.",
     status: "planned",
     targeted_services: ["productcatalogservice"],
     created_by: "operator",

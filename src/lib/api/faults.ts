@@ -415,10 +415,15 @@ export async function getFaultCatalog(): Promise<FaultCatalogEntry[]> {
   return resp.catalog;
 }
 
+/** Mock-only: the fault spec store as GET /api/v1/faults/specs serves it. */
+export function mockFaultSpecs(): FaultSpec[] {
+  return [..._mockSpecs];
+}
+
 export async function listFaultSpecs(): Promise<FaultSpec[]> {
   if (USE_MOCK) {
     await new Promise((r) => setTimeout(r, 60));
-    return [..._mockSpecs];
+    return mockFaultSpecs();
   }
   return apiClient.get("/api/v1/faults/specs", FaultSpecsList);
 }

@@ -7,7 +7,7 @@
 import { cn } from "@/lib/utils";
 
 const LABEL =
-  "How one fault runs on Online Boutique: zeus sends load to the frontend, which reaches productcatalogservice directly and through recommendationservice, each time through its atropos layer; manteion controls atropos and zeus";
+  "How one fault runs on Online Boutique: zeus sends load to the frontend, which reaches productcatalogservice directly and through recommendationservice; the atropos SDK compiled into productcatalogservice adds 50 ms to each request it receives; manteion controls atropos and zeus";
 
 type Tone = "request" | "control" | "fault";
 
@@ -163,7 +163,7 @@ export function MeshDiagram() {
           ))}
         </defs>
 
-        {/* Target pod: atropos and the service under test share it. */}
+        {/* One process: the atropos SDK is compiled into the service under test. */}
         <rect x={552.5} y={100.5} width={383} height={167} rx={8} className={plainBox} />
 
         <Line x1={168} y1={184} x2={307} y2={184} tone="request" />
@@ -199,7 +199,7 @@ export function MeshDiagram() {
           y={148}
           w={120}
           h={72}
-          name="atropos"
+          name="atropos SDK"
           subtitle="+50 ms"
           boxClass="fill-status-down-muted stroke-status-down"
           subtitleClass="fill-status-down"
@@ -262,7 +262,7 @@ export function MeshDiagram() {
           letterSpacing="0.08em"
           className="fill-muted-foreground font-mono uppercase"
         >
-          Target pod
+          One process
         </text>
         <Caption x={484} y={348} anchor="start">
           a second path into the catalog

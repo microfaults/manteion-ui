@@ -98,6 +98,13 @@ describe("RulesPage list", () => {
     expect(screen.getByText(/2 total · 1 enabled/)).toBeTruthy();
   });
 
+  it("labels a cache-box rule by its mode", async () => {
+    await renderRulesPage();
+    await screen.findByText("hang-productcatalogservice");
+    expect(screen.getByText("cachebox · replay")).toBeTruthy();
+    expect(screen.queryByText("cachebox · cachebox")).toBeNull();
+  });
+
   it("shows error state when fetch fails", async () => {
     vi.mocked(rulesApi.listRules).mockRejectedValue(new Error("network error"));
     await renderRulesPage();

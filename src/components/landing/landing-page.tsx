@@ -147,9 +147,10 @@ function HowItWorks() {
     <LandingSection eyebrow="How it works" title="One fault, on Online Boutique">
       <Lead className="mb-5">
         Online Boutique is an eleven-service shop. Here the product catalog is the service under
-        test: a rule tells the atropos layer in front of it to add 50 ms to every request, while
-        zeus keeps the same load arriving at the frontend. The frontend reaches the catalog directly
-        and again through the recommendation service, so one added delay is paid more than once.
+        test: a rule tells the atropos SDK compiled into it to add 50 ms to every request it
+        receives, while zeus keeps the same load arriving at the frontend. The frontend reaches the
+        catalog directly and again through the recommendation service, so one added delay is paid
+        more than once.
       </Lead>
       <MeshDiagram />
       <ul className="flex flex-wrap gap-x-7 gap-y-3 pt-4 text-[13px] leading-5 text-muted-foreground">
@@ -228,8 +229,10 @@ function Measured() {
         ))}
       </div>
       <p className="mt-4 max-w-[760px] text-muted-foreground">
-        A browse request crosses the product catalog about seven times, so the delay multiplies on
-        the way out. Measured on the real testbed on 2026-08-25 (experiment{" "}
+        Only the product and cart pages call{" "}
+        <span className="font-mono text-mono">productcatalogservice</span> about seven times each,
+        and those pages are the slow tail that browse p95 reads, so p95 pays the 50 ms about seven
+        times over. Measured on the real testbed on 2026-08-25 (experiment{" "}
         <span className="font-mono text-mono">exp12-dose</span>, zero dropped iterations), not in
         this simulation.
       </p>
@@ -258,11 +261,16 @@ const REPOS: { name: string; blurb: string }[] = [
     blurb:
       "The application under test: a Go port of Online Boutique, eleven services and a Redis cart store.",
   },
+  {
+    name: "manteion-ui",
+    blurb:
+      "Operator console. Edits rules and fault specs, plans and runs experiments, and shows what each phase measured.",
+  },
 ];
 
 function Parts() {
   return (
-    <LandingSection eyebrow="The parts" title="Four repositories, one loop">
+    <LandingSection eyebrow="The parts" title="Five repositories, one loop">
       <div className="mt-4 grid grid-cols-[repeat(auto-fit,minmax(min(240px,100%),1fr))] gap-4">
         {REPOS.map(({ name, blurb }) => (
           <div

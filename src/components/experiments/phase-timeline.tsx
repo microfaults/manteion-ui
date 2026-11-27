@@ -393,8 +393,8 @@ function FaultEvents({ phaseId, now }: { phaseId: string; now?: number }) {
               <span className="font-mono">{ev.source}</span>
               <span className="text-muted-foreground">
                 {ev.service ? ` · ${ev.service}` : ""} · {ev.kind}
-                {ev.started_at ? ` · opened ${relativeTo(ev.started_at, now)}` : ""}
-                {ev.ended_at ? ` · closed ${relativeTo(ev.ended_at, now)}` : ""}
+                {ev.started_at ? ` · opened ${formatRelative(ev.started_at, now)}` : ""}
+                {ev.ended_at ? ` · closed ${formatRelative(ev.ended_at, now)}` : ""}
               </span>
             </li>
           ))}
@@ -402,10 +402,4 @@ function FaultEvents({ phaseId, now }: { phaseId: string; now?: number }) {
       ) : null}
     </details>
   );
-}
-
-function relativeTo(iso: string, now?: number): string {
-  if (now == null) return formatRelative(iso);
-  const s = Math.max(0, Math.floor((now - Date.parse(iso)) / 1000));
-  return s < 60 ? `${s}s ago` : `${Math.floor(s / 60)}m ago`;
 }

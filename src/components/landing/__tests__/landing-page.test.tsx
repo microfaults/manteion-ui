@@ -90,6 +90,11 @@ describe("LandingPage", () => {
     ).toBeTruthy();
     for (const t of ["10.5 ms", "364.9 ms", "8.4 ms"]) expect(screen.getByText(t)).toBeTruthy();
     expect(screen.getByText(/Measured on the real testbed on 2026-08-25/)).toBeTruthy();
+    // The multiplier is about the p95 tail (product and cart pages), not every browse request.
+    expect(screen.queryByText(/A browse request crosses/)).toBeNull();
+    expect(
+      screen.getAllByText(includesText("the slow tail that browse p95 reads")).length,
+    ).toBeGreaterThan(0);
     expect(document.title).toBe("Manteion");
   });
 
@@ -99,7 +104,7 @@ describe("LandingPage", () => {
     for (const s of [
       "zeus",
       "frontend",
-      "atropos",
+      "atropos SDK",
       "productcatalogservice",
       "manteion",
       "recommendationservice",
@@ -107,6 +112,9 @@ describe("LandingPage", () => {
       expect(within(diagram).getByText(s)).toBeTruthy();
     for (const s of ["cartservice", "currencyservice", "checkoutservice"])
       expect(within(diagram).queryByText(s)).toBeNull();
+    // The SDK is compiled into the service, not a sidecar in a shared pod.
+    expect(within(diagram).getByText("One process")).toBeTruthy();
+    expect(within(diagram).queryByText("Target pod")).toBeNull();
     expect(diagram.parentElement?.classList.contains("overflow-x-auto")).toBe(true);
   });
 
@@ -128,6 +136,7 @@ describe("LandingPage", () => {
       "Ubuntu 22.04.5",
     ])
       expect(screen.getAllByText(includesText(t)).length).toBeGreaterThan(0);
+    expect(screen.getByText("The testbed · recorded 2026-08-25")).toBeTruthy();
   });
 
   it("links to the console and opens GitHub in a new tab", async () => {
@@ -143,6 +152,17 @@ describe("LandingPage", () => {
       expect(hint.classList.contains("sr-only")).toBe(true);
     }
     expect(screen.getByRole("link", { name: "atropos-go (opens in a new tab)" })).toBeTruthy();
+  });
+
+  it("lists all five repositories, this console included", async () => {
+    renderLanding();
+    expect(
+      await screen.findByRole("heading", { name: "Five repositories, one loop" }),
+    ).toBeTruthy();
+    const ui = screen.getByRole("link", { name: "manteion-ui (opens in a new tab)" });
+    expect(ui.getAttribute("href")).toBe("https://github.com/microfaults/manteion-ui");
+    expect(ui.getAttribute("target")).toBe("_blank");
+    expect(ui.getAttribute("rel")).toBe("noreferrer");
   });
 
   it("never calls a result card's phase an isolation phase", async () => {

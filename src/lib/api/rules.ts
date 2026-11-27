@@ -217,10 +217,15 @@ export function mockDisableServiceRules(service: string): string[] {
   return ids;
 }
 
+/** Mock-only: the rule store as GET /api/v1/rules serves it. */
+export function mockRules(): Rule[] {
+  return [..._mockRules];
+}
+
 export async function listRules(): Promise<Rule[]> {
   if (USE_MOCK) {
     await mockDelay();
-    return [..._mockRules];
+    return mockRules();
   }
   return apiClient.get("/api/v1/rules", RulesList);
 }
